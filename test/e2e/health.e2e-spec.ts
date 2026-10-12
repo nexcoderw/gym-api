@@ -1,18 +1,17 @@
-import { type INestApplication } from '@nestjs/common';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
-import type { App } from 'supertest/types';
 
 import { configureApplication } from '../../src/app-bootstrap';
 import { AppModule } from '../../src/app.module';
 import { validateEnvironment } from '../../src/config/environment.validation';
 
 describe('API foundation (e2e)', () => {
-	let application: INestApplication<App>;
+	let application: NestExpressApplication;
 
 	beforeAll(async () => {
 		const module = await Test.createTestingModule({ imports: [AppModule] }).compile();
-		application = module.createNestApplication<App>();
+		application = module.createNestApplication<NestExpressApplication>();
 		configureApplication(
 			application,
 			validateEnvironment({
