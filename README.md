@@ -50,16 +50,16 @@ future Nest major upgrade must be coordinated across both packages.
 Copy `.env.local.example` to ignored `.env.local` for development. Production values come from managed
 deployment configuration, not committed files.
 
-| Variable | Default | Requirement |
-| --- | --- | --- |
-| `NODE_ENV` | `development` | `development`, `test`, or `production` |
-| `HOST` | `127.0.0.1` | Explicit production bind address recommended |
-| `PORT` | `3001` | Integer from 1 through 65535 |
-| `CORS_ORIGINS` | local frontend outside production | Required comma-separated origins in production |
-| `SWAGGER_ENABLED` | true outside production | Defaults false in production |
-| `RATE_LIMIT_TTL_MS` | `60000` | Window from 1000 through 3600000 ms |
-| `RATE_LIMIT_LIMIT` | `100` | Requests per window from 1 through 100000 |
-| `DATABASE_URL` | none | Future database-package integration prerequisite |
+| Variable            | Default                           | Requirement                                      |
+| ------------------- | --------------------------------- | ------------------------------------------------ |
+| `NODE_ENV`          | `development`                     | `development`, `test`, or `production`           |
+| `HOST`              | `127.0.0.1`                       | Explicit production bind address recommended     |
+| `PORT`              | `3001`                            | Integer from 1 through 65535                     |
+| `CORS_ORIGINS`      | local frontend outside production | Required comma-separated origins in production   |
+| `SWAGGER_ENABLED`   | true outside production           | Defaults false in production                     |
+| `RATE_LIMIT_TTL_MS` | `60000`                           | Window from 1000 through 3600000 ms              |
+| `RATE_LIMIT_LIMIT`  | `100`                             | Requests per window from 1 through 100000        |
+| `DATABASE_URL`      | none                              | Future database-package integration prerequisite |
 
 `CORS_ORIGINS` accepts origins only, such as `https://admin.gym.rw`, with no path. CORS does not prove
 tenant identity or authorization.
@@ -95,14 +95,14 @@ Errors use this shape:
 
 ```json
 {
-  "error": {
-    "code": "VALIDATION_FAILED",
-    "message": "Request validation failed",
-    "requestId": "9a14de53-a456-4b8d-9676-106cc5caa2ad",
-    "details": [{ "field": "email", "message": "email must be an email" }]
-  },
-  "timestamp": "2026-10-12T10:30:00.000Z",
-  "path": "/api/v1/members"
+	"error": {
+		"code": "VALIDATION_FAILED",
+		"message": "Request validation failed",
+		"requestId": "9a14de53-a456-4b8d-9676-106cc5caa2ad",
+		"details": [{ "field": "email", "message": "email must be an email" }]
+	},
+	"timestamp": "2026-10-12T10:30:00.000Z",
+	"path": "/api/v1/members"
 }
 ```
 
