@@ -25,7 +25,7 @@ export class RequestLoggingInterceptor implements NestInterceptor {
 			finalize(() => {
 				const durationMilliseconds = Math.round(performance.now() - startedAt);
 				this.logger.log(
-					`${request.method} ${request.path} ${response.statusCode} ${durationMilliseconds}ms requestId=${request.requestId}`,
+					`${request.method} ${request.path} ${String(response.statusCode)} ${String(durationMilliseconds)}ms requestId=${request.requestId}`,
 				);
 			}),
 		);
