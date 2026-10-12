@@ -6,13 +6,7 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
 	{
-		ignores: [
-			'dist/**',
-			'coverage/**',
-			'node_modules/**',
-			'eslint.config.mjs',
-			'jest.config.cjs',
-		],
+		ignores: ['dist/**', 'coverage/**', 'node_modules/**', 'eslint.config.mjs', 'jest.config.cjs'],
 	},
 	eslint.configs.recommended,
 	...tseslint.configs.strictTypeChecked,
@@ -25,14 +19,18 @@ export default tseslint.config(
 			sourceType: 'commonjs',
 		},
 		rules: {
-			'@typescript-eslint/consistent-type-imports': [
-				'error',
-				{ fixStyle: 'inline-type-imports' },
-			],
+			'@typescript-eslint/consistent-type-imports': ['error', { fixStyle: 'inline-type-imports' }],
 			'@typescript-eslint/no-explicit-any': 'error',
 			'@typescript-eslint/no-floating-promises': 'error',
 			'@typescript-eslint/no-unsafe-argument': 'error',
 			'prettier/prettier': ['error', { endOfLine: 'lf', useTabs: true }],
+		},
+	},
+	{
+		files: ['**/*.module.ts'],
+		rules: {
+			// Nest modules are framework-discovered classes even when they have no instance members.
+			'@typescript-eslint/no-extraneous-class': 'off',
 		},
 	},
 );
