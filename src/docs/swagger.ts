@@ -13,10 +13,7 @@ export function createOpenApiDocument(application: INestApplication): OpenAPIObj
 		.setVersion(API_VERSION)
 		.addServer(`/api/v${API_VERSION}`, 'Current API version')
 		.addCookieAuth('session', { type: 'apiKey', in: 'cookie' })
-		.addBearerAuth(
-			{ type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },
-			'mobile-access-token',
-		)
+		.addBearerAuth({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT' }, 'mobile-access-token')
 		.build();
 
 	return SwaggerModule.createDocument(application, configuration);
