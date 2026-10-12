@@ -22,7 +22,9 @@ function parseInteger(
 
 	const parsed = typeof value === 'number' ? value : Number(value);
 	if (!Number.isSafeInteger(parsed) || parsed < minimum || parsed > maximum) {
-		throw new Error(`${name} must be an integer between ${minimum} and ${maximum}.`);
+		throw new Error(
+			`${name} must be an integer between ${String(minimum)} and ${String(maximum)}.`,
+		);
 	}
 	return parsed;
 }
@@ -82,8 +84,8 @@ function parseOrigins(value: unknown, environment: NodeEnvironment): string[] {
 
 /** Validates and normalizes environment variables before Nest creates application providers. */
 export function validateEnvironment(input: Record<string, unknown>): EnvironmentVariables {
-	const nodeEnvironment = parseNodeEnvironment(input['NODE_ENV']);
-	const host = input['HOST'];
+	const nodeEnvironment = parseNodeEnvironment(input.NODE_ENV);
+	const host = input.HOST;
 	if (host !== undefined && (typeof host !== 'string' || host.trim() === '')) {
 		throw new Error('HOST must be a non-empty string.');
 	}
@@ -91,22 +93,22 @@ export function validateEnvironment(input: Record<string, unknown>): Environment
 	return Object.freeze({
 		NODE_ENV: nodeEnvironment,
 		HOST: typeof host === 'string' ? host : '127.0.0.1',
-		PORT: parseInteger(input['PORT'], 'PORT', DEFAULT_PORT, 1, 65_535),
-		CORS_ORIGINS: parseOrigins(input['CORS_ORIGINS'], nodeEnvironment),
+		PORT: parseInteger(input.PORT, 'PORT', DEFAULT_PORT, 1, 65_535),
+		CORS_ORIGINS: parseOrigins(input.CORS_ORIGINS, nodeEnvironment),
 		SWAGGER_ENABLED: parseBoolean(
-			input['SWAGGER_ENABLED'],
+			input.SWAGGER_ENABLED,
 			'SWAGGER_ENABLED',
 			nodeEnvironment !== 'production',
 		),
 		RATE_LIMIT_TTL_MS: parseInteger(
-			input['RATE_LIMIT_TTL_MS'],
+			input.RATE_LIMIT_TTL_MS,
 			'RATE_LIMIT_TTL_MS',
 			DEFAULT_RATE_LIMIT_TTL_MS,
 			1_000,
 			3_600_000,
 		),
 		RATE_LIMIT_LIMIT: parseInteger(
-			input['RATE_LIMIT_LIMIT'],
+			input.RATE_LIMIT_LIMIT,
 			'RATE_LIMIT_LIMIT',
 			DEFAULT_RATE_LIMIT_LIMIT,
 			1,
