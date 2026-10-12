@@ -2,7 +2,6 @@ import {
 	ArgumentsHost,
 	Catch,
 	HttpException,
-	HttpStatus,
 	Logger,
 	type ExceptionFilter,
 } from '@nestjs/common';
@@ -18,6 +17,7 @@ const STATUS_CODES: Readonly<Record<number, string>> = {
 	409: 'CONFLICT',
 	429: 'RATE_LIMITED',
 };
+const INTERNAL_SERVER_ERROR_STATUS = 500;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -35,12 +35,12 @@ export class ApiExceptionFilter implements ExceptionFilter {
 		const exceptionBody = exception instanceof HttpException ? exception.getResponse() : undefined;
 		const bodyRecord = isRecord(exceptionBody) ? exceptionBody : undefined;
 		const code =
-			typeof bodyRecord?.['code'] === 'string'
-				? bodyRecord['code']
+			typeof bodyRecord?.code === 'string'
+				? bodyRecord.code
 				: (STATUS_CODES[status] ?? 'INTERNAL_ERROR');
-		const messageValue = bodyRecord?.['message'];
+		const messageValue = bodyRecord?.message;
 		const message =
-			status >= HttpStatus.INTERNAL_SERVER_ERROR
+			status >= INTERNAL_SERVER_ERROR_STATUS
 				? 'An unexpected error occurred'
 				: typeof exceptionBody === 'string'
 					? exceptionBody
@@ -48,7 +48,7 @@ export class ApiExceptionFilter implements ExceptionFilter {
 						? messageValue
 						: 'Request failed';
 
-		if (status >= HttpStatus.INTERNAL_SERVER_ERROR) {
+		if (status >= INTERNAL_SERVER_ERROR_STATUS) {
 			this.logger.error(
 				`${request.method} ${request.path} failed requestId=${request.requestId}`,
 				exception instanceof Error ? exception.stack : undefined,
@@ -60,7 +60,7 @@ export class ApiExceptionFilter implements ExceptionFilter {
 				code,
 				message,
 				requestId: request.requestId,
-				...(Array.isArray(bodyRecord?.['details']) ? { details: bodyRecord['details'] } : {}),
+				...(Array.isArray(bodyRecord?.details) ? { details: bodyRecord.details } : {}),
 			},
 			timestamp: new Date().toISOString(),
 			path: request.path,
