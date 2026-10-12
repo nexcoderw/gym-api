@@ -1,17 +1,18 @@
 import { type INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
+import type { App } from 'supertest/types';
 
 import { configureApplication } from '../../src/app-bootstrap';
 import { AppModule } from '../../src/app.module';
 import { validateEnvironment } from '../../src/config/environment.validation';
 
 describe('API foundation (e2e)', () => {
-	let application: INestApplication;
+	let application: INestApplication<App>;
 
 	beforeAll(async () => {
 		const module = await Test.createTestingModule({ imports: [AppModule] }).compile();
-		application = module.createNestApplication();
+		application = module.createNestApplication<App>();
 		configureApplication(
 			application,
 			validateEnvironment({
@@ -28,17 +29,22 @@ describe('API foundation (e2e)', () => {
 	});
 
 	it('serves a versioned liveness response with security headers', async () => {
-		const response = await request(application.getHttpServer()).get('/api/v1/health/live').expect(200);
+		const response = await request(application.getHttpServer())
+			.get('/api/v1/health/live')
+			.expect(200);
+		const body: unknown = response.body;
 
-		expect(response.headers['x-request-id']).toEqual(expect.any(String));
-		expect(response.headers['x-content-type-options']).toBe('nosniff');
-		expect(response.body).toEqual({
-			status: 'ok',
-			service: 'nexcode-gym-api',
-			version: '0.1.0',
-			timestamp: expect.any(String),
-			uptimeSeconds: expect.any(Number),
-		});
+		expect(typeof response.get('x-request-id')).toBe('string');
+		expect(response.get('x-content-type-options')).toBe('nosniff');
+		expect(isRecord(body)).toBe(true);
+		if (!isRecord(body)) {
+			throw new Error('Expected a liveness response object.');
+		}
+		expect(body.status).toBe('ok');
+		expect(body.service).toBe('nexcode-gym-api');
+		expect(body.version).toBe('0.1.0');
+		expect(typeof body.timestamp).toBe('string');
+		expect(typeof body.uptimeSeconds).toBe('number');
 	});
 
 	it('returns the stable error envelope for unknown routes', async () => {
@@ -46,15 +52,20 @@ describe('API foundation (e2e)', () => {
 			.get('/api/v1/missing')
 			.set('x-request-id', 'foundation-test')
 			.expect(404);
+		const body: unknown = response.body;
 
-		expect(response.body).toEqual({
-			error: {
-				code: 'NOT_FOUND',
-				message: 'Cannot GET /api/v1/missing',
-				requestId: 'foundation-test',
-			},
-			timestamp: expect.any(String),
-			path: '/api/v1/missing',
-		});
+		expect(isRecord(body)).toBe(true);
+		if (!isRecord(body) || !isRecord(body.error)) {
+			throw new Error('Expected an API error response object.');
+		}
+		expect(body.error.code).toBe('NOT_FOUND');
+		expect(body.error.message).toBe('Cannot GET /api/v1/missing');
+		expect(body.error.requestId).toBe('foundation-test');
+		expect(typeof body.timestamp).toBe('string');
+		expect(body.path).toBe('/api/v1/missing');
 	});
 });
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
