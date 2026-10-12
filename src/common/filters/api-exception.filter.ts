@@ -1,10 +1,4 @@
-import {
-	ArgumentsHost,
-	Catch,
-	HttpException,
-	Logger,
-	type ExceptionFilter,
-} from '@nestjs/common';
+import { ArgumentsHost, Catch, HttpException, Logger, type ExceptionFilter } from '@nestjs/common';
 import type { Response } from 'express';
 
 import type { RequestWithContext } from '../types/request-with-context';
