@@ -187,6 +187,29 @@ Errors use this shape:
 
 ## Platform administrator authentication
 
+### Automatic superadmin permissions
+
+An active staff member with a live database assignment to the system role `platform.owner`
+(`isSystem=true`) is the platform superadmin. After all session eligibility checks, Nest grants this
+principal every permission declared in `platform-permission.constants.ts`. This currently includes
+dashboard read and all five organization permissions. Existing owners receive these effective
+permissions on their next successful session check; no SQL grants, owner reinitialization or
+frontend role bypass is needed. New platform capabilities must register their permission in the
+same catalog before an endpoint requires it; all system owners then receive it automatically.
+
+Ordinary staff retain only their explicit database role-permission links. Matching an email,
+display name, user-provided header or a non-system role named `platform.owner` cannot elevate
+access. The policy performs no permission writes during login or GET requests. Bootstrap retains
+its original persisted dashboard-only allowlist for compatibility with pending owner activation;
+active-owner effective permissions are resolved separately. Database permission counts continue
+to count stored catalog records, not computed owner capabilities.
+
+Removing individual permission links does not restrict a system owner under this policy. Remove
+the owner-role assignment, suspend/revoke the staff account, or revoke its session to remove access.
+The next live check enforces that change. MFA, email verification, password state, session expiry,
+Origin/CSRF, tenant boundaries, entitlements and durable audit gates are unchanged. In particular,
+full organization permission does not bypass the currently unavailable mutation audit provider.
+
 Email verification is an opt-in, weaker fallback than authenticator MFA. Set
 `PLATFORM_AUTH_EMAIL_OTP_ENABLED=true`, `RESEND_API_KEY` (a sending-only key), and
 `RESEND_FROM_EMAIL` (a bare address on your Resend-verified domain) in the API's ignored `.env.local`
@@ -243,7 +266,8 @@ key rotation, and verification details.
 `GET /api/v1/platform/dashboard/summary` returns read-only platform identity and authorization
 statistics. Both existing guards are mandatory: the session guard revalidates the live administrator
 and MFA-authenticated session, then the permission guard requires `platform.dashboard.read` from
-current database role assignments. A role named `platform.owner` is not a bypass. Tenant IDs, gym
+current database role assignments and the explicit system-owner policy. An untrusted role name is
+not a bypass. Tenant IDs, gym
 ownership, and client-provided permission headers do not authorize this endpoint.
 
 The response is HTTP 200 JSON with `Cache-Control: no-store`. Fictional example:
@@ -392,7 +416,8 @@ no tenant-wide query helper, schema, migration, client, frontend adapter or new 
 | POST /:id/activation                             | platform.organizations.activate | Audit-blocked 503; prepared 200           |
 | POST /:id/suspension                             | platform.organizations.suspend  | Audit-blocked 503; prepared 200           |
 
-Every endpoint reuses live platform session and explicit permission guards. An owner role alone,
+Every endpoint reuses live platform session and explicit permission guards. System owners receive
+the declared organization permissions through the backend policy. A non-system owner name,
 dashboard.read alone, tenant cookies and caller-provided permission hints grant nothing. Normal auth
 session validation may refresh idle expiry or revoke invalid sessions, but the organization audit
 gate prevents organization writes. Reads and all error responses are no-store. Writes additionally
@@ -458,12 +483,13 @@ tamper-resistance controls, and verify that organization mutation and success ev
 Never persist cookies, passwords, MFA/recovery material, tokens, connection URLs or arbitrary bodies.
 Review its migration, exports, runtime grants and real rollback tests before production installation.
 
-The first-owner permission allowlist remains dashboard.read only. No existing account/role gains
-organization access automatically. Permission provisioning is a separate privileged human operation:
+The first-owner persisted bootstrap allowlist remains dashboard.read only, while eligible system
+owners now automatically receive all declared platform permissions through the live policy above.
+For ordinary staff, permission provisioning remains a separate privileged human operation:
 
 1. Approve the five named permission registrations in the database catalog, including descriptions.
-2. Review a dedicated platform.organization-operator role with only approved subsets; do not silently
-   broaden platform.owner or every administrator. Preserve the bootstrap's exact allowlist contract.
+2. Review a dedicated platform.organization-operator role with only approved subsets; do not grant
+   it automatic system-owner privileges. Preserve the bootstrap's exact persisted allowlist contract.
 3. Independently verify the chosen active platform staff UUID and active user before explicit role
    assignment; record approval and a durable privileged audit through the approved operational process.
 4. In one reviewed transaction, register missing permission records and approved role links; retain
