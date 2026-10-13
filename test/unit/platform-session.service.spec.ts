@@ -7,6 +7,7 @@ import type { EnvironmentVariables } from '../../src/config/environment.types.js
 import { validateEnvironment } from '../../src/config/environment.validation.js';
 import { PlatformSessionService } from '../../src/modules/platform-auth/platform-session.service.js';
 import { PlatformTokenService } from '../../src/modules/platform-auth/platform-token.service.js';
+import { PLATFORM_PERMISSION } from '../../src/modules/platform-auth/platform-permission.constants.js';
 
 describe('PlatformSessionService', () => {
 	const sessionFindUnique = jest.fn<() => Promise<unknown>>();
@@ -74,6 +75,45 @@ describe('PlatformSessionService', () => {
 		});
 	});
 
+	it('automatically gives an existing system owner every declared platform permission', async () => {
+		sessionFindUnique.mockResolvedValue(createSession([], 'platform.owner', true));
+		await expect(
+			service.authenticate('fictional-session-token', new Date('2030-01-01T00:10:00.000Z')),
+		).resolves.toMatchObject({
+			roles: ['platform.owner'],
+			permissions: Object.values(PLATFORM_PERMISSION),
+		});
+	});
+
+	it('does not grant superadmin access to a non-system owner lookalike', async () => {
+		sessionFindUnique.mockResolvedValue(createSession([], 'platform.owner', false));
+		await expect(
+			service.authenticate('fictional-session-token', new Date('2030-01-01T00:10:00.000Z')),
+		).rejects.toMatchObject({ status: 401 });
+	});
+
+	it('still rejects a suspended system owner despite its automatic permissions', async () => {
+		const owner = createSession([], 'platform.owner', true);
+		sessionFindUnique.mockResolvedValue({
+			...owner,
+			platformStaff: { ...owner.platformStaff, status: PlatformStaffStatus.SUSPENDED },
+		});
+		await expect(
+			service.authenticate('fictional-session-token', new Date('2030-01-01T00:10:00.000Z')),
+		).rejects.toMatchObject({ status: 401 });
+	});
+
+	it('rechecks owner-role revocation on the next request', async () => {
+		sessionFindUnique.mockResolvedValueOnce(createSession([], 'platform.owner', true));
+		await expect(
+			service.authenticate('fictional-session-token', new Date('2030-01-01T00:10:00.000Z')),
+		).resolves.toMatchObject({ permissions: Object.values(PLATFORM_PERMISSION) });
+		sessionFindUnique.mockResolvedValueOnce(createSession([]));
+		await expect(
+			service.authenticate('fictional-session-token', new Date('2030-01-01T00:10:00.000Z')),
+		).rejects.toMatchObject({ status: 401 });
+	});
+
 	it('fails closed before session reads when transaction acquisition fails', async () => {
 		runTransaction.mockRejectedValueOnce(new Error('fictional transaction acquisition failure'));
 
@@ -86,21 +126,34 @@ describe('PlatformSessionService', () => {
 
 	it('retries one rolled-back serialization conflict and revalidates live permissions', async () => {
 		runTransaction.mockRejectedValueOnce({ code: 'P2034' });
-		sessionFindUnique.mockResolvedValue(createSession([{ platformPermission: { key: 'platform.dashboard.read' } }]));
-		await expect(service.authenticate('fictional-session-token', new Date('2030-01-01T00:10:00.000Z'))).resolves.toMatchObject({ permissions: ['platform.dashboard.read'] });
+		sessionFindUnique.mockResolvedValue(
+			createSession([{ platformPermission: { key: 'platform.dashboard.read' } }]),
+		);
+		await expect(
+			service.authenticate('fictional-session-token', new Date('2030-01-01T00:10:00.000Z')),
+		).resolves.toMatchObject({ permissions: ['platform.dashboard.read'] });
 		expect(runTransaction).toHaveBeenCalledTimes(2);
 	});
 
 	it('bounds serialization retries and returns an outage rather than logging out the user', async () => {
-		runTransaction.mockRejectedValueOnce({ code: 'P2034' }).mockRejectedValueOnce({ code: 'P2034' });
-		await expect(service.authenticate('fictional-session-token')).rejects.toMatchObject({ status: 503 });
+		runTransaction
+			.mockRejectedValueOnce({ code: 'P2034' })
+			.mockRejectedValueOnce({ code: 'P2034' });
+		await expect(service.authenticate('fictional-session-token')).rejects.toMatchObject({
+			status: 503,
+		});
 		expect(runTransaction).toHaveBeenCalledTimes(2);
 		expect(sessionUpdateMany).not.toHaveBeenCalled();
 	});
 
 	it('does not blindly retry an uncertain transaction timeout', async () => {
-		runTransaction.mockRejectedValueOnce({ code: 'P2028', message: 'private provider diagnostics' });
-		await expect(service.authenticate('fictional-session-token')).rejects.toMatchObject({ status: 503 });
+		runTransaction.mockRejectedValueOnce({
+			code: 'P2028',
+			message: 'private provider diagnostics',
+		});
+		await expect(service.authenticate('fictional-session-token')).rejects.toMatchObject({
+			status: 503,
+		});
 		expect(runTransaction).toHaveBeenCalledTimes(1);
 		expect(sessionFindUnique).not.toHaveBeenCalled();
 	});
@@ -123,7 +176,9 @@ describe('PlatformSessionService', () => {
 
 function createSession(
 	permissions: { readonly platformPermission: { readonly key: string } }[],
-): object {
+	roleKey = 'platform.operator',
+	isSystem = false,
+) {
 	return {
 		id: 'session-id',
 		createdAt: new Date('2030-01-01T00:00:00.000Z'),
@@ -145,7 +200,8 @@ function createSession(
 			roles: [
 				{
 					platformRole: {
-						key: 'platform.operator',
+						key: roleKey,
+						isSystem,
 						permissions,
 					},
 				},
