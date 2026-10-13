@@ -8,6 +8,8 @@ import { ResendEmailService } from '../../infrastructure/email/resend-email.serv
 import type { PlatformEmailOtpSentResponseDto } from './dto/platform-auth-response.dto.js';
 import { PLATFORM_AUTH_ERROR } from './platform-auth.constants.js';
 import { PlatformTokenService } from './platform-token.service.js';
+import { isPlatformSuperadmin } from './platform-permission-policy.js';
+import { PLATFORM_SUPERADMIN_ROLE_KEY } from './platform-permission.constants.js';
 
 const COOLDOWN_SECONDS = 60;
 const MAX_SENDS = 3;
@@ -52,6 +54,8 @@ export class PlatformEmailOtpService {
 							select: {
 								platformRole: {
 									select: {
+										key: true,
+										isSystem: true,
 										permissions: { select: { platformPermissionId: true }, take: 1 },
 									},
 								},
@@ -71,7 +75,10 @@ export class PlatformEmailOtpService {
 			challenge.platformStaff.user.emailVerifiedAt === null ||
 			challenge.platformStaff.user.passwordCredential === null ||
 			challenge.platformStaff.user.passwordCredential.passwordChangedAt > challenge.createdAt ||
-			!challenge.platformStaff.roles.some(({ platformRole }) => platformRole.permissions.length > 0)
+			(!isPlatformSuperadmin(challenge.platformStaff.roles) &&
+				!challenge.platformStaff.roles.some(
+					({ platformRole }) => platformRole.permissions.length > 0,
+				))
 		) {
 			throw new UnauthorizedException(PLATFORM_AUTH_ERROR.invalidChallenge);
 		}
@@ -97,7 +104,16 @@ export class PlatformEmailOtpService {
 				OR: [{ emailOtpSentAt: null }, { emailOtpSentAt: { lte: cooldownBefore } }],
 				platformStaff: {
 					status: PlatformStaffStatus.ACTIVE,
-					roles: { some: { platformRole: { permissions: { some: {} } } } },
+					roles: {
+						some: {
+							platformRole: {
+								OR: [
+									{ key: PLATFORM_SUPERADMIN_ROLE_KEY, isSystem: true },
+									{ permissions: { some: {} } },
+								],
+							},
+						},
+					},
 					user: {
 						status: UserStatus.ACTIVE,
 						email: recipient,
@@ -124,7 +140,11 @@ export class PlatformEmailOtpService {
 			});
 			throw error;
 		}
-		return { status: 'sent', expiresAt: expiresAt.toISOString(), retryAfterSeconds: COOLDOWN_SECONDS };
+		return {
+			status: 'sent',
+			expiresAt: expiresAt.toISOString(),
+			retryAfterSeconds: COOLDOWN_SECONDS,
+		};
 	}
 }
 
@@ -132,7 +152,8 @@ function limited(): HttpException {
 	return new HttpException(
 		{
 			code: 'PLATFORM_EMAIL_RATE_LIMITED',
-			message: 'Wait before requesting another code, or restart sign-in if the send limit was reached.',
+			message:
+				'Wait before requesting another code, or restart sign-in if the send limit was reached.',
 		},
 		429,
 	);
