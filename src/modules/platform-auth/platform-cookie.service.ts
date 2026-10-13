@@ -19,9 +19,7 @@ export class PlatformCookieService {
 
 	constructor(config: ConfigService<EnvironmentVariables, true>) {
 		this.secure = config.get('PLATFORM_AUTH_COOKIE_SECURE', { infer: true });
-		this.sessionCookieName = this.secure
-			? PLATFORM_SESSION_COOKIE
-			: LOCAL_PLATFORM_SESSION_COOKIE;
+		this.sessionCookieName = this.secure ? PLATFORM_SESSION_COOKIE : LOCAL_PLATFORM_SESSION_COOKIE;
 		this.csrfCookieName = this.secure ? PLATFORM_CSRF_COOKIE : LOCAL_PLATFORM_CSRF_COOKIE;
 	}
 
