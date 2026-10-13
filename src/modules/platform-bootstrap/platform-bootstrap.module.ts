@@ -15,4 +15,3 @@ import { PlatformOwnerBootstrapService } from './platform-owner-bootstrap.servic
 	exports: [PlatformOwnerBootstrapService],
 })
 export class PlatformBootstrapModule {}
-
