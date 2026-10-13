@@ -16,7 +16,7 @@ export default tseslint.config(
 		languageOptions: {
 			globals: { ...globals.node, ...globals.jest },
 			parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname },
-			sourceType: 'commonjs',
+			sourceType: 'module',
 		},
 		rules: {
 			'@typescript-eslint/consistent-type-imports': ['error', { fixStyle: 'inline-type-imports' }],
