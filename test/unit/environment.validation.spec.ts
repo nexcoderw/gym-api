@@ -32,6 +32,8 @@ describe('validateEnvironment', () => {
 			PLATFORM_OWNER_BOOTSTRAP_ENABLED: false,
 			PLATFORM_OWNER_BOOTSTRAP_EXPECTED_DATABASE_HOST: null,
 			PLATFORM_OWNER_BOOTSTRAP_EXPECTED_DATABASE_NAME: null,
+			PLATFORM_OWNER_BOOTSTRAP_EXPECTED_DATABASE_ROLE: null,
+			PLATFORM_OWNER_BOOTSTRAP_EXPECTED_DATABASE_MARKER: null,
 		});
 	});
 
@@ -96,5 +98,38 @@ describe('validateEnvironment', () => {
 				PLATFORM_TOTP_KEYRING: 'production-v1=AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI=',
 			}),
 		).toThrow('PLATFORM_AUTH_TOKEN_PEPPER must not use the local development key.');
+	});
+
+	it.each([
+		{ role: 'neondb_owner', marker: 'nexcode-gym:bootstrap:724fbc40-515c-4a30-a4bb-8a6458a24396' },
+		{ role: 'gym_app', marker: 'nexcode-gym:bootstrap:724fbc40-515c-4a30-a4bb-8a6458a24396' },
+		{ role: 'gym_bootstrap', marker: 'unprovisioned' },
+	])('rejects inappropriate bootstrap role or marker %j', ({ role, marker }) => {
+		expect(() =>
+			validateEnvironment({
+				NODE_ENV: 'test',
+				DATABASE_URL: `postgresql://${role}:fictional@approved.neon.tech/neondb`,
+				PLATFORM_OWNER_BOOTSTRAP_ENABLED: 'true',
+				PLATFORM_OWNER_BOOTSTRAP_EXPECTED_DATABASE_HOST: 'approved.neon.tech',
+				PLATFORM_OWNER_BOOTSTRAP_EXPECTED_DATABASE_NAME: 'neondb',
+				PLATFORM_OWNER_BOOTSTRAP_EXPECTED_DATABASE_ROLE: role,
+				PLATFORM_OWNER_BOOTSTRAP_EXPECTED_DATABASE_MARKER: marker,
+			}),
+		).toThrow();
+	});
+
+	it('requires the configured URL user to match the approved operator role', () => {
+		expect(() =>
+			validateEnvironment({
+				NODE_ENV: 'test',
+				DATABASE_URL: 'postgresql://gym_app:fictional@approved.neon.tech/neondb',
+				PLATFORM_OWNER_BOOTSTRAP_ENABLED: 'true',
+				PLATFORM_OWNER_BOOTSTRAP_EXPECTED_DATABASE_HOST: 'approved.neon.tech',
+				PLATFORM_OWNER_BOOTSTRAP_EXPECTED_DATABASE_NAME: 'neondb',
+				PLATFORM_OWNER_BOOTSTRAP_EXPECTED_DATABASE_ROLE: 'gym_bootstrap',
+				PLATFORM_OWNER_BOOTSTRAP_EXPECTED_DATABASE_MARKER:
+					'nexcode-gym:bootstrap:724fbc40-515c-4a30-a4bb-8a6458a24396',
+			}),
+		).toThrow('The configured bootstrap database role does not match the approved role.');
 	});
 });
