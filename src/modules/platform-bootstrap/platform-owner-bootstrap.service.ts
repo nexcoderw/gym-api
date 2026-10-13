@@ -3,12 +3,7 @@ import { randomBytes } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { isEmail } from 'class-validator';
-import {
-	PlatformStaffStatus,
-	Prisma,
-	PrismaService,
-	UserStatus,
-} from '@nexcoderw/gym-db';
+import { PlatformStaffStatus, Prisma, PrismaService, UserStatus } from '@nexcoderw/gym-db';
 
 import type { EnvironmentVariables } from '../../config/environment.types.js';
 import { PlatformPasswordService } from '../platform-auth/platform-password.service.js';
@@ -129,11 +124,11 @@ export class PlatformOwnerBootstrapService {
 					await transaction.platformTotpCredential.create({
 						data: {
 							platformStaffId: identity.platformStaff.id,
-							encryptedSecret: enrollment.encryptedSecret,
+							encryptedSecret: Buffer.from(enrollment.encryptedSecret),
 							encryptionKeyId: enrollment.encryptionKeyId,
 							encryptionVersion: enrollment.encryptionVersion,
-							initializationVector: enrollment.initializationVector,
-							authenticationTag: enrollment.authenticationTag,
+							initializationVector: Buffer.from(enrollment.initializationVector),
+							authenticationTag: Buffer.from(enrollment.authenticationTag),
 						},
 					});
 					return { enrollmentUri: enrollment.enrollmentUri, secret: enrollment.secret };
@@ -206,8 +201,7 @@ export class PlatformOwnerBootstrapService {
 					if (
 						identity.status !== UserStatus.PENDING ||
 						staff.status !== PlatformStaffStatus.PENDING ||
-						staff.totpCredential === null ||
-						staff.totpCredential.verifiedAt !== null ||
+						staff.totpCredential?.verifiedAt !== null ||
 						staff.totpCredential.disabledAt !== null ||
 						staff.totpCredential.lastAcceptedTimeStep !== null
 					) {
@@ -320,7 +314,7 @@ async function ensureOwnerRole(transaction: Prisma.TransactionClient): Promise<s
 		if (!existingRole.isSystem) {
 			throw roleConflict();
 		}
-		const approved = new Set(PLATFORM_OWNER_PERMISSIONS.map(({ key }) => key));
+		const approved = new Set<string>(PLATFORM_OWNER_PERMISSIONS.map(({ key }) => key));
 		if (
 			existingRole.permissions.some(
 				({ platformPermission }) => !approved.has(platformPermission.key),
@@ -409,11 +403,18 @@ function validateDisplayName(displayName: string): string {
 	if (
 		normalized.length < MINIMUM_DISPLAY_NAME_LENGTH ||
 		normalized.length > MAXIMUM_DISPLAY_NAME_LENGTH ||
-		/[\u0000-\u001f\u007f]/u.test(normalized)
+		containsControlCharacter(normalized)
 	) {
 		throw invalidInput('Enter a display name between 2 and 160 safe characters.');
 	}
 	return normalized;
+}
+
+function containsControlCharacter(value: string): boolean {
+	return [...value].some((character) => {
+		const characterCode = character.charCodeAt(0);
+		return characterCode <= 0x1f || characterCode === 0x7f;
+	});
 }
 
 function validatePassword(password: Buffer, email: string): void {
@@ -462,4 +463,3 @@ function translateTransactionError(error: unknown): Error {
 	}
 	return error instanceof Error ? error : new Error('Unknown platform owner bootstrap failure.');
 }
-
