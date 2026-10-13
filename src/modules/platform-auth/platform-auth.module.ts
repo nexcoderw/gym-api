@@ -34,6 +34,8 @@ import { PlatformTotpService } from './platform-totp.service.js';
 		PlatformPermissionGuard,
 		PlatformSessionGuard,
 		PlatformSessionService,
+		PlatformOriginCsrfGuard,
+		PlatformTokenService,
 	],
 })
 export class PlatformAuthModule {}
