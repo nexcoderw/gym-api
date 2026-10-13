@@ -122,7 +122,10 @@ function parseBase64Key(value: unknown, name: string, fallback?: string): string
 	return encoded;
 }
 
-function parseTotpKeyring(value: unknown, environment: NodeEnvironment): Readonly<Record<string, string>> {
+function parseTotpKeyring(
+	value: unknown,
+	environment: NodeEnvironment,
+): Readonly<Record<string, string>> {
 	const raw = requireString(
 		value,
 		'PLATFORM_TOTP_KEYRING',
