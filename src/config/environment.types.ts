@@ -30,4 +30,6 @@ export interface EnvironmentVariables {
 	readonly PLATFORM_OWNER_BOOTSTRAP_ENABLED: boolean;
 	readonly PLATFORM_OWNER_BOOTSTRAP_EXPECTED_DATABASE_HOST: string | null;
 	readonly PLATFORM_OWNER_BOOTSTRAP_EXPECTED_DATABASE_NAME: string | null;
+	readonly PLATFORM_OWNER_BOOTSTRAP_EXPECTED_DATABASE_ROLE: string | null;
+	readonly PLATFORM_OWNER_BOOTSTRAP_EXPECTED_DATABASE_MARKER: string | null;
 }
