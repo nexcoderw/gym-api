@@ -13,7 +13,7 @@ export class PlatformTokenService {
 	private readonly pepper: Buffer;
 
 	constructor(config: ConfigService<EnvironmentVariables, true>) {
-		this.pepper = Buffer.from(config.get('PLATFORM_AUTH_TOKEN_PEPPER', { infer: true }), 'base64');
+		this.pepper = Buffer.from(config.get<string>('PLATFORM_AUTH_TOKEN_PEPPER'), 'base64');
 	}
 
 	createToken(): string {
