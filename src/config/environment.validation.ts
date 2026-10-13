@@ -261,6 +261,38 @@ export function validateEnvironment(input: Record<string, unknown>): Environment
 		input.PLATFORM_OWNER_BOOTSTRAP_EXPECTED_DATABASE_HOST,
 		input.PLATFORM_OWNER_BOOTSTRAP_EXPECTED_DATABASE_NAME,
 	);
+	const bootstrapRole = bootstrapEnabled
+		? requireString(
+				input.PLATFORM_OWNER_BOOTSTRAP_EXPECTED_DATABASE_ROLE,
+				'PLATFORM_OWNER_BOOTSTRAP_EXPECTED_DATABASE_ROLE',
+			)
+		: null;
+	const bootstrapMarker = bootstrapEnabled
+		? requireString(
+				input.PLATFORM_OWNER_BOOTSTRAP_EXPECTED_DATABASE_MARKER,
+				'PLATFORM_OWNER_BOOTSTRAP_EXPECTED_DATABASE_MARKER',
+			)
+		: null;
+	if (
+		bootstrapRole !== null &&
+		(!/^gym_bootstrap(?:_[a-z0-9_]+)?$/u.test(bootstrapRole) || bootstrapRole.length > 63)
+	) {
+		throw new Error('Bootstrap requires a dedicated restricted database role.');
+	}
+	if (
+		bootstrapMarker !== null &&
+		!/^nexcode-gym:(?:bootstrap|disposable-bootstrap-test):[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u.test(
+			bootstrapMarker,
+		)
+	) {
+		throw new Error('Bootstrap requires a provisioned database marker containing a UUID v4.');
+	}
+	if (
+		bootstrapRole !== null &&
+		decodeURIComponent(new URL(databaseUrl).username) !== bootstrapRole
+	) {
+		throw new Error('The configured bootstrap database role does not match the approved role.');
+	}
 
 	const sessionTtlSeconds = parseInteger(
 		input.PLATFORM_AUTH_SESSION_TTL_SECONDS,
@@ -357,5 +389,7 @@ export function validateEnvironment(input: Record<string, unknown>): Environment
 		PLATFORM_OWNER_BOOTSTRAP_ENABLED: bootstrapEnabled,
 		PLATFORM_OWNER_BOOTSTRAP_EXPECTED_DATABASE_HOST: bootstrapTarget.expectedHost,
 		PLATFORM_OWNER_BOOTSTRAP_EXPECTED_DATABASE_NAME: bootstrapTarget.expectedName,
+		PLATFORM_OWNER_BOOTSTRAP_EXPECTED_DATABASE_ROLE: bootstrapRole,
+		PLATFORM_OWNER_BOOTSTRAP_EXPECTED_DATABASE_MARKER: bootstrapMarker,
 	});
 }
