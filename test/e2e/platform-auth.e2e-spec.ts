@@ -63,7 +63,11 @@ describe('platform authentication HTTP API (e2e)', () => {
 			permissions: ['platform.dashboard.read'],
 		});
 		revoke.mockResolvedValue(undefined);
-		sendEmailOtp.mockResolvedValue({ status: 'sent', expiresAt: '2030-01-01T00:05:00.000Z', retryAfterSeconds: 60 });
+		sendEmailOtp.mockResolvedValue({
+			status: 'sent',
+			expiresAt: '2030-01-01T00:05:00.000Z',
+			retryAfterSeconds: 60,
+		});
 
 		const module = await Test.createTestingModule({
 			imports: [AppModule],
@@ -105,20 +109,25 @@ describe('platform authentication HTTP API (e2e)', () => {
 			.expect(200);
 		expect(response.headers['set-cookie']).toBeUndefined();
 		const body: unknown = response.body;
-		expect(body).toEqual({ status: 'sent', expiresAt: '2030-01-01T00:05:00.000Z', retryAfterSeconds: 60 });
+		expect(body).toEqual({
+			status: 'sent',
+			expiresAt: '2030-01-01T00:05:00.000Z',
+			retryAfterSeconds: 60,
+		});
 	});
 
-	it.each([
-		{ Origin: 'http://localhost:4000' },
-		{ Origin: 'https://foreign.example' },
-	])('rejects email delivery without trusted Origin and CSRF: %p', async (headers) => {
-		const before = sendEmailOtp.mock.calls.length;
-		await request(requireApplication(application).getHttpServer())
-			.post('/api/v1/platform/auth/mfa/email').set(headers)
-			.send({ challengeToken: 'fictional-challenge-token-with-more-than-32-characters' })
-			.expect(403);
-		expect(sendEmailOtp).toHaveBeenCalledTimes(before);
-	});
+	it.each([{ Origin: 'http://localhost:4000' }, { Origin: 'https://foreign.example' }])(
+		'rejects email delivery without trusted Origin and CSRF: %p',
+		async (headers) => {
+			const before = sendEmailOtp.mock.calls.length;
+			await request(requireApplication(application).getHttpServer())
+				.post('/api/v1/platform/auth/mfa/email')
+				.set(headers)
+				.send({ challengeToken: 'fictional-challenge-token-with-more-than-32-characters' })
+				.expect(403);
+			expect(sendEmailOtp).toHaveBeenCalledTimes(before);
+		},
+	);
 
 	it('creates an MFA challenge without a session cookie', async () => {
 		const response = await request(requireApplication(application).getHttpServer())
