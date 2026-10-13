@@ -25,4 +25,3 @@ describe('PlatformBootstrapCliModule integration', () => {
 		expect(() => service.getTarget()).toThrow('Platform owner bootstrap is disabled');
 	});
 });
-
