@@ -12,6 +12,7 @@ import { DatabaseIntegrationModule } from './infrastructure/database/database-in
 import { HealthModule } from './modules/health/health.module.js';
 import { PlatformAuthModule } from './modules/platform-auth/platform-auth.module.js';
 import { PlatformDashboardModule } from './modules/platform-dashboard/platform-dashboard.module.js';
+import { PlatformOrganizationsModule } from './modules/platform-organizations/platform-organizations.module.js';
 
 @Module({
 	imports: [
@@ -37,6 +38,7 @@ import { PlatformDashboardModule } from './modules/platform-dashboard/platform-d
 		HealthModule,
 		PlatformAuthModule,
 		PlatformDashboardModule,
+		PlatformOrganizationsModule,
 	],
 	providers: [
 		{ provide: APP_GUARD, useClass: ThrottlerGuard },
