@@ -7,6 +7,7 @@ import type { PlatformMfaVerifyDto } from './dto/platform-mfa-verify.dto.js';
 import { PLATFORM_AUTH_ERROR } from './platform-auth.constants.js';
 import { PlatformTokenService } from './platform-token.service.js';
 import { PlatformTotpService } from './platform-totp.service.js';
+import { isPlatformSuperadmin } from './platform-permission-policy.js';
 
 export interface PlatformMfaSuccess {
 	readonly status: 'authenticated';
@@ -106,11 +107,20 @@ export class PlatformMfaService {
 							platformStaff: {
 								select: {
 									status: true,
-									user: { select: { status: true, emailVerifiedAt: true, email: true, passwordCredential: { select: { passwordChangedAt: true } } } },
+									user: {
+										select: {
+											status: true,
+											emailVerifiedAt: true,
+											email: true,
+											passwordCredential: { select: { passwordChangedAt: true } },
+										},
+									},
 									roles: {
 										select: {
 											platformRole: {
 												select: {
+													key: true,
+													isSystem: true,
 													permissions: { select: { platformPermissionId: true }, take: 1 },
 												},
 											},
@@ -132,9 +142,10 @@ export class PlatformMfaService {
 						current.platformStaff.user.emailVerifiedAt === null ||
 						current.platformStaff.user.passwordCredential === null ||
 						current.platformStaff.user.passwordCredential.passwordChangedAt > current.createdAt ||
-						!current.platformStaff.roles.some(
-							({ platformRole }) => platformRole.permissions.length > 0,
-						)
+						(!isPlatformSuperadmin(current.platformStaff.roles) &&
+							!current.platformStaff.roles.some(
+								({ platformRole }) => platformRole.permissions.length > 0,
+							))
 					) {
 						return { authenticated: false };
 					}
@@ -143,13 +154,13 @@ export class PlatformMfaService {
 						input.method === 'email_otp'
 							? await this.consumeEmailOtp(transaction, current, input.emailOtpCode, now)
 							: await this.consumeFactor(
-								transaction,
-								input,
-								current.platformStaffId,
-								current.platformStaff.totpCredential,
-								acceptedTotp?.timeStep,
-								now,
-							);
+									transaction,
+									input,
+									current.platformStaffId,
+									current.platformStaff.totpCredential,
+									acceptedTotp?.timeStep,
+									now,
+								);
 					if (!factorAccepted) {
 						await transaction.platformMfaChallenge.updateMany({
 							where: {
@@ -274,11 +285,21 @@ export class PlatformMfaService {
 			challenge.emailOtpDigest === null ||
 			challenge.emailOtpExpiresAt === null ||
 			challenge.emailOtpExpiresAt <= now
-		) return false;
-		const digest = this.tokens.emailOtpDigest(challenge.id, challenge.platformStaff.user.email, code);
+		)
+			return false;
+		const digest = this.tokens.emailOtpDigest(
+			challenge.id,
+			challenge.platformStaff.user.email,
+			code,
+		);
 		if (!this.tokens.equal(digest, challenge.emailOtpDigest)) return false;
 		const consumed = await transaction.platformMfaChallenge.updateMany({
-			where: { id: challenge.id, consumedAt: null, emailOtpDigest: digest, emailOtpExpiresAt: { gt: now } },
+			where: {
+				id: challenge.id,
+				consumedAt: null,
+				emailOtpDigest: digest,
+				emailOtpExpiresAt: { gt: now },
+			},
 			data: { emailOtpDigest: null, emailOtpExpiresAt: null },
 		});
 		return consumed.count === 1;
@@ -286,8 +307,12 @@ export class PlatformMfaService {
 
 	private assertMethodInput(input: PlatformMfaVerifyDto): void {
 		const valid =
-			(input.method === 'email_otp' && this.emailOtpEnabled && input.emailOtpCode !== undefined &&
-				/^\d{6}$/u.test(input.emailOtpCode) && input.totpCode === undefined && input.recoveryCode === undefined) ||
+			(input.method === 'email_otp' &&
+				this.emailOtpEnabled &&
+				input.emailOtpCode !== undefined &&
+				/^\d{6}$/u.test(input.emailOtpCode) &&
+				input.totpCode === undefined &&
+				input.recoveryCode === undefined) ||
 			(input.method === 'totp' &&
 				input.emailOtpCode === undefined &&
 				input.totpCode !== undefined &&
