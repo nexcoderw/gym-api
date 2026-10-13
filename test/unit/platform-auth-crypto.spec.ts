@@ -51,6 +51,16 @@ describe('platform authentication cryptography', () => {
 		expect(tokens.equal(first, second)).toBe(false);
 	});
 
+	it('binds email OTP digests to one challenge and verified mailbox', () => {
+		const tokens = new PlatformTokenService(config);
+		const digest = tokens.emailOtpDigest('challenge-a', 'admin@example.com', '012345');
+		expect(digest).toHaveLength(64);
+		expect(digest).toBe(tokens.emailOtpDigest('challenge-a', 'ADMIN@example.com', '012345'));
+		expect(digest).not.toBe(tokens.emailOtpDigest('challenge-b', 'admin@example.com', '012345'));
+		expect(digest).not.toBe(tokens.emailOtpDigest('challenge-a', 'other@example.com', '012345'));
+		expect(digest).not.toBe(tokens.emailOtpDigest('challenge-a', 'admin@example.com', '012346'));
+	});
+
 	it('decrypts an authenticated secret and validates the current TOTP step', () => {
 		const staffId = 'a652ac64-47b5-499e-a849-dca02166c46b';
 		const keyId = 'local-v1';
