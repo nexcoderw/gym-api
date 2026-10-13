@@ -8,7 +8,9 @@ async function readRootFile(name: string): Promise<string> {
 describe('API workflow environment boundaries', () => {
 	it('routes bootstrap startup failures to the CLI handler without enabling raw logs', async () => {
 		const cli = await readRootFile('src/cli/platform-owner-bootstrap.ts');
-		const options = /createApplicationContext\(PlatformBootstrapCliModule,\s*\{([^}]*)\}/u.exec(cli);
+		const options = /createApplicationContext\(PlatformBootstrapCliModule,\s*\{([^}]*)\}/u.exec(
+			cli,
+		);
 
 		expect(options?.[1]).toContain('logger: false');
 		expect(options?.[1]).toContain('abortOnError: false');
