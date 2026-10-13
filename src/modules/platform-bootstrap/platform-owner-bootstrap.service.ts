@@ -10,12 +10,12 @@ import { PlatformPasswordService } from '../platform-auth/platform-password.serv
 import { PlatformTokenService } from '../platform-auth/platform-token.service.js';
 import { PlatformTotpService } from '../platform-auth/platform-totp.service.js';
 import {
-	PLATFORM_OWNER_BOOTSTRAP_LOCK_ID,
 	PLATFORM_OWNER_PERMISSIONS,
 	PLATFORM_OWNER_RECOVERY_CODE_BYTES,
 	PLATFORM_OWNER_RECOVERY_CODE_COUNT,
 	PLATFORM_OWNER_ROLE,
 } from './platform-bootstrap.constants.js';
+import { acquireBootstrapLock, verifyBootstrapDatabase } from './platform-bootstrap-database.js';
 import {
 	PlatformBootstrapError,
 	type ActivatePlatformOwnerInput,
@@ -81,6 +81,7 @@ export class PlatformOwnerBootstrapService {
 			return await this.prisma.$transaction(
 				async (transaction): Promise<PlatformOwnerEnrollment> => {
 					await acquireBootstrapLock(transaction);
+					await this.verifyDatabase(transaction);
 					if ((await transaction.platformStaff.count()) !== 0) {
 						throw new PlatformBootstrapError(
 							'BOOTSTRAP_ALREADY_INITIALIZED',
@@ -155,6 +156,7 @@ export class PlatformOwnerBootstrapService {
 			return await this.prisma.$transaction(
 				async (transaction): Promise<PlatformOwnerActivation> => {
 					await acquireBootstrapLock(transaction);
+					await this.verifyDatabase(transaction);
 					if ((await transaction.platformStaff.count()) !== 1) {
 						throw new PlatformBootstrapError(
 							'BOOTSTRAP_STATE_CONFLICT',
@@ -279,6 +281,27 @@ export class PlatformOwnerBootstrapService {
 		}
 	}
 
+	private async verifyDatabase(transaction: Prisma.TransactionClient): Promise<void> {
+		const target = this.getTarget();
+		const databaseRole = this.config.get('PLATFORM_OWNER_BOOTSTRAP_EXPECTED_DATABASE_ROLE', {
+			infer: true,
+		});
+		const databaseMarker = this.config.get('PLATFORM_OWNER_BOOTSTRAP_EXPECTED_DATABASE_MARKER', {
+			infer: true,
+		});
+		if (databaseRole === null || databaseMarker === null) {
+			throw new PlatformBootstrapError(
+				'BOOTSTRAP_UNSAFE_DATABASE',
+				'The approved database role and marker are required.',
+			);
+		}
+		await verifyBootstrapDatabase(transaction, {
+			databaseName: target.databaseName,
+			databaseRole,
+			databaseMarker,
+		});
+	}
+
 	private assertEnabled(): void {
 		if (!this.config.get('PLATFORM_OWNER_BOOTSTRAP_ENABLED', { infer: true })) {
 			throw new PlatformBootstrapError(
@@ -294,10 +317,6 @@ const transactionOptions = Object.freeze({
 	maxWait: TRANSACTION_TIMEOUT_MILLISECONDS,
 	timeout: TRANSACTION_TIMEOUT_MILLISECONDS,
 });
-
-async function acquireBootstrapLock(transaction: Prisma.TransactionClient): Promise<void> {
-	await transaction.$executeRaw`SELECT pg_advisory_xact_lock(${PLATFORM_OWNER_BOOTSTRAP_LOCK_ID})`;
-}
 
 async function ensureOwnerRole(transaction: Prisma.TransactionClient): Promise<string> {
 	const existingRole = await transaction.platformRole.findUnique({
@@ -462,7 +481,12 @@ function translateTransactionError(error: unknown): Error {
 		return new PlatformBootstrapError(
 			'BOOTSTRAP_CONCURRENT_OPERATION',
 			'The bootstrap transaction could not obtain exclusive execution; retry only after review.',
+			{ cause: error },
 		);
 	}
-	return error instanceof Error ? error : new Error('Unknown platform owner bootstrap failure.');
+	return new PlatformBootstrapError(
+		'BOOTSTRAP_DATABASE_FAILED',
+		'The database operation failed; verify migrations, role grants, and connectivity before retrying.',
+		{ cause: error },
+	);
 }
