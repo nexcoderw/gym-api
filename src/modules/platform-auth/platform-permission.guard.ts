@@ -9,7 +9,7 @@ export class PlatformPermissionGuard implements CanActivate {
 	constructor(private readonly reflector: Reflector) {}
 
 	canActivate(context: ExecutionContext): boolean {
-		const required = this.reflector.getAllAndOverride<readonly string[]>(
+		const required = this.reflector.getAllAndOverride<readonly string[] | undefined>(
 			PLATFORM_PERMISSIONS_METADATA,
 			[context.getHandler(), context.getClass()],
 		);
