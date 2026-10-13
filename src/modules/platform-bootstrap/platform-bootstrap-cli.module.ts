@@ -10,8 +10,8 @@ import { PlatformBootstrapModule } from './platform-bootstrap.module.js';
 	imports: [
 		ConfigModule.forRoot({
 			cache: true,
-			envFilePath: ['.env.local', '.env'],
-			ignoreEnvFile: process.env.NODE_ENV === 'test',
+			envFilePath: ['.env.bootstrap.local', '.env.local'],
+			ignoreEnvFile: process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'production',
 			isGlobal: true,
 			validate: validateEnvironment,
 		}),
