@@ -275,11 +275,12 @@ the private dependency and lockfile inconsistency described below.
 
 ## Database package integration
 
-The API registers `DatabaseModule` once and consumes only public exports from the exact database
-package dependency. It never runs migrations at startup. The current source package reports `0.1.1`,
-but has no release tag proving that the registry artifact contains the Step 4 models. Before install,
-the human must verify the immutable tarball or publish a new SemVer version and update this manifest.
-See [ADR 0003](docs/adr/0003-database-package-boundary.md).
+The API registers `DatabaseModule` once and consumes only public exports from the database package.
+It never runs migrations at startup. The approved local development dependency is `file:../db`,
+recorded in both manifest and lockfile; the installed sibling package reports 0.1.1. Install/generate/
+build the database repository before the API, preserving the sibling layout. A local source version
+does not prove an immutable registry release exists. Production needs either a separately approved
+immutable artifact/version or a reproducible pinned two-repository build/deployment process.
 
 ## Engineering rules
 
@@ -296,33 +297,25 @@ are never trimmed or Unicode-normalized; approved Argon2id settings remain uncha
 hashes are untouched. An older owner with an 8–11-character password needs separately authorized
 credential recovery, not a weaker login DTO or repeated initialization.
 
-Static inspection found the API manifest declares `@nexcoderw/gym-db@0.1.1`, but the lockfile lacks
-both its root dependency and package entry. The installed package is a sibling-source symlink, not
-proof of a published artifact. Its public exports and generated declarations contain
+The manifest and lockfile now agree on `@nexcoderw/gym-db: file:../db`, resolving the earlier missing
+lockfile dependency. The installed sibling-source symlink is not proof of a published artifact.
+Its public exports and generated declarations contain
 PasswordCredential, PlatformAdminSession, PlatformMfaChallenge, PlatformTotpCredential and
 PlatformRecoveryCode. The identity and authentication migrations exist; current applied status must
 be checked by the human on the intended database. Do not modify schemas or migration history here.
 
-Human release prerequisite, from `api/api`, with private registry authentication already configured:
+Check the local dependency from api/api without querying GitHub Packages:
 
 ```bash
-npm view @nexcoderw/gym-db@0.1.1 version dist.integrity gitHead --registry=https://npm.pkg.github.com
+npm ls @nexcoderw/gym-db
 ```
 
-If unavailable, stop: the package maintainer must publish a reviewed artifact through the existing
-release process or approve a different distribution strategy. Do not guess a version, overwrite an
-immutable release, or add credentials to source. If the approved artifact exists, inspect its
-authentication exports, then regenerate and review the lockfile with npm:
-
-```bash
-npm install --package-lock-only --ignore-scripts
-git diff -- package-lock.json
-npm ci
-npm audit
-```
-
-A missing or incompatible artifact blocks clean-install/release verification even when the local
-symlink permits development. Human-generated lockfile changes require a fresh per-file Git plan.
+Do not run npm view against npm.pkg.github.com to verify this local setup: that checks an unrelated
+remote artifact and can return E404 while the local dependency works. Keep public-package imports;
+do not copy schema/generated sources into the API. Registry publication, if chosen later, requires
+the maintainer's reviewed release process; never guess a version, overwrite a release or commit
+credentials. Verify clean builds of both pinned source revisions before any deployment. Lockfiles
+are produced only by human npm execution, not edited manually by agents.
 
 From `api/db`, verify the configured direct migration target before this read-only database command:
 
@@ -354,3 +347,171 @@ Source inspection is not a vulnerability scan, live integration result or deploy
 
 The human full-stack smoke procedure is in the admin README. No agent executed development tooling,
 database operations, bootstrap, registry checks, package publishing, browser automation or Git writes.
+
+## Step 11: platform organization management
+
+This is the NEXCODE control plane, not tenant CRUD. The feature imports the existing platform auth
+module and the one globally registered PrismaService. Services are private to their feature module;
+no tenant-wide query helper, schema, migration, client, frontend adapter or new dependency is added.
+
+| Method/path under /api/v1/platform/organizations | Permission                      | Current behavior                          |
+| ------------------------------------------------ | ------------------------------- | ----------------------------------------- |
+| GET /                                            | platform.organizations.read     | Bounded safe listing                      |
+| GET /:id                                         | platform.organizations.read     | Safe details or 404, with updatedAt ETag  |
+| POST /                                           | platform.organizations.create   | Audit-blocked 503; prepared 201/PENDING   |
+| PATCH /:id                                       | platform.organizations.update   | Audit-blocked 503; prepared name-only 200 |
+| POST /:id/activation                             | platform.organizations.activate | Audit-blocked 503; prepared 200           |
+| POST /:id/suspension                             | platform.organizations.suspend  | Audit-blocked 503; prepared 200           |
+
+Every endpoint reuses live platform session and explicit permission guards. An owner role alone,
+dashboard.read alone, tenant cookies and caller-provided permission hints grant nothing. Normal auth
+session validation may refresh idle expiry or revoke invalid sessions, but the organization audit
+gate prevents organization writes. Reads and all error responses are no-store. Writes additionally
+require the configured administrative Origin and matching CSRF cookie/header via the existing guard.
+The auth module exports the existing Origin/CSRF guard and token provider for consuming feature DI;
+no second authentication mechanism is introduced. Global whitelist/unknown-field rejection and
+existing Express JSON limits remain in effect; there is no bulk or arbitrary Prisma-input endpoint.
+
+Creation accepts only `{ "name": "Soho Gym", "slug": "soho" }`. Name edges are trimmed using
+the database whitespace policy; meaningful Unicode names are permitted up to the existing validator
+bound. Slugs must already be lowercase ASCII in the approved 3–63-character grammar: this API rejects
+rather than silently lowercases them. Reserved names match Step 10's reviewed list. Database checks
+remain authoritative; API validation is not their replacement. Duplicate slugs map to 409, including
+concurrent creation and slugs held by archived organizations. No identity, branch, membership,
+subscription, payment account, entitlement or platform privilege is created automatically.
+
+Listing defaults to 20 rows, caps at 50, accepts an optional OrganizationStatus filter and UUID
+cursor, and returns `{ items, nextCursor }`, with null when no additional row is observed. Ordering
+is createdAt DESC, id ASC. The UUID cursor is resolved by PostgreSQL/Prisma, preserving timestamptz
+microseconds rather than rounding an encoded timestamp in JavaScript. Cursor lookup and listing
+share a bounded repeatable-read transaction. Missing/deleted/filter-mismatched cursors return 400;
+restart with the same filter. Pages are separate snapshots, not a frozen export: concurrent inserts
+and lifecycle/filter changes can change later pages. The status-leading database index supports
+filtered ordering; unfiltered listings need measured query-plan review before production scale.
+
+Safe responses contain only id/name/slug/status and lifecycle/record timestamps, never Prisma
+relations, credentials or tenant-private data. Ordinary profile updates accept only name; UUID,
+slug and status cannot be assigned. Prepared PATCH requires If-Match with the quoted updatedAt ETag
+from details. Lifecycle actions take only `{ "expectedUpdatedAt": "2026-10-13T12:00:00.000Z" }`.
+Activation allows PENDING/SUSPENDED to ACTIVE and records activatedAt; suspension allows ACTIVE to
+SUSPENDED and records suspendedAt. Existing history is retained. Archived activation, repeated
+activation/suspension and suspension of pending/archived records yield 409 with a current precondition.
+Stale or concurrently changed snapshots yield 412; absent resources yield 404. There is no archival,
+slug-change or entitlement workflow.
+
+Prepared updates use serializable transactions and a conditional id/status/updatedAt update with
+count=1; API writes advance updatedAt monotonically by at least one millisecond. A serialization
+conflict becomes 412, not an automatic retry. This is not an immutable database version field:
+raw writers can violate timestamp discipline, and sub-millisecond raw timestamps may conservatively
+fail the millisecond precondition. Before enabling mutations, review all writer paths and migrate
+to a durable monotonic revision/precise token if external writers cannot honor the policy. Do not
+claim ordinary last-write-wins or timestamp-only concurrency is universally reliable.
+
+There is no durable idempotency storage in the inspected schema. Do not blindly retry a timed-out
+creation; an operator with read permission must reconcile the requested slug through authorized
+bounded reads, or inspect a known returned ID, before deciding whether another attempt is appropriate.
+No process-local idempotency cache or public privilege-assignment endpoint is implemented.
+
+### Durable audit gate and permission provisioning
+
+The registered UnavailableOrganizationAudit always fails closed with ORGANIZATION_AUDIT_UNAVAILABLE
+before starting an organization mutation transaction. There is no environment switch that bypasses
+it. A prepared transaction invokes the audit provider before committing and never returns success
+when recording fails. Request logs are not audit events; mocked test providers are not production
+audit implementations.
+
+Separate gym-db work is required before replacing this provider: an append-only audit-event model
+with UUID ID, restricted actor platform-staff and organization foreign keys, action, correlation ID,
+UTC event time, previous/resulting status and a constrained safe changed-field allowlist. Review
+failure-event recording separately from the transaction that rolls back successful-event writes.
+Restrict tenant/read access, forbid ordinary audit UPDATE/DELETE, establish integrity/retention and
+tamper-resistance controls, and verify that organization mutation and success event commit atomically.
+Never persist cookies, passwords, MFA/recovery material, tokens, connection URLs or arbitrary bodies.
+Review its migration, exports, runtime grants and real rollback tests before production installation.
+
+The first-owner permission allowlist remains dashboard.read only. No existing account/role gains
+organization access automatically. Permission provisioning is a separate privileged human operation:
+
+1. Approve the five named permission registrations in the database catalog, including descriptions.
+2. Review a dedicated platform.organization-operator role with only approved subsets; do not silently
+   broaden platform.owner or every administrator. Preserve the bootstrap's exact allowlist contract.
+3. Independently verify the chosen active platform staff UUID and active user before explicit role
+   assignment; record approval and a durable privileged audit through the approved operational process.
+4. In one reviewed transaction, register missing permission records and approved role links; retain
+   existing IDs and do not overwrite unrelated roles/permissions. No startup seed is implemented here.
+5. Confirm next-request live permissions, negative dashboard-only/tenant cases and a rollback/revoke
+   procedure. Do not reinitialize existing owners to obtain access or treat UI navigation as authority.
+
+### Database gates and human verification
+
+Inspected source: organization schema and generated public exports exist, and package/lockfile agree
+on file:../db. The committed 20261013195500_create_organizations SQL contains table/type/indexes but
+not the three required CHECK constraints or PUBLIC-access revocation. Prior human output reported
+the original migration applied somewhere; never rewrite it. Live applied state/grants are not known.
+Production rollout and database-backed organization verification remain blocked by forward checks,
+privilege review and audit persistence. Do not expose platform-wide reads to tenant runtime roles.
+
+From `/Users/dvniels/Desktop/projects/gym/api/db`, inspect both reviewed targets:
+
+```bash
+npm run prisma:format
+npm run prisma:validate
+npm run migration:status
+npx prisma migrate status --config prisma.test.config.ts
+npm run migration:create -- --name harden_organization_constraints
+```
+
+Stop and review the new unapplied forward SQL, using the database README's exact name/slug/reserved
+checks. Do not repeat create_organizations, accept reset prompts, use db push or change applied SQL.
+Verify existing records satisfy the checks; corrections require separate approval. After SQL approval
+only, deploy to the independently marked disposable target and apply approved table-specific test
+grants with the correct restricted test role, then generate/build and test the owning package:
+
+```bash
+npm run migration:test:deploy
+npm run prisma:generate
+npm run test:unit
+npm run test:integration
+npm run lint
+npm run typecheck
+npm run build
+```
+
+These commands do not approve deployment to the runtime/production database. Each target needs a
+separate reviewed migration/grant window. Platform runtime needs approved SELECT and, only after
+durable audit readiness, INSERT/UPDATE; no normal DELETE, ownership, CREATE, BYPASSRLS, broad PUBLIC
+or inherited tenant grants. Review table default privileges and distinct platform/tenant roles.
+A transaction-local tenant UUID alone is not authentication or RLS. No role changes are made here.
+
+From `/Users/dvniels/Desktop/projects/gym/api/api`, after the sibling package build:
+
+```bash
+npm ls @nexcoderw/gym-db
+npm run format
+npm run format:check
+npm run lint
+npm run typecheck
+npm run test:unit
+npm run test:integration
+npm run test:e2e
+npm run build
+```
+
+Review formatting diffs before committing. New unit/module/HTTP tests mock only persistence/audit
+boundaries, retain actual session/permission/Origin/CSRF guards and make no PostgreSQL connections.
+They do not establish uniqueness, CHECK enforcement, actual transaction rollback or audit durability.
+Real PostgreSQL mutation/rollback tests remain blocked until the required audit migration/provider
+exists. Step 10's database tests cover organization integrity after its reviewed migration is deployed.
+
+Manual smoke, on an approved isolated development target: authenticate a fictional operator with
+explicit read permission; list at limit 1/20/50, follow nextCursor with the same filter, inspect UUID
+details/ETag, test bad input and missing resources, then remove permission and verify next-request 403. Check safe no-store errors and denied tenant/dashboard-only identities. For an independently
+provisioned operator with mutation permissions, valid Origin/CSRF/DTO must still return audit 503 with
+no organization changes. Do not bypass the gate to obtain a happy-path creation screenshot.
+Keep credentials outside shell arguments, logs and test artifacts. Existing auth/dashboard suites
+remain regression checks. No commands or live tests were executed by the agent.
+
+Production also needs an approved reproducible package strategy (immutable publication or pinned
+sibling builds), deployment topology/rate-limit review and authorization/audit retention review.
+No registry artifact/version is invented. No frontend, branch, owner membership, subscription,
+payment, tenant login, archival, domain provisioning or Step 12 implementation is included.
