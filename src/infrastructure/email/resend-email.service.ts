@@ -29,7 +29,11 @@ export class ResendEmailService {
 					text: `Your sign-in code is ${code}. It expires within five minutes. Use only the newest code. Do not share it. If you did not request this, ignore this email.`,
 				}),
 			});
-			if (!response.ok || response.body === null || !response.headers.get('content-type')?.includes('application/json')) {
+			if (
+				!response.ok ||
+				response.body === null ||
+				!response.headers.get('content-type')?.includes('application/json')
+			) {
 				await response.body?.cancel();
 				throw unavailable();
 			}
@@ -37,20 +41,26 @@ export class ResendEmailService {
 			const chunks: Uint8Array[] = [];
 			let size = 0;
 			try {
-				while (true) {
-					const chunk = await reader.read();
-					if (chunk.done) break;
+				let chunk = await reader.read();
+				while (!chunk.done) {
 					size += chunk.value.byteLength;
 					if (size > 4_096) throw unavailable();
 					chunks.push(chunk.value);
+					chunk = await reader.read();
 				}
 			} finally {
 				await reader.cancel();
 				reader.releaseLock();
 			}
 			const data: unknown = JSON.parse(Buffer.concat(chunks).toString('utf8'));
-			if (typeof data !== 'object' || data === null || !('id' in data) ||
-				typeof data.id !== 'string' || !/^[0-9a-f-]{36}$/iu.test(data.id)) throw unavailable();
+			if (
+				typeof data !== 'object' ||
+				data === null ||
+				!('id' in data) ||
+				typeof data.id !== 'string' ||
+				!/^[0-9a-f-]{36}$/iu.test(data.id)
+			)
+				throw unavailable();
 		} catch {
 			// A timeout is an uncertain delivery, not permission for a blind resend.
 			throw unavailable();
@@ -59,5 +69,8 @@ export class ResendEmailService {
 }
 
 function unavailable(): ServiceUnavailableException {
-	return new ServiceUnavailableException({ code: 'PLATFORM_EMAIL_UNAVAILABLE', message: 'Email verification is temporarily unavailable.' });
+	return new ServiceUnavailableException({
+		code: 'PLATFORM_EMAIL_UNAVAILABLE',
+		message: 'Email verification is temporarily unavailable.',
+	});
 }
