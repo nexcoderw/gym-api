@@ -15,7 +15,7 @@ interface UserUpdateManyInput {
 }
 
 describe('PlatformOwnerBootstrapService', () => {
-	const executeRaw = jest.fn<() => Promise<number>>();
+	const queryRaw = jest.fn<() => Promise<unknown>>();
 	const staffCount = jest.fn<() => Promise<number>>();
 	const userFindUnique = jest.fn<() => Promise<unknown>>();
 	const userCreate = jest.fn<() => Promise<unknown>>();
@@ -31,7 +31,7 @@ describe('PlatformOwnerBootstrapService', () => {
 	const totpUpdateMany = jest.fn<() => Promise<{ count: number }>>();
 	const recoveryCreateMany = jest.fn<() => Promise<{ count: number }>>();
 	const transaction = {
-		$executeRaw: executeRaw,
+		$queryRaw: queryRaw,
 		platformStaff: { count: staffCount, updateMany: staffUpdateMany },
 		user: { findUnique: userFindUnique, create: userCreate, updateMany: userUpdateMany },
 		platformRole: { findUnique: roleFindUnique, create: roleCreate },
@@ -57,6 +57,9 @@ describe('PlatformOwnerBootstrapService', () => {
 				PLATFORM_OWNER_BOOTSTRAP_ENABLED: 'true',
 				PLATFORM_OWNER_BOOTSTRAP_EXPECTED_DATABASE_HOST: 'approved.neon.tech',
 				PLATFORM_OWNER_BOOTSTRAP_EXPECTED_DATABASE_NAME: 'neondb',
+				PLATFORM_OWNER_BOOTSTRAP_EXPECTED_DATABASE_ROLE: 'gym_bootstrap',
+				PLATFORM_OWNER_BOOTSTRAP_EXPECTED_DATABASE_MARKER:
+					'nexcode-gym:bootstrap:724fbc40-515c-4a30-a4bb-8a6458a24396',
 			}),
 		);
 		const module = await Test.createTestingModule({
@@ -77,7 +80,18 @@ describe('PlatformOwnerBootstrapService', () => {
 
 	beforeEach(() => {
 		jest.clearAllMocks();
-		executeRaw.mockResolvedValue(1);
+		queryRaw.mockReset();
+		queryRaw.mockResolvedValueOnce([{ acquired: true }]).mockResolvedValue([
+			{
+				databaseName: 'neondb',
+				databaseRole: 'gym_bootstrap',
+				sessionRole: 'gym_bootstrap',
+				databaseMarker: 'nexcode-gym:bootstrap:724fbc40-515c-4a30-a4bb-8a6458a24396',
+				unsafeRole: false,
+				canCreate: false,
+				ownsObjects: false,
+			},
+		]);
 		staffCount.mockResolvedValue(0);
 		userFindUnique.mockResolvedValue(null);
 		roleFindUnique.mockResolvedValue(null);
@@ -147,6 +161,50 @@ describe('PlatformOwnerBootstrapService', () => {
 				password: Buffer.from('fictional owner password', 'utf8'),
 			}),
 		).rejects.toMatchObject({ code: 'BOOTSTRAP_ALREADY_INITIALIZED' });
+		expect(userCreate).not.toHaveBeenCalled();
+	});
+
+	it('does not read or write owner state when the lock is unavailable', async () => {
+		queryRaw.mockReset().mockResolvedValue([{ acquired: false }]);
+		await expect(
+			service.initialize({
+				email: 'owner@example.com',
+				displayName: 'Fictional Owner',
+				password: Buffer.from('fictional owner password'),
+			}),
+		).rejects.toMatchObject({ code: 'BOOTSTRAP_CONCURRENT_OPERATION' });
+		expect(staffCount).not.toHaveBeenCalled();
+		expect(userCreate).not.toHaveBeenCalled();
+	});
+
+	it('fails closed when the database identity query fails', async () => {
+		queryRaw
+			.mockReset()
+			.mockResolvedValueOnce([{ acquired: true }])
+			.mockRejectedValueOnce(new Error('fictional private database details'));
+		await expect(
+			service.initialize({
+				email: 'owner@example.com',
+				displayName: 'Fictional Owner',
+				password: Buffer.from('fictional owner password'),
+			}),
+		).rejects.toMatchObject({ code: 'BOOTSTRAP_DATABASE_FAILED' });
+		expect(staffCount).not.toHaveBeenCalled();
+		expect(userCreate).not.toHaveBeenCalled();
+	});
+
+	it('rejects an unexpected connected identity before owner writes', async () => {
+		queryRaw
+			.mockReset()
+			.mockResolvedValueOnce([{ acquired: true }])
+			.mockResolvedValueOnce([{ databaseName: 'unexpected' }]);
+		await expect(
+			service.initialize({
+				email: 'owner@example.com',
+				displayName: 'Fictional Owner',
+				password: Buffer.from('fictional owner password'),
+			}),
+		).rejects.toMatchObject({ code: 'BOOTSTRAP_UNSAFE_DATABASE' });
 		expect(userCreate).not.toHaveBeenCalled();
 	});
 
