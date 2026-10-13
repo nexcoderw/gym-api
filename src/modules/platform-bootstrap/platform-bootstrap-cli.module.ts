@@ -20,4 +20,3 @@ import { PlatformBootstrapModule } from './platform-bootstrap.module.js';
 	],
 })
 export class PlatformBootstrapCliModule {}
-
