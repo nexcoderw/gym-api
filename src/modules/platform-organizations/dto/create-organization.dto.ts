@@ -1,5 +1,5 @@
 import { Transform } from 'class-transformer';
-import { IsString, Matches, MaxLength, MinLength, NotContains, NotIn } from 'class-validator';
+import { IsNotIn, IsString, Matches, MaxLength, MinLength, NotContains } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 import { ORGANIZATION_RESERVED_SLUGS } from '../platform-organizations.constants.js';
@@ -22,6 +22,6 @@ export class CreateOrganizationDto {
 	@MaxLength(63)
 	// The absolute-end assertion also rejects a final newline (JavaScript's $ can accept it).
 	@Matches(/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*(?![\s\S])/u)
-	@NotIn([...ORGANIZATION_RESERVED_SLUGS])
+	@IsNotIn(ORGANIZATION_RESERVED_SLUGS)
 	slug!: string;
 }
