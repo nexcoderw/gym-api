@@ -1,9 +1,11 @@
+import { PLATFORM_PERMISSION } from '../platform-auth/platform-permission.constants.js';
+
 export const ORGANIZATION_PERMISSION = Object.freeze({
-	create: 'platform.organizations.create',
-	read: 'platform.organizations.read',
-	update: 'platform.organizations.update',
-	activate: 'platform.organizations.activate',
-	suspend: 'platform.organizations.suspend',
+	create: PLATFORM_PERMISSION.organizationsCreate,
+	read: PLATFORM_PERMISSION.organizationsRead,
+	update: PLATFORM_PERMISSION.organizationsUpdate,
+	activate: PLATFORM_PERMISSION.organizationsActivate,
+	suspend: PLATFORM_PERMISSION.organizationsSuspend,
 });
 
 export const ORGANIZATION_RESERVED_SLUGS = Object.freeze([
