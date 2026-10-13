@@ -230,7 +230,8 @@ and retain their original factors. Run provider-fake unit, integration and HTTP 
 real Resend delivery using a disposable development account. Provider acceptance is not proof of
 inbox delivery. Keep email fallback disabled by default, especially in production.
 
-Session validation retries at most one confirmed serializable conflict (`P2034`) inside an
+Session validation retries at most two confirmed serializable conflicts (`P2034`), using bounded
+randomized backoff, inside an
 18-second total budget, reducing the retry's acquisition/execution limits to preserve the BFF
 deadline. Expiry is rechecked using elapsed time on retry. Other transaction timeouts
 are not blindly retried. Known database availability errors return 503 without revoking a valid
@@ -246,6 +247,12 @@ the active API database, not the disposable test database: `P2021/P2022` require
 migrations and the rebuilt local database package; `P1010` requires checking application-role
 access; `P2028` requires investigating transaction acquisition/execution and pool pressure. Do not
 fix these distinct conditions with blanket grants, automatic migrations or unlimited retries.
+
+`P2039` is an unmapped driver error, not proof of a timeout. Its original PostgreSQL code is
+logged only as a five-character `sqlState`, extracted from adapter metadata rather than from the
+provider's rendered message. `42501` indicates insufficient privileges; `42P01` indicates an
+undefined table; `42703` indicates an undefined column. Verify the live database and role before
+making a targeted correction. Neither SQLSTATE nor provider metadata is included in HTTP responses.
 
 `POST /api/v1/platform/auth/login` validates password and administrator eligibility but creates only
 a short-lived MFA challenge. `POST /api/v1/platform/auth/mfa/verify` atomically consumes that
