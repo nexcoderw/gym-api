@@ -17,11 +17,12 @@ platform operations and independently authorized gym organizations and branches 
 - Platform-administrator password plus MFA authentication under `/api/v1/platform/auth`
 - Opaque server-side platform sessions in host-only HttpOnly cookies
 - Exact administrative Origin checks, CSRF protection, revocation, idle expiry, and live permissions
+- Two-stage, operator-controlled first platform-owner bootstrap with encrypted TOTP enrollment
 - Unit, integration, and e2e foundation tests
 
 Tenant authentication, tenant resolution, organization authorization, readiness checks, feature
-entitlements, queues, payments, notifications, administrator bootstrap, password recovery, and MFA
-enrollment remain future work.
+entitlements, queues, payments, notifications, ongoing administrator management, password recovery,
+and general MFA enrollment remain future work.
 
 ## Architecture
 
@@ -68,6 +69,10 @@ deployment configuration, not committed files.
 | `PLATFORM_AUTH_TOKEN_PEPPER`    | development-only test key         | Managed base64 32-byte secret in production                             |
 | `PLATFORM_TOTP_KEYRING`         | development-only test keyring     | Managed `key-id=base64-key` rotation keyring                            |
 | `PLATFORM_AUTH_SINGLE_INSTANCE` | true outside production           | Required production acknowledgement until distributed throttling exists |
+| `PLATFORM_TOTP_ACTIVE_KEY_ID`   | `local-v1` outside production     | Keyring entry used only for new encrypted TOTP enrollments               |
+| `PLATFORM_OWNER_BOOTSTRAP_ENABLED` | false                         | Temporary explicit authorization for the operator-only CLI               |
+| `PLATFORM_OWNER_BOOTSTRAP_EXPECTED_DATABASE_HOST` | none             | Exact Neon hostname required while bootstrap is enabled                  |
+| `PLATFORM_OWNER_BOOTSTRAP_EXPECTED_DATABASE_NAME` | none             | Exact PostgreSQL database name required while bootstrap is enabled       |
 
 `CORS_ORIGINS` accepts origins only, such as `https://admin.gym.rw`, with no path. CORS does not prove
 tenant identity or authorization.
@@ -132,7 +137,8 @@ accounts only; production cookie requirements cannot be disabled.
 The current per-account authentication limiter is process-local. Production is restricted to one API
 instance through explicit configuration until a distributed limiter is implemented. Operational logs
 are redacted security signals, not a complete privileged audit trail. No production administrator is
-created automatically; a separately reviewed human bootstrap and MFA enrollment remains mandatory.
+created automatically or through HTTP. The first owner requires the separate, two-stage interactive
+CLI described in the [platform owner bootstrap runbook](docs/runbooks/platform-owner-bootstrap.md).
 
 See [Platform authentication](docs/security/platform-authentication.md) for configuration, deployment,
 key rotation, and verification details.
