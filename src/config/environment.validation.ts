@@ -145,6 +145,43 @@ function parseTotpKeyring(
 	return Object.freeze(keyring);
 }
 
+function parseBootstrapTarget(
+	databaseUrl: string,
+	enabled: boolean,
+	expectedHostValue: unknown,
+	expectedNameValue: unknown,
+): { readonly expectedHost: string | null; readonly expectedName: string | null } {
+	if (!enabled) {
+		return { expectedHost: null, expectedName: null };
+	}
+
+	const expectedHost = requireString(
+		expectedHostValue,
+		'PLATFORM_OWNER_BOOTSTRAP_EXPECTED_DATABASE_HOST',
+	).toLowerCase();
+	const expectedName = requireString(
+		expectedNameValue,
+		'PLATFORM_OWNER_BOOTSTRAP_EXPECTED_DATABASE_NAME',
+	);
+	let target: URL;
+	try {
+		target = new URL(databaseUrl);
+	} catch {
+		throw new Error('DATABASE_URL must be a valid PostgreSQL URL for platform owner bootstrap.');
+	}
+	const databaseName = decodeURIComponent(target.pathname.replace(/^\//u, ''));
+	if (
+		!['postgres:', 'postgresql:'].includes(target.protocol) ||
+		target.hostname.toLowerCase() !== expectedHost ||
+		databaseName !== expectedName
+	) {
+		throw new Error(
+			'The configured database does not match the approved platform owner bootstrap target.',
+		);
+	}
+	return { expectedHost, expectedName };
+}
+
 /** Validates and normalizes environment variables before Nest creates application providers. */
 export function validateEnvironment(input: Record<string, unknown>): EnvironmentVariables {
 	const nodeEnvironment = parseNodeEnvironment(input.NODE_ENV);
@@ -199,6 +236,31 @@ export function validateEnvironment(input: Record<string, unknown>): Environment
 	if (nodeEnvironment === 'production' && Object.values(totpKeyring).includes(DEFAULT_LOCAL_KEY)) {
 		throw new Error('PLATFORM_TOTP_KEYRING must not contain the local development key.');
 	}
+	const activeTotpKeyId = requireString(
+		input.PLATFORM_TOTP_ACTIVE_KEY_ID,
+		'PLATFORM_TOTP_ACTIVE_KEY_ID',
+		nodeEnvironment === 'production' ? undefined : 'local-v1',
+	);
+	if (totpKeyring[activeTotpKeyId] === undefined) {
+		throw new Error('PLATFORM_TOTP_ACTIVE_KEY_ID must identify a configured TOTP key.');
+	}
+
+	const databaseUrl = requireString(
+		input.DATABASE_URL,
+		'DATABASE_URL',
+		nodeEnvironment === 'production' ? undefined : DEFAULT_DATABASE_URL,
+	);
+	const bootstrapEnabled = parseBoolean(
+		input.PLATFORM_OWNER_BOOTSTRAP_ENABLED,
+		'PLATFORM_OWNER_BOOTSTRAP_ENABLED',
+		false,
+	);
+	const bootstrapTarget = parseBootstrapTarget(
+		databaseUrl,
+		bootstrapEnabled,
+		input.PLATFORM_OWNER_BOOTSTRAP_EXPECTED_DATABASE_HOST,
+		input.PLATFORM_OWNER_BOOTSTRAP_EXPECTED_DATABASE_NAME,
+	);
 
 	const sessionTtlSeconds = parseInteger(
 		input.PLATFORM_AUTH_SESSION_TTL_SECONDS,
@@ -242,11 +304,7 @@ export function validateEnvironment(input: Record<string, unknown>): Environment
 			1,
 			100_000,
 		),
-		DATABASE_URL: requireString(
-			input.DATABASE_URL,
-			'DATABASE_URL',
-			nodeEnvironment === 'production' ? undefined : DEFAULT_DATABASE_URL,
-		),
+		DATABASE_URL: databaseUrl,
 		DATABASE_POOL_MAX: parseInteger(input.DATABASE_POOL_MAX, 'DATABASE_POOL_MAX', 10, 1, 100),
 		DATABASE_CONNECTION_TIMEOUT_MS: parseInteger(
 			input.DATABASE_CONNECTION_TIMEOUT_MS,
@@ -295,5 +353,9 @@ export function validateEnvironment(input: Record<string, unknown>): Environment
 		),
 		PLATFORM_AUTH_SINGLE_INSTANCE: singleInstance,
 		PLATFORM_TOTP_KEYRING: totpKeyring,
+		PLATFORM_TOTP_ACTIVE_KEY_ID: activeTotpKeyId,
+		PLATFORM_OWNER_BOOTSTRAP_ENABLED: bootstrapEnabled,
+		PLATFORM_OWNER_BOOTSTRAP_EXPECTED_DATABASE_HOST: bootstrapTarget.expectedHost,
+		PLATFORM_OWNER_BOOTSTRAP_EXPECTED_DATABASE_NAME: bootstrapTarget.expectedName,
 	});
 }
