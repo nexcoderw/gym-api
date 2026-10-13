@@ -43,10 +43,8 @@ export class ApiExceptionFilter implements ExceptionFilter {
 						: 'Request failed';
 
 		if (status >= INTERNAL_SERVER_ERROR_STATUS) {
-			this.logger.error(
-				`${request.method} ${request.path} failed requestId=${request.requestId}`,
-				exception instanceof Error ? exception.stack : undefined,
-			);
+			// Provider stacks and messages may contain SQL or credentials; log correlation metadata only.
+			this.logger.error(`${request.method} ${request.path} failed requestId=${request.requestId}`);
 		}
 
 		response.status(status).json({
