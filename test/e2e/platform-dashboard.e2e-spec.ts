@@ -167,7 +167,7 @@ describe('platform dashboard HTTP API (real session and permission guards)', () 
 		await request(app().getHttpServer()).get(ENDPOINT).set('Cookie', COOKIE).expect(200);
 	});
 
-	it('denies platform.owner without the permission, even with forged authorization hints', async () => {
+	it('denies non-system owner lookalikes even with forged authorization hints', async () => {
 		session.platformStaff.roles = [
 			{
 				platformRole: {
@@ -186,7 +186,7 @@ describe('platform dashboard HTTP API (real session and permission guards)', () 
 		expect(database.userCount).not.toHaveBeenCalled();
 	});
 
-	it('denies an owner role with no effective permissions according to session conventions', async () => {
+	it('denies a non-system owner lookalike with no effective permissions', async () => {
 		session.platformStaff.roles = [{ platformRole: { key: 'platform.owner', permissions: [] } }];
 		await request(app().getHttpServer()).get(ENDPOINT).set('Cookie', COOKIE).expect(401);
 		expect(database.userCount).not.toHaveBeenCalled();
