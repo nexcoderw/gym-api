@@ -1,0 +1,178 @@
+import { jest } from '@jest/globals';
+import { Test, type TestingModule } from '@nestjs/testing';
+import { OrganizationStatus, PrismaService } from '@nexcoderw/gym-db';
+
+import { PlatformOrganizationsService } from '../../src/modules/platform-organizations/platform-organizations.service.js';
+import { PlatformOrganizationMutationsService } from '../../src/modules/platform-organizations/platform-organization-mutations.service.js';
+import {
+	PlatformOrganizationAudit,
+	UnavailableOrganizationAudit,
+} from '../../src/modules/platform-organizations/platform-organization-audit.js';
+import {
+	createPlatformOrganizationsDatabaseFixture,
+	organizationFixture,
+	ORGANIZATION_ID,
+	ORGANIZATION_TIME,
+} from '../fixtures/platform-organizations-database.fixture.js';
+
+describe('organization service contracts (adapter fake, not PostgreSQL)', () => {
+	let module: TestingModule;
+	let database: ReturnType<typeof createPlatformOrganizationsDatabaseFixture>;
+	let reads: PlatformOrganizationsService;
+	let writes: PlatformOrganizationMutationsService;
+	const context = {
+		actorPlatformStaffId: '33333333-3333-4333-8333-333333333333',
+		requestId: 'fictional-request',
+	};
+	const available = jest.fn<() => void>();
+	const record = jest.fn<PlatformOrganizationAudit['record']>();
+
+	beforeEach(async () => {
+		database = createPlatformOrganizationsDatabaseFixture();
+		available.mockReset();
+		record.mockReset().mockResolvedValue(undefined);
+		module = await Test.createTestingModule({
+			providers: [
+				PlatformOrganizationsService,
+				PlatformOrganizationMutationsService,
+				{ provide: PrismaService, useValue: database.prisma },
+				{ provide: PlatformOrganizationAudit, useValue: { assertAvailable: available, record } },
+			],
+		}).compile();
+		reads = module.get(PlatformOrganizationsService);
+		writes = module.get(PlatformOrganizationMutationsService);
+	});
+	afterEach(async () => {
+		await module.close();
+	});
+
+	it('bounds pagination with a unique tie-breaker and an extra next-page probe', async () => {
+		const nextId = '55555555-5555-4555-8555-555555555555';
+		database.findMany.mockResolvedValue([
+			{ ...organizationFixture(), id: nextId },
+			{ ...organizationFixture(), id: '66666666-6666-4666-8666-666666666666' },
+		]);
+		const result = await reads.list({
+			limit: 1,
+			status: OrganizationStatus.PENDING,
+			cursor: ORGANIZATION_ID,
+		});
+		expect(result.items).toHaveLength(1);
+		expect(result.nextCursor).toBe(nextId);
+		expect(database.findMany.mock.calls[0]?.[0]).toMatchObject({
+			take: 2,
+			skip: 1,
+			cursor: { id: ORGANIZATION_ID },
+			where: { status: OrganizationStatus.PENDING },
+			orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
+		});
+	});
+	it('rejects stale cursor and oversized pages without unbounded reads', async () => {
+		database.findFirst.mockResolvedValue(null);
+		await expect(reads.list({ limit: 20, cursor: ORGANIZATION_ID })).rejects.toMatchObject({
+			status: 400,
+		});
+		await expect(reads.list({ limit: 51 })).rejects.toMatchObject({ status: 400 });
+		expect(database.findMany).not.toHaveBeenCalled();
+	});
+	it('returns 404 for a missing organization', async () => {
+		database.findUnique.mockResolvedValue(null);
+		await expect(reads.get(ORGANIZATION_ID)).rejects.toMatchObject({ status: 404 });
+	});
+	it('creates pending data and appends an audit event inside the same transaction', async () => {
+		await writes.create(context, { name: 'Soho Gym', slug: 'soho' });
+		expect(database.create.mock.calls[0]?.[0]).toMatchObject({
+			data: { name: 'Soho Gym', slug: 'soho', status: OrganizationStatus.PENDING },
+		});
+		expect(record).toHaveBeenCalledWith(
+			expect.anything(),
+			expect.objectContaining({
+				...context,
+				action: 'create',
+				previousStatus: null,
+				resultingStatus: OrganizationStatus.PENDING,
+			}),
+		);
+	});
+	it('propagates audit failure from inside the transaction without returning success', async () => {
+		record.mockRejectedValueOnce(new Error('audit provider unavailable'));
+		await expect(writes.create(context, { name: 'Soho Gym', slug: 'soho' })).rejects.toMatchObject({
+			status: 503,
+		});
+		expect(database.runTransaction).toHaveBeenCalledTimes(1);
+	});
+	it('maps a database duplicate conflict without treating retry as success', async () => {
+		database.create.mockRejectedValueOnce({ code: 'P2002' });
+		await expect(writes.create(context, { name: 'Soho Gym', slug: 'soho' })).rejects.toMatchObject({
+			status: 409,
+		});
+		expect(record).not.toHaveBeenCalled();
+	});
+	it('preserves one success and one conflict for simulated simultaneous duplicate requests', async () => {
+		database.create
+			.mockResolvedValueOnce(organizationFixture())
+			.mockRejectedValueOnce({ code: 'P2002' });
+		const results = await Promise.allSettled([
+			writes.create(context, { name: 'Soho Gym', slug: 'soho' }),
+			writes.create(context, { name: 'Power Gym', slug: 'soho' }),
+		]);
+		expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+		expect(results.find((result) => result.status === 'rejected')).toMatchObject({
+			status: 'rejected',
+			reason: { status: 409 },
+		});
+		expect(record).toHaveBeenCalledTimes(1);
+	});
+	it('requires matching timestamp and status in the conditional profile update', async () => {
+		await writes.update(context, ORGANIZATION_ID, { name: 'Power Gym' }, ORGANIZATION_TIME);
+		expect(database.updateMany.mock.calls[0]?.[0]).toMatchObject({
+			where: {
+				id: ORGANIZATION_ID,
+				updatedAt: ORGANIZATION_TIME,
+				status: OrganizationStatus.PENDING,
+			},
+			data: { name: 'Power Gym' },
+		});
+	});
+	it('rejects stale or concurrently changed rows and never appends a success audit', async () => {
+		await expect(
+			writes.update(context, ORGANIZATION_ID, { name: 'Power Gym' }, new Date(0)),
+		).rejects.toMatchObject({ status: 412 });
+		database.updateMany.mockResolvedValue({ count: 0 });
+		await expect(
+			writes.lifecycle(context, ORGANIZATION_ID, 'activation', ORGANIZATION_TIME),
+		).rejects.toMatchObject({ status: 412 });
+		expect(record).not.toHaveBeenCalled();
+	});
+	it('sets activation time but retains history and does not create unrelated identities', async () => {
+		database.findUnique.mockResolvedValueOnce(organizationFixture()).mockResolvedValueOnce({
+			...organizationFixture(),
+			status: OrganizationStatus.ACTIVE,
+		});
+		await writes.lifecycle(context, ORGANIZATION_ID, 'activation', ORGANIZATION_TIME);
+		expect(database.updateMany.mock.calls[0]?.[0]).toMatchObject({
+			data: {
+				status: OrganizationStatus.ACTIVE,
+				activatedAt: record.mock.calls[0]?.[1].occurredAt,
+			},
+		});
+		expect(record.mock.calls[0]?.[1].resultingStatus).toBe(OrganizationStatus.ACTIVE);
+		expect(database.userCount).not.toHaveBeenCalled();
+	});
+	it('fails closed before transactions when audit persistence is absent', async () => {
+		const unavailable = new UnavailableOrganizationAudit();
+		available.mockImplementation(() => unavailable.assertAvailable());
+		await expect(writes.create(context, { name: 'Soho Gym', slug: 'soho' })).rejects.toMatchObject({
+			status: 503,
+		});
+		await expect(
+			writes.update(context, ORGANIZATION_ID, { name: 'Power Gym' }, ORGANIZATION_TIME),
+		).rejects.toMatchObject({ status: 503 });
+		await expect(
+			writes.lifecycle(context, ORGANIZATION_ID, 'activation', ORGANIZATION_TIME),
+		).rejects.toMatchObject({ status: 503 });
+		expect(database.runTransaction).not.toHaveBeenCalled();
+		expect(database.create).not.toHaveBeenCalled();
+		expect(database.updateMany).not.toHaveBeenCalled();
+	});
+});
