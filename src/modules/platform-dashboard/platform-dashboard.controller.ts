@@ -14,6 +14,7 @@ import { ApiErrorResponseDto } from '../../common/dto/api-error-response.dto.js'
 import { PlatformPermissionGuard } from '../platform-auth/platform-permission.guard.js';
 import { RequirePlatformPermissions } from '../platform-auth/platform-permissions.decorator.js';
 import { PlatformSessionGuard } from '../platform-auth/platform-session.guard.js';
+import { PLATFORM_PERMISSION } from '../platform-auth/platform-permission.constants.js';
 import { PlatformDashboardSummaryDto } from './dto/platform-dashboard-summary.dto.js';
 import { PlatformDashboardService } from './platform-dashboard.service.js';
 
@@ -26,7 +27,7 @@ export class PlatformDashboardController {
 
 	@Get('summary')
 	@Header('Cache-Control', 'no-store')
-	@RequirePlatformPermissions('platform.dashboard.read')
+	@RequirePlatformPermissions(PLATFORM_PERMISSION.dashboardRead)
 	@ApiOperation({
 		summary: 'Read the platform administration dashboard summary',
 		description:
