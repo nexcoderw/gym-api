@@ -79,6 +79,7 @@ describe('PlatformDashboardService', () => {
 		expect(database.staffGroupBy).toHaveBeenCalledTimes(1);
 		expect(database.staffGroupBy).toHaveBeenCalledWith({
 			by: ['status'],
+			orderBy: { status: 'asc' },
 			_count: { _all: true },
 		});
 		expect(database.roleCount).toHaveBeenCalledTimes(1);
