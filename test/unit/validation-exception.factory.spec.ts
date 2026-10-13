@@ -1,6 +1,6 @@
 import type { ValidationError } from '@nestjs/common';
 
-import { createValidationException } from '../../src/common/pipes/validation-exception.factory';
+import { createValidationException } from '../../src/common/pipes/validation-exception.factory.js';
 
 describe('createValidationException', () => {
 	it('returns stable flattened field errors', () => {
