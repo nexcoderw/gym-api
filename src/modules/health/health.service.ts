@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
-import { SERVICE_NAME, SERVICE_VERSION } from '../../common/constants/api.constants';
-import type { LivenessResponseDto } from './dto/liveness-response.dto';
+import { SERVICE_NAME, SERVICE_VERSION } from '../../common/constants/api.constants.js';
+import type { LivenessResponseDto } from './dto/liveness-response.dto.js';
 
 @Injectable()
 export class HealthService {
