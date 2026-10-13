@@ -1,11 +1,6 @@
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import {
-	PlatformStaffStatus,
-	Prisma,
-	PrismaService,
-	UserStatus,
-} from '@nexcoderw/gym-db';
+import { PlatformStaffStatus, Prisma, PrismaService, UserStatus } from '@nexcoderw/gym-db';
 
 import type { EnvironmentVariables } from '../../config/environment.types.js';
 import type { PlatformMfaVerifyDto } from './dto/platform-mfa-verify.dto.js';
@@ -21,8 +16,7 @@ export interface PlatformMfaSuccess {
 }
 
 type VerificationOutcome =
-	| { readonly authenticated: false }
-	| { readonly authenticated: true; readonly expiresAt: Date };
+	{ readonly authenticated: false } | { readonly authenticated: true; readonly expiresAt: Date };
 
 class ConcurrentMfaConsumptionError extends Error {
 	override readonly name = 'ConcurrentMfaConsumptionError';
@@ -75,13 +69,14 @@ export class PlatformMfaService {
 		}
 
 		const acceptedTotp =
-			input.method === 'totp' && input.totpCode !== undefined && challenge.platformStaff.totpCredential !== null
+			input.method === 'totp' &&
+			input.totpCode !== undefined &&
+			challenge.platformStaff.totpCredential !== null
 				? this.totp.verify(
 						{
 							platformStaffId: challenge.platformStaffId,
 							encryptedSecret: challenge.platformStaff.totpCredential.encryptedSecret,
-							initializationVector:
-								challenge.platformStaff.totpCredential.initializationVector,
+							initializationVector: challenge.platformStaff.totpCredential.initializationVector,
 							authenticationTag: challenge.platformStaff.totpCredential.authenticationTag,
 							encryptionKeyId: challenge.platformStaff.totpCredential.encryptionKeyId,
 							encryptionVersion: challenge.platformStaff.totpCredential.encryptionVersion,
@@ -95,95 +90,95 @@ export class PlatformMfaService {
 		try {
 			outcome = await this.prisma.$transaction(
 				async (transaction): Promise<VerificationOutcome> => {
-				const current = await transaction.platformMfaChallenge.findUnique({
-					where: { tokenDigest: challengeDigest },
-					select: {
-						id: true,
-						platformStaffId: true,
-						expiresAt: true,
-						consumedAt: true,
-						failedAttempts: true,
-						maxAttempts: true,
-						platformStaff: {
-							select: {
-								status: true,
-								user: { select: { status: true, emailVerifiedAt: true } },
-								roles: {
-									select: {
-										platformRole: {
-											select: {
-												permissions: { select: { platformPermissionId: true }, take: 1 },
+					const current = await transaction.platformMfaChallenge.findUnique({
+						where: { tokenDigest: challengeDigest },
+						select: {
+							id: true,
+							platformStaffId: true,
+							expiresAt: true,
+							consumedAt: true,
+							failedAttempts: true,
+							maxAttempts: true,
+							platformStaff: {
+								select: {
+									status: true,
+									user: { select: { status: true, emailVerifiedAt: true } },
+									roles: {
+										select: {
+											platformRole: {
+												select: {
+													permissions: { select: { platformPermissionId: true }, take: 1 },
+												},
 											},
 										},
 									},
-								},
-								totpCredential: {
-									select: { id: true, verifiedAt: true, disabledAt: true },
+									totpCredential: {
+										select: { id: true, verifiedAt: true, disabledAt: true },
+									},
 								},
 							},
 						},
-					},
-				});
-				if (
-					current === null ||
-					current.consumedAt !== null ||
-					current.expiresAt <= now ||
-					current.failedAttempts >= current.maxAttempts ||
-					current.platformStaff.status !== PlatformStaffStatus.ACTIVE ||
-					current.platformStaff.user.status !== UserStatus.ACTIVE ||
-					current.platformStaff.user.emailVerifiedAt === null ||
-					!current.platformStaff.roles.some(
-						({ platformRole }) => platformRole.permissions.length > 0,
-					)
-				) {
-					return { authenticated: false };
-				}
+					});
+					if (
+						current === null ||
+						current.consumedAt !== null ||
+						current.expiresAt <= now ||
+						current.failedAttempts >= current.maxAttempts ||
+						current.platformStaff.status !== PlatformStaffStatus.ACTIVE ||
+						current.platformStaff.user.status !== UserStatus.ACTIVE ||
+						current.platformStaff.user.emailVerifiedAt === null ||
+						!current.platformStaff.roles.some(
+							({ platformRole }) => platformRole.permissions.length > 0,
+						)
+					) {
+						return { authenticated: false };
+					}
 
-				const factorAccepted = await this.consumeFactor(
-					transaction,
-					input,
-					current.platformStaffId,
-					current.platformStaff.totpCredential,
-					acceptedTotp?.timeStep,
-					now,
-				);
-				if (!factorAccepted) {
-					await transaction.platformMfaChallenge.updateMany({
+					const factorAccepted = await this.consumeFactor(
+						transaction,
+						input,
+						current.platformStaffId,
+						current.platformStaff.totpCredential,
+						acceptedTotp?.timeStep,
+						now,
+					);
+					if (!factorAccepted) {
+						await transaction.platformMfaChallenge.updateMany({
+							where: {
+								id: current.id,
+								consumedAt: null,
+								failedAttempts: { lt: current.maxAttempts },
+							},
+							data: { failedAttempts: { increment: 1 } },
+						});
+						return { authenticated: false };
+					}
+
+					const consumed = await transaction.platformMfaChallenge.updateMany({
 						where: {
 							id: current.id,
 							consumedAt: null,
+							expiresAt: { gt: now },
 							failedAttempts: { lt: current.maxAttempts },
 						},
-						data: { failedAttempts: { increment: 1 } },
+						data: { consumedAt: now },
 					});
-					return { authenticated: false };
-				}
+					if (consumed.count !== 1) {
+						throw new ConcurrentMfaConsumptionError();
+					}
 
-				const consumed = await transaction.platformMfaChallenge.updateMany({
-					where: {
-						id: current.id,
-						consumedAt: null,
-						expiresAt: { gt: now },
-						failedAttempts: { lt: current.maxAttempts },
-					},
-					data: { consumedAt: now },
-				});
-				if (consumed.count !== 1) {
-					throw new ConcurrentMfaConsumptionError();
-				}
-
-				const expiresAt = new Date(now.getTime() + this.sessionLifetimeMilliseconds);
-				await transaction.platformAdminSession.create({
-					data: {
-						platformStaffId: current.platformStaffId,
-						tokenDigest: this.tokens.digest(sessionToken),
-						expiresAt,
-						idleExpiresAt: new Date(now.getTime() + this.idleLifetimeMilliseconds),
-						lastSeenAt: now,
-						mfaVerifiedAt: now,
-					},
-				});
-				return { authenticated: true, expiresAt };
+					const expiresAt = new Date(now.getTime() + this.sessionLifetimeMilliseconds);
+					await transaction.platformAdminSession.create({
+						data: {
+							platformStaffId: current.platformStaffId,
+							tokenDigest: this.tokens.digest(sessionToken),
+							expiresAt,
+							idleExpiresAt: new Date(now.getTime() + this.idleLifetimeMilliseconds),
+							lastSeenAt: now,
+							mfaVerifiedAt: now,
+						},
+					});
+					return { authenticated: true, expiresAt };
 				},
 				{ isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
 			);
@@ -211,7 +206,11 @@ export class PlatformMfaService {
 		transaction: Prisma.TransactionClient,
 		input: PlatformMfaVerifyDto,
 		platformStaffId: string,
-		totpCredential: { readonly id: string; readonly verifiedAt: Date | null; readonly disabledAt: Date | null } | null,
+		totpCredential: {
+			readonly id: string;
+			readonly verifiedAt: Date | null;
+			readonly disabledAt: Date | null;
+		} | null,
 		acceptedTimeStep: bigint | undefined,
 		now: Date,
 	): Promise<boolean> {
@@ -230,10 +229,7 @@ export class PlatformMfaService {
 					platformStaffId,
 					verifiedAt: { not: null },
 					disabledAt: null,
-					OR: [
-						{ lastAcceptedTimeStep: null },
-						{ lastAcceptedTimeStep: { lt: acceptedTimeStep } },
-					],
+					OR: [{ lastAcceptedTimeStep: null }, { lastAcceptedTimeStep: { lt: acceptedTimeStep } }],
 				},
 				data: { lastAcceptedTimeStep: acceptedTimeStep, lastUsedAt: now },
 			});
@@ -256,7 +252,9 @@ export class PlatformMfaService {
 
 	private assertMethodInput(input: PlatformMfaVerifyDto): void {
 		const valid =
-			(input.method === 'totp' && input.totpCode !== undefined && input.recoveryCode === undefined) ||
+			(input.method === 'totp' &&
+				input.totpCode !== undefined &&
+				input.recoveryCode === undefined) ||
 			(input.method === 'recovery_code' &&
 				input.recoveryCode !== undefined &&
 				input.totpCode === undefined);
@@ -267,10 +265,5 @@ export class PlatformMfaService {
 }
 
 function isTransactionConflict(error: unknown): boolean {
-	return (
-		typeof error === 'object' &&
-		error !== null &&
-		'code' in error &&
-		error.code === 'P2034'
-	);
+	return typeof error === 'object' && error !== null && 'code' in error && error.code === 'P2034';
 }
