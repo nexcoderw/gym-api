@@ -10,8 +10,19 @@ export class PlatformMfaChallengeResponseDto {
 	@ApiProperty({ example: '2026-10-13T10:05:00.000Z' })
 	expiresAt!: string;
 
-	@ApiProperty({ enum: ['totp', 'recovery_code'], isArray: true, example: ['totp'] })
-	methods!: ('totp' | 'recovery_code')[];
+	@ApiProperty({ enum: ['email_otp', 'totp', 'recovery_code'], isArray: true, example: ['totp'] })
+	methods!: ('email_otp' | 'totp' | 'recovery_code')[];
+}
+
+export class PlatformEmailOtpSentResponseDto {
+	@ApiProperty({ enum: ['sent'], example: 'sent' })
+	status!: 'sent';
+
+	@ApiProperty({ example: '2026-10-14T10:05:00.000Z' })
+	expiresAt!: string;
+
+	@ApiProperty({ example: 60, description: 'Minimum seconds before another send attempt.' })
+	retryAfterSeconds!: number;
 }
 
 export class PlatformMfaVerifiedResponseDto {
