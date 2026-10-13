@@ -84,6 +84,27 @@ describe('PlatformSessionService', () => {
 		expect(sessionUpdateMany).not.toHaveBeenCalled();
 	});
 
+	it('retries one rolled-back serialization conflict and revalidates live permissions', async () => {
+		runTransaction.mockRejectedValueOnce({ code: 'P2034' });
+		sessionFindUnique.mockResolvedValue(createSession([{ platformPermission: { key: 'platform.dashboard.read' } }]));
+		await expect(service.authenticate('fictional-session-token', new Date('2030-01-01T00:10:00.000Z'))).resolves.toMatchObject({ permissions: ['platform.dashboard.read'] });
+		expect(runTransaction).toHaveBeenCalledTimes(2);
+	});
+
+	it('bounds serialization retries and returns an outage rather than logging out the user', async () => {
+		runTransaction.mockRejectedValueOnce({ code: 'P2034' }).mockRejectedValueOnce({ code: 'P2034' });
+		await expect(service.authenticate('fictional-session-token')).rejects.toMatchObject({ status: 503 });
+		expect(runTransaction).toHaveBeenCalledTimes(2);
+		expect(sessionUpdateMany).not.toHaveBeenCalled();
+	});
+
+	it('does not blindly retry an uncertain transaction timeout', async () => {
+		runTransaction.mockRejectedValueOnce({ code: 'P2028', message: 'private provider diagnostics' });
+		await expect(service.authenticate('fictional-session-token')).rejects.toMatchObject({ status: 503 });
+		expect(runTransaction).toHaveBeenCalledTimes(1);
+		expect(sessionFindUnique).not.toHaveBeenCalled();
+	});
+
 	it('revokes a session after all explicit permissions are removed', async () => {
 		sessionFindUnique.mockResolvedValue(createSession([]));
 
