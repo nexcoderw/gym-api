@@ -48,4 +48,3 @@ export interface ActivatePlatformOwnerInput {
 export interface PlatformOwnerActivation {
 	readonly recoveryCodes: readonly string[];
 }
-
