@@ -1,9 +1,9 @@
 import { Controller, Get } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags, ApiTooManyRequestsResponse } from '@nestjs/swagger';
 
-import { ApiErrorResponseDto } from '../../common/dto/api-error-response.dto';
-import { LivenessResponseDto } from './dto/liveness-response.dto';
-import { HealthService } from './health.service';
+import { ApiErrorResponseDto } from '../../common/dto/api-error-response.dto.js';
+import { LivenessResponseDto } from './dto/liveness-response.dto.js';
+import { HealthService } from './health.service.js';
 
 @ApiTags('Health')
 @Controller('health')
