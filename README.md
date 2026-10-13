@@ -54,25 +54,32 @@ future Nest major upgrade must be coordinated across both packages.
 Copy `.env.local.example` to ignored `.env.local` for development. Production values come from managed
 deployment configuration, not committed files.
 
-| Variable                                          | Default                           | Requirement                                                             |
-| ------------------------------------------------- | --------------------------------- | ----------------------------------------------------------------------- |
-| `NODE_ENV`                                        | `development`                     | `development`, `test`, or `production`                                  |
-| `HOST`                                            | `127.0.0.1`                       | Explicit production bind address recommended                            |
-| `PORT`                                            | `3001`                            | Integer from 1 through 65535                                            |
-| `CORS_ORIGINS`                                    | local frontend outside production | Required comma-separated origins in production                          |
-| `SWAGGER_ENABLED`                                 | true outside production           | Defaults false in production                                            |
-| `RATE_LIMIT_TTL_MS`                               | `60000`                           | Window from 1000 through 3600000 ms                                     |
-| `RATE_LIMIT_LIMIT`                                | `100`                             | Requests per window from 1 through 100000                               |
-| `DATABASE_URL`                                    | local disposable URL              | Least-privilege runtime database URL                                    |
-| `PLATFORM_ADMIN_ORIGIN`                           | `http://localhost:3000`           | Exact browser Origin for platform authentication                        |
-| `PLATFORM_AUTH_COOKIE_SECURE`                     | false outside production          | Must be true in production                                              |
-| `PLATFORM_AUTH_TOKEN_PEPPER`                      | development-only test key         | Managed base64 32-byte secret in production                             |
-| `PLATFORM_TOTP_KEYRING`                           | development-only test keyring     | Managed `key-id=base64-key` rotation keyring                            |
-| `PLATFORM_AUTH_SINGLE_INSTANCE`                   | true outside production           | Required production acknowledgement until distributed throttling exists |
-| `PLATFORM_TOTP_ACTIVE_KEY_ID`                     | `local-v1` outside production     | Keyring entry used only for new encrypted TOTP enrollments              |
-| `PLATFORM_OWNER_BOOTSTRAP_ENABLED`                | false                             | Temporary explicit authorization for the operator-only CLI              |
-| `PLATFORM_OWNER_BOOTSTRAP_EXPECTED_DATABASE_HOST` | none                              | Exact Neon hostname required while bootstrap is enabled                 |
-| `PLATFORM_OWNER_BOOTSTRAP_EXPECTED_DATABASE_NAME` | none                              | Exact PostgreSQL database name required while bootstrap is enabled      |
+| Variable                                            | Default                           | Requirement                                                             |
+| --------------------------------------------------- | --------------------------------- | ----------------------------------------------------------------------- |
+| `NODE_ENV`                                          | `development`                     | `development`, `test`, or `production`                                  |
+| `HOST`                                              | `127.0.0.1`                       | Explicit production bind address recommended                            |
+| `PORT`                                              | `3001`                            | Integer from 1 through 65535                                            |
+| `CORS_ORIGINS`                                      | local frontend outside production | Required comma-separated origins in production                          |
+| `SWAGGER_ENABLED`                                   | true outside production           | Defaults false in production                                            |
+| `RATE_LIMIT_TTL_MS`                                 | `60000`                           | Window from 1000 through 3600000 ms                                     |
+| `RATE_LIMIT_LIMIT`                                  | `100`                             | Requests per window from 1 through 100000                               |
+| `DATABASE_URL`                                      | local disposable URL              | Least-privilege runtime database URL                                    |
+| `PLATFORM_ADMIN_ORIGIN`                             | `http://localhost:3000`           | Exact browser Origin for platform authentication                        |
+| `PLATFORM_AUTH_COOKIE_SECURE`                       | false outside production          | Must be true in production                                              |
+| `PLATFORM_AUTH_TOKEN_PEPPER`                        | development-only test key         | Managed base64 32-byte secret in production                             |
+| `PLATFORM_TOTP_KEYRING`                             | development-only test keyring     | Managed `key-id=base64-key` rotation keyring                            |
+| `PLATFORM_AUTH_SINGLE_INSTANCE`                     | true outside production           | Required production acknowledgement until distributed throttling exists |
+| `PLATFORM_TOTP_ACTIVE_KEY_ID`                       | `local-v1` outside production     | Keyring entry used only for new encrypted TOTP enrollments              |
+| `PLATFORM_OWNER_BOOTSTRAP_ENABLED`                  | false                             | Temporary explicit authorization for the operator-only CLI              |
+| `PLATFORM_OWNER_BOOTSTRAP_EXPECTED_DATABASE_HOST`   | none                              | Exact Neon hostname required while bootstrap is enabled                 |
+| `PLATFORM_OWNER_BOOTSTRAP_EXPECTED_DATABASE_NAME`   | none                              | Exact PostgreSQL database name required while bootstrap is enabled      |
+| `PLATFORM_OWNER_BOOTSTRAP_EXPECTED_DATABASE_ROLE`   | none                              | Dedicated restricted bootstrap role; checked against the connected user |
+| `PLATFORM_OWNER_BOOTSTRAP_EXPECTED_DATABASE_MARKER` | none                              | Provisioned database comment; checked on the connected backend          |
+
+First-owner bootstrap now checks the actual connected database and restricted operator role inside a
+transaction before privileged writes. Provision the operator marker and role before enabling it;
+`neondb_owner` is rejected. See the [bootstrap runbook](docs/runbooks/platform-owner-bootstrap.md) for
+Neon setup, transaction-lock behavior, and the separate opt-in disposable PostgreSQL test suite.
 
 `CORS_ORIGINS` accepts origins only, such as `https://admin.gym.rw`, with no path. CORS does not prove
 tenant identity or authorization.
