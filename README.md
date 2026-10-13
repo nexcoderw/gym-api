@@ -110,7 +110,7 @@ Do not delete the old project until the new targets and human-operated checks ha
 | `NODE_ENV`                                          | `development`                     | `development`, `test`, or `production`                                  |
 | `HOST`                                              | `127.0.0.1`                       | Explicit production bind address recommended                            |
 | `PORT`                                              | `3000`                            | Integer from 1 through 65535                                            |
-| `CORS_ORIGINS`                                      | admin 4000 / manager 4001 locally   | Required comma-separated origins in production                          |
+| `CORS_ORIGINS`                                      | admin 4000 / manager 4001 locally | Required comma-separated origins in production                          |
 | `SWAGGER_ENABLED`                                   | true outside production           | Defaults false in production                                            |
 | `RATE_LIMIT_TTL_MS`                                 | `60000`                           | Window from 1000 through 3600000 ms                                     |
 | `RATE_LIMIT_LIMIT`                                  | `100`                             | Requests per window from 1 through 100000                               |
