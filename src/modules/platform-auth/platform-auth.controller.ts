@@ -66,12 +66,24 @@ export class PlatformAuthController {
 		description:
 			'Validates an eligible administrator password and creates a short-lived MFA challenge. It never creates an authenticated session.',
 	})
-	@ApiOkResponse({ description: 'An MFA challenge was created.', type: PlatformMfaChallengeResponseDto })
+	@ApiOkResponse({
+		description: 'An MFA challenge was created.',
+		type: PlatformMfaChallengeResponseDto,
+	})
 	@ApiBadRequestResponse({ description: 'The request DTO is invalid.', type: ApiErrorResponseDto })
 	@ApiUnauthorizedResponse({ description: 'Authentication failed.', type: ApiErrorResponseDto })
-	@ApiForbiddenResponse({ description: 'The administrative Origin is not allowed.', type: ApiErrorResponseDto })
-	@ApiPreconditionFailedResponse({ description: 'Confirmed MFA enrollment is required.', type: ApiErrorResponseDto })
-	@ApiTooManyRequestsResponse({ description: 'Authentication attempts are rate limited.', type: ApiErrorResponseDto })
+	@ApiForbiddenResponse({
+		description: 'The administrative Origin is not allowed.',
+		type: ApiErrorResponseDto,
+	})
+	@ApiPreconditionFailedResponse({
+		description: 'Confirmed MFA enrollment is required.',
+		type: ApiErrorResponseDto,
+	})
+	@ApiTooManyRequestsResponse({
+		description: 'Authentication attempts are rate limited.',
+		type: ApiErrorResponseDto,
+	})
 	async login(
 		@Body() input: PlatformLoginDto,
 		@Req() request: PlatformRequest,
@@ -96,11 +108,23 @@ export class PlatformAuthController {
 		description:
 			'Consumes one MFA challenge and one valid TOTP step or recovery code before issuing a host-only HttpOnly session cookie.',
 	})
-	@ApiOkResponse({ description: 'MFA succeeded and the session cookie was issued.', type: PlatformMfaVerifiedResponseDto })
+	@ApiOkResponse({
+		description: 'MFA succeeded and the session cookie was issued.',
+		type: PlatformMfaVerifiedResponseDto,
+	})
 	@ApiBadRequestResponse({ description: 'The request DTO is invalid.', type: ApiErrorResponseDto })
-	@ApiUnauthorizedResponse({ description: 'The challenge or MFA factor is invalid.', type: ApiErrorResponseDto })
-	@ApiForbiddenResponse({ description: 'Origin or CSRF validation failed.', type: ApiErrorResponseDto })
-	@ApiTooManyRequestsResponse({ description: 'The caller exceeded the request limit.', type: ApiErrorResponseDto })
+	@ApiUnauthorizedResponse({
+		description: 'The challenge or MFA factor is invalid.',
+		type: ApiErrorResponseDto,
+	})
+	@ApiForbiddenResponse({
+		description: 'Origin or CSRF validation failed.',
+		type: ApiErrorResponseDto,
+	})
+	@ApiTooManyRequestsResponse({
+		description: 'The caller exceeded the request limit.',
+		type: ApiErrorResponseDto,
+	})
 	async verifyMfa(
 		@Body() input: PlatformMfaVerifyDto,
 		@Res({ passthrough: true }) response: Response,
@@ -121,9 +145,18 @@ export class PlatformAuthController {
 		description:
 			'Revalidates expiry, idle timeout, password state, administrator eligibility, and current database permissions.',
 	})
-	@ApiOkResponse({ description: 'Current safe session information.', type: PlatformSessionResponseDto })
-	@ApiUnauthorizedResponse({ description: 'The session is missing, invalid, or expired.', type: ApiErrorResponseDto })
-	@ApiTooManyRequestsResponse({ description: 'The caller exceeded the request limit.', type: ApiErrorResponseDto })
+	@ApiOkResponse({
+		description: 'Current safe session information.',
+		type: PlatformSessionResponseDto,
+	})
+	@ApiUnauthorizedResponse({
+		description: 'The session is missing, invalid, or expired.',
+		type: ApiErrorResponseDto,
+	})
+	@ApiTooManyRequestsResponse({
+		description: 'The caller exceeded the request limit.',
+		type: ApiErrorResponseDto,
+	})
 	getSession(@Req() request: PlatformRequest): PlatformSessionResponseDto {
 		const principal = request.platformPrincipal;
 		if (principal === undefined) {
@@ -152,8 +185,14 @@ export class PlatformAuthController {
 			'Revokes only the presented session digest and clears the matching host-only session cookie. Repeated requests are safe.',
 	})
 	@ApiNoContentResponse({ description: 'The presented session is revoked or was already absent.' })
-	@ApiForbiddenResponse({ description: 'Origin or CSRF validation failed.', type: ApiErrorResponseDto })
-	@ApiTooManyRequestsResponse({ description: 'The caller exceeded the request limit.', type: ApiErrorResponseDto })
+	@ApiForbiddenResponse({
+		description: 'Origin or CSRF validation failed.',
+		type: ApiErrorResponseDto,
+	})
+	@ApiTooManyRequestsResponse({
+		description: 'The caller exceeded the request limit.',
+		type: ApiErrorResponseDto,
+	})
 	async logout(
 		@Req() request: PlatformRequest,
 		@Res({ passthrough: true }) response: Response,
