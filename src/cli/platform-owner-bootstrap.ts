@@ -135,7 +135,9 @@ async function initialize(
 		}
 		const enrollment = await bootstrap.initialize({ email, displayName, password });
 		writeLine('Pending owner initialization completed. The account is not active.');
-		writeLine('Enroll this TOTP factor now. The secret is displayed only in this terminal session.');
+		writeLine(
+			'Enroll this TOTP factor now. The secret is displayed only in this terminal session.',
+		);
 		writeLine(`Enrollment URI: ${enrollment.enrollmentUri}`);
 		writeLine(`Manual secret: ${enrollment.secret}`);
 		writeLine('After independent mailbox verification, run the activation command.');
@@ -203,4 +205,3 @@ void run().catch((error: unknown) => {
 	process.stderr.write(`${safeMessage}\n`);
 	process.exitCode = 1;
 });
-
