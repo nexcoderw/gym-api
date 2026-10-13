@@ -5,11 +5,7 @@ import {
 	Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import {
-	PlatformStaffStatus,
-	PrismaService,
-	UserStatus,
-} from '@nexcoderw/gym-db';
+import { PlatformStaffStatus, PrismaService, UserStatus } from '@nexcoderw/gym-db';
 
 import type { EnvironmentVariables } from '../../config/environment.types.js';
 import type { PlatformMfaChallengeResponseDto } from './dto/platform-auth-response.dto.js';
