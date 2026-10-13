@@ -1,14 +1,16 @@
-import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+import { Injectable, Logger, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PlatformStaffStatus, Prisma, PrismaService, UserStatus } from '@nexcoderw/gym-db';
 
 import type { EnvironmentVariables } from '../../config/environment.types.js';
+import { databaseErrorCode } from '../../common/errors/database-error-code.js';
 import { PLATFORM_AUTH_ERROR } from './platform-auth.constants.js';
 import type { PlatformPrincipal } from './platform-auth.types.js';
 import { PlatformTokenService } from './platform-token.service.js';
 
 const TRANSACTION_MAX_WAIT_MS = 5_000;
 const TRANSACTION_TIMEOUT_MS = 10_000;
+const AUTHENTICATION_BUDGET_MS = 18_000;
 
 @Injectable()
 export class PlatformSessionService {
@@ -26,6 +28,44 @@ export class PlatformSessionService {
 
 	async authenticate(token: string, now = new Date()): Promise<PlatformPrincipal> {
 		const tokenDigest = this.tokens.digest(token);
+		const startedAt = performance.now();
+		for (let attempt = 0; attempt < 2; attempt += 1) {
+			const elapsed = performance.now() - startedAt;
+			const remaining = Math.floor(AUTHENTICATION_BUDGET_MS - elapsed);
+			if (attempt > 0 && remaining < 2_000) {
+				throw new ServiceUnavailableException({ code: 'PLATFORM_SESSION_UNAVAILABLE', message: 'Session verification is temporarily unavailable.' });
+			}
+			const maxWait = attempt === 0 ? TRANSACTION_MAX_WAIT_MS : Math.min(TRANSACTION_MAX_WAIT_MS, remaining - 1_000);
+			const timeout = attempt === 0 ? TRANSACTION_TIMEOUT_MS : Math.min(TRANSACTION_TIMEOUT_MS, remaining - maxWait);
+			try {
+				return await this.authenticateTransaction(
+					tokenDigest,
+					attempt === 0 ? now : new Date(now.getTime() + elapsed),
+					{ maxWait, timeout },
+				);
+			} catch (error: unknown) {
+				const code = databaseErrorCode(error);
+				// Only a confirmed rollback may be retried. Keep the total below the BFF deadline.
+				if (code === 'P2034' && attempt === 0 && performance.now() - startedAt < AUTHENTICATION_BUDGET_MS - 2_000) {
+					continue;
+				}
+				if (code !== undefined && ['P1001', 'P1002', 'P1008', 'P1017', 'P2024', 'P2028', 'P2034', 'P2037'].includes(code)) {
+					throw new ServiceUnavailableException(
+						{ code: 'PLATFORM_SESSION_UNAVAILABLE', message: 'Session verification is temporarily unavailable.' },
+						{ cause: error },
+					);
+				}
+				throw error;
+			}
+		}
+		throw new ServiceUnavailableException('Session verification is temporarily unavailable.');
+	}
+
+	private async authenticateTransaction(
+		tokenDigest: string,
+		now: Date,
+		budget: { readonly maxWait: number; readonly timeout: number },
+	): Promise<PlatformPrincipal> {
 		const principal = await this.prisma.$transaction(
 			async (transaction): Promise<PlatformPrincipal | null> => {
 				const session = await transaction.platformAdminSession.findUnique({
@@ -135,8 +175,8 @@ export class PlatformSessionService {
 			{
 				isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
 				// Bound remote connection acquisition separately from session validation work.
-				maxWait: TRANSACTION_MAX_WAIT_MS,
-				timeout: TRANSACTION_TIMEOUT_MS,
+				maxWait: budget.maxWait,
+				timeout: budget.timeout,
 			},
 		);
 
