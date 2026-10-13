@@ -15,7 +15,7 @@ describe('PlatformOwnerBootstrapService', () => {
 	const staffCount = jest.fn<() => Promise<number>>();
 	const userFindUnique = jest.fn<() => Promise<unknown>>();
 	const userCreate = jest.fn<() => Promise<unknown>>();
-	const userUpdateMany = jest.fn<() => Promise<{ count: number }>>();
+	const userUpdateMany = jest.fn<(input: unknown) => Promise<{ count: number }>>();
 	const staffUpdateMany = jest.fn<() => Promise<{ count: number }>>();
 	const roleFindUnique = jest.fn<() => Promise<unknown>>();
 	const roleCreate = jest.fn<() => Promise<unknown>>();
@@ -113,20 +113,23 @@ describe('PlatformOwnerBootstrapService', () => {
 				password,
 			}),
 		).resolves.toMatchObject({ secret: 'JBSWY3DPEHPK3PXP' });
-		expect(userCreate).toHaveBeenCalledWith(
-			expect.objectContaining({
-				data: expect.objectContaining({
-					email: 'owner@example.com',
-					status: UserStatus.PENDING,
-					platformStaff: { create: { status: PlatformStaffStatus.PENDING } },
-				}),
-			}),
-		);
-		expect(permissionCreate).toHaveBeenCalledWith(
-			expect.objectContaining({
-				data: expect.objectContaining({ key: 'platform.dashboard.read' }),
-			}),
-		);
+		expect(userCreate).toHaveBeenCalledWith({
+			data: {
+				email: 'owner@example.com',
+				displayName: 'Fictional Owner',
+				status: UserStatus.PENDING,
+				passwordCredential: { create: { passwordHash: 'approved-password-hash' } },
+				platformStaff: { create: { status: PlatformStaffStatus.PENDING } },
+			},
+			select: { platformStaff: { select: { id: true } } },
+		});
+		expect(permissionCreate).toHaveBeenCalledWith({
+			data: {
+				key: 'platform.dashboard.read',
+				description: 'View the NEXCODE platform administration dashboard.',
+			},
+			select: { id: true },
+		});
 		expect(password.every((value) => value === 0)).toBe(true);
 	});
 
@@ -193,18 +196,18 @@ describe('PlatformOwnerBootstrapService', () => {
 
 		expect(result.recoveryCodes).toHaveLength(10);
 		expect(new Set(result.recoveryCodes).size).toBe(10);
-		expect(result.recoveryCodes).toEqual(
-			expect.arrayContaining([expect.stringMatching(/^(?:[A-F0-9]{4}-){7}[A-F0-9]{4}$/u)]),
-		);
+		expect(
+			result.recoveryCodes.every((code) => /^(?:[A-F0-9]{4}-){7}[A-F0-9]{4}$/u.test(code)),
+		).toBe(true);
 		expect(totpUpdateMany).toHaveBeenCalledTimes(1);
-		expect(userUpdateMany).toHaveBeenCalledWith(
-			expect.objectContaining({ data: expect.objectContaining({ status: UserStatus.ACTIVE }) }),
+		const userUpdate = userUpdateMany.mock.calls[0]?.[0];
+		expect(isRecord(userUpdate) && isRecord(userUpdate.data) && userUpdate.data.status).toBe(
+			UserStatus.ACTIVE,
 		);
-		expect(staffUpdateMany).toHaveBeenCalledWith(
-			expect.objectContaining({
-				data: { status: PlatformStaffStatus.ACTIVE },
-			}),
-		);
+		expect(staffUpdateMany).toHaveBeenCalledWith({
+			where: { id: 'staff-id', status: PlatformStaffStatus.PENDING },
+			data: { status: PlatformStaffStatus.ACTIVE },
+		});
 		expect(recoveryCreateMany).toHaveBeenCalledWith({
 			data: result.recoveryCodes.map((code) => ({
 				platformStaffId: 'staff-id',
@@ -307,9 +310,7 @@ function createPendingOwner(): PendingOwnerFixture {
 					platformRole: {
 						key: 'platform.owner',
 						isSystem: true,
-						permissions: [
-							{ platformPermission: { key: 'platform.dashboard.read' } },
-						],
+						permissions: [{ platformPermission: { key: 'platform.dashboard.read' } }],
 					},
 				},
 			],
@@ -330,4 +331,3 @@ function createPendingOwner(): PendingOwnerFixture {
 		},
 	};
 }
-
