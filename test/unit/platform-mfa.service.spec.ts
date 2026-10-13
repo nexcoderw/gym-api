@@ -31,7 +31,7 @@ describe('PlatformMfaService', () => {
 
 	beforeAll(async () => {
 		const config = new ConfigService<EnvironmentVariables, true>(
-			validateEnvironment({ NODE_ENV: 'test' }),
+			validateEnvironment({ NODE_ENV: 'test', PLATFORM_AUTH_EMAIL_OTP_ENABLED: 'true', RESEND_API_KEY: 're_fictional', RESEND_FROM_EMAIL: 'security@example.com' }),
 		);
 		const module = await Test.createTestingModule({
 			providers: [
@@ -48,6 +48,8 @@ describe('PlatformMfaService', () => {
 					provide: PlatformTokenService,
 					useValue: {
 						createToken: jest.fn<() => string>().mockReturnValue('session-token'),
+						emailOtpDigest: jest.fn<(id: string, email: string, code: string) => string>().mockImplementation((id, email, code) => id === 'challenge-id' && email === 'admin@example.com' && code === '012345' ? 'email-otp-digest' : 'wrong-digest'),
+						equal: jest.fn<(left: string, right: string) => boolean>().mockImplementation((left, right) => left === right),
 						digest: jest
 							.fn<(value: string) => string>()
 							.mockImplementation((value) => `${value}-digest`),
@@ -114,6 +116,40 @@ describe('PlatformMfaService', () => {
 		expect(sessionCreate).toHaveBeenCalledTimes(1);
 	});
 
+	it('atomically clears an email OTP and consumes its challenge before issuing a session', async () => {
+		await expect(service.verify({ challengeToken: 'challenge-token-with-more-than-32-characters', method: 'email_otp', emailOtpCode: '012345' }, new Date('2030-01-01T00:00:00.000Z'))).resolves.toMatchObject({ status: 'authenticated' });
+		expect(challengeUpdateMany).toHaveBeenCalledTimes(2);
+		expect(challengeUpdateMany).toHaveBeenCalledWith({
+			where: { id: 'challenge-id', consumedAt: null, emailOtpDigest: 'email-otp-digest', emailOtpExpiresAt: { gt: new Date('2030-01-01T00:00:00.000Z') } },
+			data: { emailOtpDigest: null, emailOtpExpiresAt: null },
+		});
+		expect(totpUpdateMany).not.toHaveBeenCalled();
+		expect(recoveryUpdateMany).not.toHaveBeenCalled();
+		expect(sessionCreate).toHaveBeenCalledTimes(1);
+	});
+
+	it.each([
+		{ emailOtpDigest: null },
+		{ emailOtpExpiresAt: new Date('2029-12-31T23:59:00.000Z') },
+		{ emailOtpDigest: 'superseded-digest' },
+	])('rejects unavailable, expired or superseded email OTPs: %p', async (state) => {
+		challengeFindUnique.mockResolvedValue({ ...createChallenge(), ...state });
+		await expect(service.verify({ challengeToken: 'challenge-token-with-more-than-32-characters', method: 'email_otp', emailOtpCode: '012345' }, new Date('2030-01-01T00:00:00.000Z'))).rejects.toMatchObject({ status: 401 });
+		expect(sessionCreate).not.toHaveBeenCalled();
+		expect(challengeUpdateMany).toHaveBeenCalledWith(expect.objectContaining({ data: { failedAttempts: { increment: 1 } } }));
+	});
+
+	it('rejects email verification when another transaction already consumed the code', async () => {
+		challengeUpdateMany.mockResolvedValueOnce({ count: 0 });
+		await expect(service.verify({ challengeToken: 'challenge-token-with-more-than-32-characters', method: 'email_otp', emailOtpCode: '012345' })).rejects.toMatchObject({ status: 401 });
+		expect(sessionCreate).not.toHaveBeenCalled();
+	});
+
+	it('rejects mixed MFA factors before reading the challenge', async () => {
+		await expect(service.verify({ challengeToken: 'challenge-token-with-more-than-32-characters', method: 'email_otp', emailOtpCode: '012345', totpCode: '123456' })).rejects.toMatchObject({ status: 401 });
+		expect(challengeFindUnique).not.toHaveBeenCalled();
+	});
+
 	it('does not create two sessions when the challenge loses a concurrent consume race', async () => {
 		challengeUpdateMany.mockResolvedValue({ count: 0 });
 
@@ -128,17 +164,22 @@ describe('PlatformMfaService', () => {
 	});
 });
 
-function createChallenge(): object {
+function createChallenge() {
 	return {
 		id: 'challenge-id',
+		createdAt: new Date('2030-01-01T00:00:00.000Z'),
 		platformStaffId: 'staff-id',
 		expiresAt: new Date('2030-01-01T00:05:00.000Z'),
 		consumedAt: null,
 		failedAttempts: 0,
 		maxAttempts: 5,
+		emailOtpDigest: 'email-otp-digest',
+		emailOtpExpiresAt: new Date('2030-01-01T00:05:00.000Z'),
 		platformStaff: {
 			status: PlatformStaffStatus.ACTIVE,
 			user: {
+				email: 'admin@example.com',
+				passwordCredential: { passwordChangedAt: new Date('2029-01-01T00:00:00.000Z') },
 				status: UserStatus.ACTIVE,
 				emailVerifiedAt: new Date('2029-01-01T00:00:00.000Z'),
 			},
