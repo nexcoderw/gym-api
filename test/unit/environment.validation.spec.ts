@@ -28,6 +28,10 @@ describe('validateEnvironment', () => {
 			PLATFORM_TOTP_KEYRING: {
 				'local-v1': 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
 			},
+			PLATFORM_TOTP_ACTIVE_KEY_ID: 'local-v1',
+			PLATFORM_OWNER_BOOTSTRAP_ENABLED: false,
+			PLATFORM_OWNER_BOOTSTRAP_EXPECTED_DATABASE_HOST: null,
+			PLATFORM_OWNER_BOOTSTRAP_EXPECTED_DATABASE_NAME: null,
 		});
 	});
 
@@ -57,10 +61,23 @@ describe('validateEnvironment', () => {
 			PLATFORM_AUTH_TOKEN_PEPPER: 'AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=',
 			PLATFORM_AUTH_SINGLE_INSTANCE: 'true',
 			PLATFORM_TOTP_KEYRING: 'production-v1=AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI=',
+			PLATFORM_TOTP_ACTIVE_KEY_ID: 'production-v1',
 		});
 
 		expect(configuration.SWAGGER_ENABLED).toBe(false);
 		expect(configuration.CORS_ORIGINS).toEqual(['https://gym.rw', 'https://admin.gym.rw']);
+	});
+
+	it('requires an exact database fingerprint when owner bootstrap is enabled', () => {
+		expect(() =>
+			validateEnvironment({
+				NODE_ENV: 'test',
+				DATABASE_URL: 'postgresql://gym_bootstrap:secret@approved.neon.tech/neondb',
+				PLATFORM_OWNER_BOOTSTRAP_ENABLED: 'true',
+				PLATFORM_OWNER_BOOTSTRAP_EXPECTED_DATABASE_HOST: 'wrong.neon.tech',
+				PLATFORM_OWNER_BOOTSTRAP_EXPECTED_DATABASE_NAME: 'neondb',
+			}),
+		).toThrow('The configured database does not match the approved platform owner bootstrap target.');
 	});
 
 	it('rejects the development key material in production', () => {
