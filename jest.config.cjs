@@ -1,8 +1,10 @@
 /** @type {import('jest').Config} */
 const common = {
+	extensionsToTreatAsEsm: ['.ts'],
 	moduleFileExtensions: ['js', 'json', 'ts'],
+	moduleNameMapper: { '^(\\.{1,2}/.*)\\.js$': '$1' },
 	testEnvironment: 'node',
-	transform: { '^.+\\.ts$': ['ts-jest', { tsconfig: 'tsconfig.json' }] },
+	transform: { '^.+\\.ts$': ['ts-jest', { tsconfig: 'tsconfig.json', useESM: true }] },
 };
 
 module.exports = {
