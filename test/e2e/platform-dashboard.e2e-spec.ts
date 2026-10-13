@@ -29,9 +29,9 @@ describe('platform dashboard HTTP API (real session and permission guards)', () 
 		database.sessionFindUnique.mockReset().mockResolvedValue(session);
 		database.sessionUpdateMany.mockReset().mockResolvedValue({ count: 1 });
 		database.userCount.mockReset().mockResolvedValue(4);
-		database.staffGroupBy.mockReset().mockResolvedValue([
-			{ status: PlatformStaffStatus.ACTIVE, _count: { _all: 2 } },
-		]);
+		database.staffGroupBy
+			.mockReset()
+			.mockResolvedValue([{ status: PlatformStaffStatus.ACTIVE, _count: { _all: 2 } }]);
 		database.roleCount.mockReset().mockResolvedValue(3);
 		database.permissionCount.mockReset().mockResolvedValue(5);
 		database.runTransaction.mockClear();
@@ -42,7 +42,8 @@ describe('platform dashboard HTTP API (real session and permission guards)', () 
 	});
 
 	function app(): NestExpressApplication {
-		if (application === undefined) throw new Error('The dashboard application was not initialized.');
+		if (application === undefined)
+			throw new Error('The dashboard application was not initialized.');
 		return application;
 	}
 
@@ -215,7 +216,9 @@ describe('platform dashboard HTTP API (real session and permission guards)', () 
 	});
 
 	it('uses the centralized safe error envelope for aggregate failures', async () => {
-		database.userCount.mockRejectedValueOnce(new Error('fictional SQL failure secret=do-not-expose'));
+		database.userCount.mockRejectedValueOnce(
+			new Error('fictional SQL failure secret=do-not-expose'),
+		);
 		const response = await request(app().getHttpServer())
 			.get(ENDPOINT)
 			.set('Cookie', COOKIE)
