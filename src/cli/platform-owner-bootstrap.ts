@@ -76,6 +76,8 @@ async function run(): Promise<void> {
 
 	const application = await NestFactory.createApplicationContext(PlatformBootstrapCliModule, {
 		logger: false,
+		// Let the sanitized CLI error handler report startup failures instead of Nest exiting silently.
+		abortOnError: false,
 	});
 	const prompts = new OperatorPrompts();
 	try {
