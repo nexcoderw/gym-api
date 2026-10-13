@@ -25,7 +25,7 @@ import {
 	type PlatformOwnerEnrollment,
 } from './platform-bootstrap.types.js';
 
-const MINIMUM_PASSWORD_BYTES = 14;
+const MINIMUM_PASSWORD_BYTES = 8;
 const MAXIMUM_PASSWORD_BYTES = 1_024;
 const MINIMUM_DISPLAY_NAME_LENGTH = 2;
 const MAXIMUM_DISPLAY_NAME_LENGTH = 160;
@@ -430,7 +430,7 @@ function validatePassword(password: Buffer, email: string): void {
 			password.toString('utf8').toLowerCase().includes(normalizedEmail.toString('utf8'))
 		) {
 			throw invalidInput(
-				'Use a password of 14 to 1024 bytes that does not contain the owner email address.',
+				'Use a password of 8 to 1024 bytes that does not contain the owner email address.',
 			);
 		}
 	} finally {
