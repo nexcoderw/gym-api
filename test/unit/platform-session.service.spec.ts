@@ -138,12 +138,68 @@ describe('PlatformSessionService', () => {
 	it('bounds serialization retries and returns an outage rather than logging out the user', async () => {
 		runTransaction
 			.mockRejectedValueOnce({ code: 'P2034' })
+			.mockRejectedValueOnce({ code: 'P2034' })
 			.mockRejectedValueOnce({ code: 'P2034' });
 		await expect(service.authenticate('fictional-session-token')).rejects.toMatchObject({
 			status: 503,
 		});
-		expect(runTransaction).toHaveBeenCalledTimes(2);
+		expect(runTransaction).toHaveBeenCalledTimes(3);
 		expect(sessionUpdateMany).not.toHaveBeenCalled();
+	});
+
+	it('revalidates permissions after two rolled-back conflicts', async () => {
+		runTransaction
+			.mockRejectedValueOnce({ code: 'P2034' })
+			.mockRejectedValueOnce({ code: 'P2034' });
+		sessionFindUnique.mockResolvedValue(createSession([]));
+		await expect(
+			service.authenticate('fictional-session-token', new Date('2030-01-01T00:10:00.000Z')),
+		).rejects.toMatchObject({ status: 401 });
+		expect(runTransaction).toHaveBeenCalledTimes(3);
+	});
+
+	it('stops retrying when the authentication budget is exhausted', async () => {
+		const clock = jest
+			.spyOn(performance, 'now')
+			.mockReturnValue(19_000)
+			.mockReturnValueOnce(0)
+			.mockReturnValueOnce(0)
+			.mockReturnValueOnce(0);
+		runTransaction.mockRejectedValueOnce({ code: 'P2034' });
+		try {
+			await expect(service.authenticate('fictional-session-token')).rejects.toMatchObject({
+				status: 503,
+			});
+			expect(runTransaction).toHaveBeenCalledTimes(1);
+			expect(sessionUpdateMany).not.toHaveBeenCalled();
+		} finally {
+			clock.mockRestore();
+		}
+	});
+
+	it('rejects idle expiry that passes while waiting to retry', async () => {
+		const clock = jest
+			.spyOn(performance, 'now')
+			.mockReturnValue(10_000)
+			.mockReturnValueOnce(0)
+			.mockReturnValueOnce(0)
+			.mockReturnValueOnce(0);
+		runTransaction.mockRejectedValueOnce({ code: 'P2034' });
+		sessionFindUnique.mockResolvedValue(
+			createSession([{ platformPermission: { key: 'platform.dashboard.read' } }]),
+		);
+		try {
+			await expect(
+				service.authenticate('fictional-session-token', new Date('2030-01-01T00:29:59.900Z')),
+			).rejects.toMatchObject({ status: 401 });
+			expect(runTransaction).toHaveBeenCalledTimes(2);
+			expect(sessionUpdateMany).toHaveBeenCalledWith({
+				where: { id: 'session-id', revokedAt: null },
+				data: { revokedAt: new Date('2030-01-01T00:30:09.900Z') },
+			});
+		} finally {
+			clock.mockRestore();
+		}
 	});
 
 	it('does not blindly retry an uncertain transaction timeout', async () => {
