@@ -17,7 +17,7 @@ import { PlatformAuthModule } from './modules/platform-auth/platform-auth.module
 		ConfigModule.forRoot({
 			cache: true,
 			envFilePath: ['.env.local', '.env'],
-			ignoreEnvFile: process.env.NODE_ENV === 'test',
+			ignoreEnvFile: process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'production',
 			isGlobal: true,
 			validate: validateEnvironment,
 		}),
