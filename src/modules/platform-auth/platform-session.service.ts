@@ -1,11 +1,6 @@
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import {
-	PlatformStaffStatus,
-	Prisma,
-	PrismaService,
-	UserStatus,
-} from '@nexcoderw/gym-db';
+import { PlatformStaffStatus, Prisma, PrismaService, UserStatus } from '@nexcoderw/gym-db';
 
 import type { EnvironmentVariables } from '../../config/environment.types.js';
 import { PLATFORM_AUTH_ERROR } from './platform-auth.constants.js';
@@ -77,8 +72,7 @@ export class PlatformSessionService {
 					return null;
 				}
 
-				const passwordChangedAt =
-					session.platformStaff.user.passwordCredential?.passwordChangedAt;
+				const passwordChangedAt = session.platformStaff.user.passwordCredential?.passwordChangedAt;
 				const roles = session.platformStaff.roles.map(({ platformRole }) => platformRole.key);
 				const permissions = [
 					...new Set(
