@@ -119,4 +119,3 @@ Do not reuse the enrollment verification TOTP step. Wait for the next 30-second 
 Operational logs are not a tamper-resistant privileged audit trail. Production release still requires
 a reviewed audit mechanism, secret retention controls, Neon role verification, and human evidence of
 the independent mailbox challenge.
-
