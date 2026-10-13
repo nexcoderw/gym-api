@@ -66,8 +66,7 @@ export class PlatformEmailOtpService {
 			},
 		});
 		if (
-			challenge === null ||
-			challenge.consumedAt !== null ||
+			challenge?.consumedAt !== null ||
 			challenge.expiresAt <= now ||
 			challenge.failedAttempts >= challenge.maxAttempts ||
 			challenge.platformStaff.status !== PlatformStaffStatus.ACTIVE ||
