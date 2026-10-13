@@ -60,8 +60,7 @@ export class PlatformMfaService {
 			},
 		});
 		if (
-			challenge === null ||
-			challenge.consumedAt !== null ||
+			challenge?.consumedAt !== null ||
 			challenge.expiresAt <= now ||
 			challenge.failedAttempts >= challenge.maxAttempts
 		) {
@@ -120,8 +119,7 @@ export class PlatformMfaService {
 						},
 					});
 					if (
-						current === null ||
-						current.consumedAt !== null ||
+						current?.consumedAt !== null ||
 						current.expiresAt <= now ||
 						current.failedAttempts >= current.maxAttempts ||
 						current.platformStaff.status !== PlatformStaffStatus.ACTIVE ||
@@ -216,9 +214,8 @@ export class PlatformMfaService {
 	): Promise<boolean> {
 		if (input.method === 'totp') {
 			if (
-				totpCredential === null ||
-				totpCredential.verifiedAt === null ||
-				totpCredential.disabledAt !== null ||
+				totpCredential?.verifiedAt === null ||
+				totpCredential?.disabledAt !== null ||
 				acceptedTimeStep === undefined
 			) {
 				return false;
