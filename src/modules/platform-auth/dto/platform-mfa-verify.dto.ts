@@ -18,7 +18,10 @@ export class PlatformMfaVerifyDto {
 	@IsIn(['email_otp', 'totp', 'recovery_code'])
 	method!: PlatformMfaMethod;
 
-	@ApiPropertyOptional({ description: 'Six-digit code delivered to the verified account email.', example: '012345' })
+	@ApiPropertyOptional({
+		description: 'Six-digit code delivered to the verified account email.',
+		example: '012345',
+	})
 	@IsOptional()
 	@IsString()
 	@Matches(/^\d{6}$/u)
