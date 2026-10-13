@@ -117,7 +117,49 @@ describe('organization HTTP security (real guards, fake persistence)', () => {
 		expect(database.findMany).not.toHaveBeenCalled();
 		expect(database.create).not.toHaveBeenCalled();
 	});
-	it.each(ROUTES)('denies a dashboard-only owner for $method $path', async (route) => {
+	it('allows existing trusted system owners to read organizations without manual grants', async () => {
+		database.sessionFindUnique.mockResolvedValue({
+			...session,
+			platformStaff: {
+				...session.platformStaff,
+				roles: [
+					{
+						platformRole: {
+							key: 'platform.owner',
+							isSystem: true,
+							permissions: [],
+						},
+					},
+				],
+			},
+		});
+		await request(app().getHttpServer()).get(ROOT).set('Cookie', COOKIE).expect(200);
+		expect(database.findMany).toHaveBeenCalled();
+	});
+	it.each(ROUTES.filter((route) => route.method !== 'get'))(
+		'keeps the audit gate for system owners: $method $path',
+		async (route) => {
+			database.sessionFindUnique.mockResolvedValue({
+				...session,
+				platformStaff: {
+					...session.platformStaff,
+					roles: [
+						{
+							platformRole: {
+								key: 'platform.owner',
+								isSystem: true,
+								permissions: [],
+							},
+						},
+					],
+				},
+			});
+			await call(route).expect(503);
+			expect(database.create).not.toHaveBeenCalled();
+		},
+	);
+
+	it.each(ROUTES)('denies dashboard-only staff for $method $path', async (route) => {
 		database.sessionFindUnique.mockResolvedValue(
 			organizationSessionFixture(['platform.dashboard.read']),
 		);
