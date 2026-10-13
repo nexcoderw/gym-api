@@ -1,7 +1,7 @@
 import { ArgumentsHost, Catch, HttpException, Logger, type ExceptionFilter } from '@nestjs/common';
 import type { Response } from 'express';
 
-import type { RequestWithContext } from '../types/request-with-context';
+import type { RequestWithContext } from '../types/request-with-context.js';
 
 const STATUS_CODES: Readonly<Record<number, string>> = {
 	400: 'BAD_REQUEST',
