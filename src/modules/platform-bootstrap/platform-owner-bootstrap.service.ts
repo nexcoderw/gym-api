@@ -411,10 +411,13 @@ function validateDisplayName(displayName: string): string {
 }
 
 function containsControlCharacter(value: string): boolean {
-	return [...value].some((character) => {
-		const characterCode = character.charCodeAt(0);
-		return characterCode <= 0x1f || characterCode === 0x7f;
-	});
+	for (let index = 0; index < value.length; index += 1) {
+		const characterCode = value.charCodeAt(index);
+		if (characterCode <= 0x1f || characterCode === 0x7f) {
+			return true;
+		}
+	}
+	return false;
 }
 
 function validatePassword(password: Buffer, email: string): void {
