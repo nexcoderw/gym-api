@@ -1,6 +1,7 @@
 import { ArgumentsHost, Catch, HttpException, Logger, type ExceptionFilter } from '@nestjs/common';
 import type { Response } from 'express';
 
+import { databaseErrorCode } from '../errors/database-error-code.js';
 import type { RequestWithContext } from '../types/request-with-context.js';
 
 const STATUS_CODES: Readonly<Record<number, string>> = {
@@ -44,7 +45,11 @@ export class ApiExceptionFilter implements ExceptionFilter {
 
 		if (status >= INTERNAL_SERVER_ERROR_STATUS) {
 			// Provider stacks and messages may contain SQL or credentials; log correlation metadata only.
-			this.logger.error(`${request.method} ${request.path} failed requestId=${request.requestId}`);
+			const cause = exception instanceof HttpException ? exception.cause : exception;
+			const databaseCode = databaseErrorCode(cause);
+			this.logger.error(
+				`${request.method} ${request.path} failed requestId=${request.requestId} code=${code}${databaseCode ? ` databaseCode=${databaseCode}` : ''}`,
+			);
 		}
 
 		// Guard and validation failures occur before controller response headers are applied.
