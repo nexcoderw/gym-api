@@ -3,21 +3,25 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 
-import { ApiExceptionFilter } from './common/filters/api-exception.filter';
-import { RequestLoggingInterceptor } from './common/interceptors/request-logging.interceptor';
-import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
-import type { EnvironmentVariables } from './config/environment.types';
-import { validateEnvironment } from './config/environment.validation';
-import { HealthModule } from './modules/health/health.module';
+import { ApiExceptionFilter } from './common/filters/api-exception.filter.js';
+import { RequestLoggingInterceptor } from './common/interceptors/request-logging.interceptor.js';
+import { RequestIdMiddleware } from './common/middleware/request-id.middleware.js';
+import type { EnvironmentVariables } from './config/environment.types.js';
+import { validateEnvironment } from './config/environment.validation.js';
+import { DatabaseIntegrationModule } from './infrastructure/database/database-integration.module.js';
+import { HealthModule } from './modules/health/health.module.js';
+import { PlatformAuthModule } from './modules/platform-auth/platform-auth.module.js';
 
 @Module({
 	imports: [
 		ConfigModule.forRoot({
 			cache: true,
 			envFilePath: ['.env.local', '.env'],
+			ignoreEnvFile: process.env.NODE_ENV === 'test',
 			isGlobal: true,
 			validate: validateEnvironment,
 		}),
+		DatabaseIntegrationModule,
 		ThrottlerModule.forRootAsync({
 			inject: [ConfigService],
 			useFactory: (config: ConfigService<EnvironmentVariables, true>) => ({
@@ -30,6 +34,7 @@ import { HealthModule } from './modules/health/health.module';
 			}),
 		}),
 		HealthModule,
+		PlatformAuthModule,
 	],
 	providers: [
 		{ provide: APP_GUARD, useClass: ThrottlerGuard },
