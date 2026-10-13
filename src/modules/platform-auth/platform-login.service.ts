@@ -20,6 +20,7 @@ export class PlatformLoginService {
 	private readonly logger = new Logger(PlatformLoginService.name);
 	private readonly challengeLifetimeMilliseconds: number;
 	private readonly maximumAttempts: number;
+	private readonly emailOtpEnabled: boolean;
 
 	constructor(
 		config: ConfigService<EnvironmentVariables, true>,
@@ -31,6 +32,7 @@ export class PlatformLoginService {
 		this.challengeLifetimeMilliseconds =
 			config.get('PLATFORM_AUTH_MFA_CHALLENGE_TTL_SECONDS', { infer: true }) * 1000;
 		this.maximumAttempts = config.get('PLATFORM_AUTH_MFA_MAX_ATTEMPTS', { infer: true });
+		this.emailOtpEnabled = config.get('PLATFORM_AUTH_EMAIL_OTP_ENABLED', { infer: true });
 	}
 
 	async login(
@@ -118,6 +120,7 @@ export class PlatformLoginService {
 			csrfToken,
 			expiresAt: expiresAt.toISOString(),
 			methods: [
+				...(this.emailOtpEnabled ? (['email_otp'] as const) : []),
 				...(totpAvailable ? (['totp'] as const) : []),
 				...(recoveryAvailable ? (['recovery_code'] as const) : []),
 			],
