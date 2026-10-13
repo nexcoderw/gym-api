@@ -285,3 +285,72 @@ See [ADR 0003](docs/adr/0003-database-package-boundary.md).
 
 All contributors and agents must read `AGENTS.md` and `.agents/README.md`. Git suggestions follow one
 file per commit, and agents never perform Git writes.
+
+## Step 9 authentication integration verification
+
+Future first-owner passwords must satisfy the normal login DTO's 12–1024-character validation and
+the existing 1024-byte UTF-8 hashing bound. The shared policy uses class-validator's length checks,
+not Buffer length or JavaScript UTF-16 length as a substitute for the minimum. Invalid UTF-8, C0/C1
+controls, DEL and the owner's email are rejected before hashing or a database transaction. Passwords
+are never trimmed or Unicode-normalized; approved Argon2id settings remain unchanged. Existing
+hashes are untouched. An older owner with an 8–11-character password needs separately authorized
+credential recovery, not a weaker login DTO or repeated initialization.
+
+Static inspection found the API manifest declares `@nexcoderw/gym-db@0.1.1`, but the lockfile lacks
+both its root dependency and package entry. The installed package is a sibling-source symlink, not
+proof of a published artifact. Its public exports and generated declarations contain
+PasswordCredential, PlatformAdminSession, PlatformMfaChallenge, PlatformTotpCredential and
+PlatformRecoveryCode. The identity and authentication migrations exist; current applied status must
+be checked by the human on the intended database. Do not modify schemas or migration history here.
+
+Human release prerequisite, from `api/api`, with private registry authentication already configured:
+
+```bash
+npm view @nexcoderw/gym-db@0.1.1 version dist.integrity gitHead --registry=https://npm.pkg.github.com
+```
+
+If unavailable, stop: the package maintainer must publish a reviewed artifact through the existing
+release process or approve a different distribution strategy. Do not guess a version, overwrite an
+immutable release, or add credentials to source. If the approved artifact exists, inspect its
+authentication exports, then regenerate and review the lockfile with npm:
+
+```bash
+npm install --package-lock-only --ignore-scripts
+git diff -- package-lock.json
+npm ci
+npm audit
+```
+
+A missing or incompatible artifact blocks clean-install/release verification even when the local
+symlink permits development. Human-generated lockfile changes require a fresh per-file Git plan.
+
+From `api/db`, verify the configured direct migration target before this read-only database command:
+
+```bash
+npm run migration:status
+```
+
+Do not deploy/reset migrations automatically to clear a verification failure. After prerequisites,
+run the existing formatting, lint, typecheck, unit, integration, E2E, full-test and build commands
+listed above. Run opt-in PostgreSQL bootstrap tests only against the independently marked disposable
+bootstrap-test database, never the ordinary development or production owner database.
+
+### BFF rate limiting and remaining deployment risks
+
+The API uses its socket peer for login attempt tracking; behind Next this is the BFF, not necessarily
+the browser. Administrators sharing a BFF peer can share IP throttles, including the login/MFA
+10-per-minute route quotas. Per-account protections remain, but do not provide deployment-wide
+atomic limits: the current limiter/storage are process-local. The production single-instance
+acknowledgment is a configuration gate, not proof of actual replica count. Verify topology before
+release; multiple API instances are blocked until shared atomic limiting and a reviewed trusted
+proxy/source-identity design exist. Never trust or blindly forward browser X-Forwarded-For claims.
+Shared-peer denial of service must also be evaluated for the intended single-instance capacity.
+
+Current OWASP MFA guidance identifies real-time phishing/reverse proxies as a remaining TOTP risk;
+TOTP is not phishing-resistant. Keep MFA mandatory and secrets out of logs. Phishing-resistant
+authenticators and shared limiting require separately scoped work, not an unreviewed Step 9 rewrite.
+See [OWASP MFA guidance](https://cheatsheetseries.owasp.org/cheatsheets/Multifactor_Authentication_Cheat_Sheet.html).
+Source inspection is not a vulnerability scan, live integration result or deployment approval.
+
+The human full-stack smoke procedure is in the admin README. No agent executed development tooling,
+database operations, bootstrap, registry checks, package publishing, browser automation or Git writes.
