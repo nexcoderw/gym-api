@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import { ResendEmailService } from '../../infrastructure/email/resend-email.service.js';
+import { PlatformEmailOtpService } from './platform-email-otp.service.js';
 
 import { PlatformAuthController } from './platform-auth.controller.js';
 import { PlatformCookieService } from './platform-cookie.service.js';
@@ -16,6 +18,8 @@ import { PlatformTotpService } from './platform-totp.service.js';
 @Module({
 	controllers: [PlatformAuthController],
 	providers: [
+		ResendEmailService,
+		PlatformEmailOtpService,
 		PlatformCookieService,
 		PlatformLoginAttemptService,
 		PlatformLoginService,
