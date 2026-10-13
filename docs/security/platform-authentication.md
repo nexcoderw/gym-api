@@ -8,8 +8,8 @@ email-verified user with an active `PlatformStaff` assignment. Successful passwo
 only a five-minute MFA challenge; it never creates an administrative session.
 
 Accepted password hashes are Argon2id v19 with 64–256 MiB memory, three to six iterations, and one to
-four lanes. Password request bodies are capped at 1,024 characters. Password provisioning remains a
-separate controlled workflow.
+four lanes. Password request bodies are capped at 1,024 characters. Initial password provisioning is
+available only through the operator-controlled first-owner CLI; it is not an HTTP capability.
 
 MFA verification accepts either a confirmed TOTP factor or one unused recovery code. AES-256-GCM
 authenticated decryption uses the credential's stored key identifier and version. TOTP acceptance,
@@ -61,8 +61,15 @@ Git, logs, or examples.
    cookie settings through managed configuration.
 5. Keep one API replica. The current account limiter is in process; multiple replicas are blocked from
    production readiness until a distributed limiter is implemented.
-6. Provision and enroll the first administrator through a separate human-controlled workflow. There is
-   no sign-up, bootstrap, password-reset, invitation, or MFA-enrollment endpoint here.
+6. Provision and enroll the first administrator through the reviewed two-stage CLI. There is no
+   sign-up, bootstrap, password-reset, invitation, or MFA-enrollment endpoint.
+
+The CLI uses an exact configured database fingerprint and a PostgreSQL transaction-scoped advisory
+lock. Initialization creates only pending records, the explicit `platform.owner` role, and the
+allowlisted `platform.dashboard.read` permission. Activation requires a valid fresh TOTP code plus an
+operator attestation that an independent mailbox challenge was completed. Recovery codes are shown
+once and stored only as keyed digests. See the
+[platform owner bootstrap runbook](../runbooks/platform-owner-bootstrap.md).
 
 ## Local development
 
