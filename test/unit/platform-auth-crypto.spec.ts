@@ -16,6 +16,8 @@ describe('platform authentication cryptography', () => {
 
 	it('verifies approved Argon2id hashes and rejects weak parameters', async () => {
 		const passwords = new PlatformPasswordService(config);
+		const provisionedPassword = Buffer.from('fictional provisioned password', 'utf8');
+		const provisionedHash = await passwords.hash(provisionedPassword);
 		const approvedHash = await hash('fictional strong password', {
 			type: argon2id,
 			memoryCost: 65_536,
@@ -32,6 +34,9 @@ describe('platform authentication cryptography', () => {
 		await expect(passwords.verify(approvedHash, 'fictional strong password')).resolves.toBe(true);
 		await expect(passwords.verify(approvedHash, 'incorrect password')).resolves.toBe(false);
 		await expect(passwords.verify(weakHash, 'fictional strong password')).resolves.toBe(false);
+		await expect(passwords.verify(provisionedHash, provisionedPassword.toString('utf8'))).resolves.toBe(
+			true,
+		);
 	});
 
 	it('creates opaque tokens and stable keyed digests', () => {
@@ -81,5 +86,23 @@ describe('platform authentication cryptography', () => {
 				now,
 			),
 		).toEqual({ timeStep: BigInt(Math.floor(now.getTime() / 30_000)) });
+	});
+
+	it('creates enrollment material compatible with the established verifier', () => {
+		const staffId = 'a652ac64-47b5-499e-a849-dca02166c46b';
+		const totpService = new PlatformTotpService(config);
+		const enrollment = totpService.createEnrollment(staffId, 'owner@example.com');
+		const now = new Date('2030-01-01T00:00:00.000Z');
+		const token = new OTPAuth.TOTP({
+			algorithm: 'SHA1',
+			digits: 6,
+			period: 30,
+			secret: OTPAuth.Secret.fromBase32(enrollment.secret),
+		}).generate({ timestamp: now.getTime() });
+
+		expect(enrollment.enrollmentUri).toContain('otpauth://totp/');
+		expect(totpService.verify(enrollment, token, now)).toEqual({
+			timeStep: BigInt(Math.floor(now.getTime() / 30_000)),
+		});
 	});
 });
