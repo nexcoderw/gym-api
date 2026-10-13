@@ -13,11 +13,7 @@ export function createOpenApiDocument(application: INestApplication): OpenAPIObj
 		)
 		.setVersion(API_VERSION)
 		.addServer(`/api/v${API_VERSION}`, 'Current API version')
-		.addCookieAuth(
-			PLATFORM_SESSION_COOKIE,
-			{ type: 'apiKey', in: 'cookie' },
-			'platform-session',
-		)
+		.addCookieAuth(PLATFORM_SESSION_COOKIE, { type: 'apiKey', in: 'cookie' }, 'platform-session')
 		.addBearerAuth({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT' }, 'mobile-access-token')
 		.build();
 
