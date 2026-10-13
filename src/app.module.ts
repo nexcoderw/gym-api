@@ -11,6 +11,7 @@ import { validateEnvironment } from './config/environment.validation.js';
 import { DatabaseIntegrationModule } from './infrastructure/database/database-integration.module.js';
 import { HealthModule } from './modules/health/health.module.js';
 import { PlatformAuthModule } from './modules/platform-auth/platform-auth.module.js';
+import { PlatformDashboardModule } from './modules/platform-dashboard/platform-dashboard.module.js';
 
 @Module({
 	imports: [
@@ -35,6 +36,7 @@ import { PlatformAuthModule } from './modules/platform-auth/platform-auth.module
 		}),
 		HealthModule,
 		PlatformAuthModule,
+		PlatformDashboardModule,
 	],
 	providers: [
 		{ provide: APP_GUARD, useClass: ThrottlerGuard },
