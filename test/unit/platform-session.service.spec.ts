@@ -1,7 +1,7 @@
 import { jest } from '@jest/globals';
 import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
-import { PlatformStaffStatus, PrismaService, UserStatus } from '@nexcoderw/gym-db';
+import { PlatformStaffStatus, Prisma, PrismaService, UserStatus } from '@nexcoderw/gym-db';
 
 import type { EnvironmentVariables } from '../../src/config/environment.types.js';
 import { validateEnvironment } from '../../src/config/environment.validation.js';
@@ -18,7 +18,9 @@ describe('PlatformSessionService', () => {
 		},
 	};
 	type TransactionOperation = (client: typeof transaction) => Promise<unknown>;
-	const runTransaction = jest.fn((operation: TransactionOperation) => operation(transaction));
+	const runTransaction = jest
+		.fn<(operation: TransactionOperation, options?: unknown) => Promise<unknown>>()
+		.mockImplementation((operation) => operation(transaction));
 	let service: PlatformSessionService;
 
 	beforeAll(async () => {
@@ -65,6 +67,21 @@ describe('PlatformSessionService', () => {
 			permissions: ['platform.dashboard.read'],
 		});
 		expect(sessionUpdateMany).toHaveBeenCalledTimes(1);
+		expect(runTransaction.mock.calls[0]?.[1]).toEqual({
+			isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+			maxWait: 5_000,
+			timeout: 10_000,
+		});
+	});
+
+	it('fails closed before session reads when transaction acquisition fails', async () => {
+		runTransaction.mockRejectedValueOnce(new Error('fictional transaction acquisition failure'));
+
+		await expect(
+			service.authenticate('fictional-session-token-with-more-than-32-characters'),
+		).rejects.toThrow('fictional transaction acquisition failure');
+		expect(sessionFindUnique).not.toHaveBeenCalled();
+		expect(sessionUpdateMany).not.toHaveBeenCalled();
 	});
 
 	it('revokes a session after all explicit permissions are removed', async () => {
