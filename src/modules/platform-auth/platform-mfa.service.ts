@@ -27,6 +27,7 @@ export class PlatformMfaService {
 	private readonly logger = new Logger(PlatformMfaService.name);
 	private readonly sessionLifetimeMilliseconds: number;
 	private readonly idleLifetimeMilliseconds: number;
+	private readonly emailOtpEnabled: boolean;
 
 	constructor(
 		config: ConfigService<EnvironmentVariables, true>,
@@ -38,6 +39,7 @@ export class PlatformMfaService {
 			config.get('PLATFORM_AUTH_SESSION_TTL_SECONDS', { infer: true }) * 1000;
 		this.idleLifetimeMilliseconds =
 			config.get('PLATFORM_AUTH_IDLE_TTL_SECONDS', { infer: true }) * 1000;
+		this.emailOtpEnabled = config.get('PLATFORM_AUTH_EMAIL_OTP_ENABLED', { infer: true });
 	}
 
 	async verify(input: PlatformMfaVerifyDto, now = new Date()): Promise<PlatformMfaSuccess> {
@@ -98,10 +100,13 @@ export class PlatformMfaService {
 							consumedAt: true,
 							failedAttempts: true,
 							maxAttempts: true,
+							createdAt: true,
+							emailOtpDigest: true,
+							emailOtpExpiresAt: true,
 							platformStaff: {
 								select: {
 									status: true,
-									user: { select: { status: true, emailVerifiedAt: true } },
+									user: { select: { status: true, emailVerifiedAt: true, email: true, passwordCredential: { select: { passwordChangedAt: true } } } },
 									roles: {
 										select: {
 											platformRole: {
@@ -125,6 +130,8 @@ export class PlatformMfaService {
 						current.platformStaff.status !== PlatformStaffStatus.ACTIVE ||
 						current.platformStaff.user.status !== UserStatus.ACTIVE ||
 						current.platformStaff.user.emailVerifiedAt === null ||
+						current.platformStaff.user.passwordCredential === null ||
+						current.platformStaff.user.passwordCredential.passwordChangedAt > current.createdAt ||
 						!current.platformStaff.roles.some(
 							({ platformRole }) => platformRole.permissions.length > 0,
 						)
@@ -132,14 +139,17 @@ export class PlatformMfaService {
 						return { authenticated: false };
 					}
 
-					const factorAccepted = await this.consumeFactor(
-						transaction,
-						input,
-						current.platformStaffId,
-						current.platformStaff.totpCredential,
-						acceptedTotp?.timeStep,
-						now,
-					);
+					const factorAccepted =
+						input.method === 'email_otp'
+							? await this.consumeEmailOtp(transaction, current, input.emailOtpCode, now)
+							: await this.consumeFactor(
+								transaction,
+								input,
+								current.platformStaffId,
+								current.platformStaff.totpCredential,
+								acceptedTotp?.timeStep,
+								now,
+							);
 					if (!factorAccepted) {
 						await transaction.platformMfaChallenge.updateMany({
 							where: {
@@ -247,12 +257,43 @@ export class PlatformMfaService {
 		return consumed.count === 1;
 	}
 
+	private async consumeEmailOtp(
+		transaction: Prisma.TransactionClient,
+		challenge: {
+			readonly id: string;
+			readonly emailOtpDigest: string | null;
+			readonly emailOtpExpiresAt: Date | null;
+			readonly platformStaff: { readonly user: { readonly email: string } };
+		},
+		code: string | undefined,
+		now: Date,
+	): Promise<boolean> {
+		if (
+			!this.emailOtpEnabled ||
+			code === undefined ||
+			challenge.emailOtpDigest === null ||
+			challenge.emailOtpExpiresAt === null ||
+			challenge.emailOtpExpiresAt <= now
+		) return false;
+		const digest = this.tokens.emailOtpDigest(challenge.id, challenge.platformStaff.user.email, code);
+		if (!this.tokens.equal(digest, challenge.emailOtpDigest)) return false;
+		const consumed = await transaction.platformMfaChallenge.updateMany({
+			where: { id: challenge.id, consumedAt: null, emailOtpDigest: digest, emailOtpExpiresAt: { gt: now } },
+			data: { emailOtpDigest: null, emailOtpExpiresAt: null },
+		});
+		return consumed.count === 1;
+	}
+
 	private assertMethodInput(input: PlatformMfaVerifyDto): void {
 		const valid =
+			(input.method === 'email_otp' && this.emailOtpEnabled && input.emailOtpCode !== undefined &&
+				/^\d{6}$/u.test(input.emailOtpCode) && input.totpCode === undefined && input.recoveryCode === undefined) ||
 			(input.method === 'totp' &&
+				input.emailOtpCode === undefined &&
 				input.totpCode !== undefined &&
 				input.recoveryCode === undefined) ||
 			(input.method === 'recovery_code' &&
+				input.emailOtpCode === undefined &&
 				input.recoveryCode !== undefined &&
 				input.totpCode === undefined);
 		if (!valid) {
