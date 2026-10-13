@@ -67,11 +67,9 @@ export class PlatformLoginService {
 		const passwordValid = await this.passwords.verify(passwordHash, input.password);
 		if (
 			!passwordValid ||
-			identity === null ||
-			identity.status !== UserStatus.ACTIVE ||
+			identity?.status !== UserStatus.ACTIVE ||
 			identity.emailVerifiedAt === null ||
-			identity.platformStaff === null ||
-			identity.platformStaff.status !== PlatformStaffStatus.ACTIVE
+			identity.platformStaff?.status !== PlatformStaffStatus.ACTIVE
 		) {
 			this.attempts.recordFailure(ipAddress, input.email, now.getTime());
 			this.logger.warn('platform_login_rejected');
