@@ -135,6 +135,14 @@ Neon setup, transaction-lock behavior, and the separate opt-in disposable Postgr
 `CORS_ORIGINS` accepts origins only, such as `https://admin.gym.rw`, with no path. CORS does not prove
 tenant identity or authorization.
 
+Live platform-session validation retains serializable isolation with an explicit 5-second transaction
+acquisition limit and a separate 10-second execution limit. The admin BFF allows 20 seconds per
+upstream request so it does not abort inside that budget. These limits accommodate remote database
+latency; they are not performance targets or retries. Acquisition/execution failures remain errors,
+never cached or anonymous principals. Investigate recurring failures and slow queries rather than
+continually raising timeouts. Central API error logs retain request correlation metadata without raw
+provider messages or stacks, which can contain SQL or credentials.
+
 ## Human-operated setup and checks
 
 From `api/api`:
