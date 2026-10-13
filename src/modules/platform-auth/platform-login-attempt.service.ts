@@ -50,9 +50,10 @@ export class PlatformLoginAttemptService {
 			const current = this.attempts.get(key);
 			this.attempts.set(key, {
 				count: current === undefined || current.expiresAt <= now ? 1 : current.count + 1,
-				expiresAt: current === undefined || current.expiresAt <= now
-					? now + this.windowMilliseconds
-					: current.expiresAt,
+				expiresAt:
+					current === undefined || current.expiresAt <= now
+						? now + this.windowMilliseconds
+						: current.expiresAt,
 			});
 		}
 	}
