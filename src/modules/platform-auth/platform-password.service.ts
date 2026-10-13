@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { argon2id, verify } from 'argon2';
+import { verify } from 'argon2';
 
 import type { EnvironmentVariables } from '../../config/environment.types.js';
 
@@ -27,7 +27,7 @@ export class PlatformPasswordService {
 			return false;
 		}
 		try {
-			return await verify(passwordHash, password, { type: argon2id });
+			return await verify(passwordHash, password);
 		} catch {
 			return false;
 		}
