@@ -54,6 +54,49 @@ future Nest major upgrade must be coordinated across both packages.
 Copy `.env.local.example` to ignored `.env.local` for development. Production values come from managed
 deployment configuration, not committed files.
 
+Keep workflow settings out of the everyday application file:
+
+| Local file                  | Consumer                               | Purpose                                                                          |
+| --------------------------- | -------------------------------------- | -------------------------------------------------------------------------------- |
+| `.env.local`                | Local API                              | Runtime database and authentication settings; bootstrap disabled                 |
+| `.env.bootstrap.local`      | Interactive first-owner CLI only       | Dedicated operator `DATABASE_URL`, explicit target fingerprint and authorization |
+| `.env.bootstrap-test.local` | `npm run test:bootstrap:postgres` only | Restricted disposable bootstrap-test URL and independently provisioned marker    |
+
+Each has a tracked `.example` template. Copy a template only when its real file does not exist, fill
+in the reviewed values, and protect it with `chmod 600`. Never commit the real files. Local operator
+configuration takes precedence over `.env.local` within the CLI; authentication keys are shared with
+the application so enrolled factors remain usable. Never replace the application's runtime URL with
+an operator/test URL. Keep the operator flag false except during an approved interactive operation.
+Production (`NODE_ENV=production`) and test application contexts do not load local dotenv files;
+production operators must supply the full temporary configuration through protected managed secrets.
+
+The opt-in real PostgreSQL command is:
+
+```bash
+npm run test:bootstrap:postgres
+```
+
+It uses Node's dotenv parser, not shell `source`, and requires both `.env.local` and
+`.env.bootstrap-test.local`. The runtime file supplies reference targets for the existing isolation
+checks; the test file must not override those targets or contain operator/migration credentials.
+The test profile supplies `NODE_ENV=test`, disables operator bootstrap, and explicitly opts into
+fixture writes with `BOOTSTRAP_POSTGRES_TESTS=1`. Normal unit/integration/e2e commands remain unchanged
+and do not load that profile. Skipped PostgreSQL tests are not a successful database verification.
+CI/managed execution uses `npm run test:bootstrap:postgres:managed` with externally supplied test
+credentials, marker, reference URLs and `BOOTSTRAP_POSTGRES_TESTS=1`; it loads no local profiles.
+
+Already exported shell variables take precedence over dotenv files. Use a fresh terminal or unset
+conflicting workflow variables before running local commands. Do not `source .env.local`.
+Database migrations and their separate privileged configuration remain exclusively in `../db`;
+see that package's README for `.env.migrations.local`, `.env.test.local`, and test migration deployment.
+
+When migrating an existing setup, move test URL/marker values to `.env.bootstrap-test.local` without
+changing them, move `PLATFORM_OWNER_BOOTSTRAP_EXPECTED_*` values to `.env.bootstrap.local`, and preserve
+the operator URL there before setting `PLATFORM_OWNER_BOOTSTRAP_ENABLED=false` in `.env.local`.
+Moving a URL does not verify its password, role privileges, database marker, or migrations; those
+checks still run against the live backend before test writes. Do not delete databases or branches
+as part of this configuration-only change.
+
 | Variable                                            | Default                           | Requirement                                                             |
 | --------------------------------------------------- | --------------------------------- | ----------------------------------------------------------------------- |
 | `NODE_ENV`                                          | `development`                     | `development`, `test`, or `production`                                  |
