@@ -1,0 +1,33 @@
+import { Module } from '@nestjs/common';
+
+import { PlatformAuthController } from './platform-auth.controller.js';
+import { PlatformCookieService } from './platform-cookie.service.js';
+import { PlatformLoginAttemptService } from './platform-login-attempt.service.js';
+import { PlatformLoginService } from './platform-login.service.js';
+import { PlatformMfaService } from './platform-mfa.service.js';
+import { PlatformOriginCsrfGuard } from './platform-origin-csrf.guard.js';
+import { PlatformPasswordService } from './platform-password.service.js';
+import { PlatformPermissionGuard } from './platform-permission.guard.js';
+import { PlatformSessionGuard } from './platform-session.guard.js';
+import { PlatformSessionService } from './platform-session.service.js';
+import { PlatformTokenService } from './platform-token.service.js';
+import { PlatformTotpService } from './platform-totp.service.js';
+
+@Module({
+	controllers: [PlatformAuthController],
+	providers: [
+		PlatformCookieService,
+		PlatformLoginAttemptService,
+		PlatformLoginService,
+		PlatformMfaService,
+		PlatformOriginCsrfGuard,
+		PlatformPasswordService,
+		PlatformPermissionGuard,
+		PlatformSessionGuard,
+		PlatformSessionService,
+		PlatformTokenService,
+		PlatformTotpService,
+	],
+	exports: [PlatformPermissionGuard, PlatformSessionGuard],
+})
+export class PlatformAuthModule {}
