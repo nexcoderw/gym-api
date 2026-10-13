@@ -2,6 +2,8 @@ import { jest } from '@jest/globals';
 import { Test, type TestingModule } from '@nestjs/testing';
 import { OrganizationStatus, PrismaService } from '@nexcoderw/gym-db';
 
+import { databaseErrorCode } from '../../src/common/errors/database-error-code.js';
+import { organizationFailure } from '../../src/modules/platform-organizations/platform-organization-errors.js';
 import { PlatformOrganizationsService } from '../../src/modules/platform-organizations/platform-organizations.service.js';
 import { PlatformOrganizationMutationsService } from '../../src/modules/platform-organizations/platform-organization-mutations.service.js';
 import {
@@ -79,6 +81,22 @@ describe('organization service contracts (adapter fake, not PostgreSQL)', () => 
 		database.findUnique.mockResolvedValue(null);
 		await expect(reads.get(ORGANIZATION_ID)).rejects.toMatchObject({ status: 404 });
 	});
+	it.each(['P2028', 'P2021', 'P2022', 'P1010', 'P1001'])(
+		'preserves safe diagnostics for list failure %s without exposing provider details',
+		async (code) => {
+			const cause = { code, message: 'private provider diagnostic', meta: { secret: 'private' } };
+			database.runTransaction.mockRejectedValueOnce(cause);
+			await expect(reads.list({ limit: 20 })).rejects.toMatchObject({ status: 503, cause });
+			expect(database.runTransaction).toHaveBeenCalledTimes(1);
+			expect(database.findMany).not.toHaveBeenCalled();
+			const failure = organizationFailure(cause);
+			expect(databaseErrorCode(failure.cause)).toBe(code);
+			expect(failure.getResponse()).toEqual({
+				code: 'ORGANIZATION_PERSISTENCE_UNAVAILABLE',
+				message: 'Organization persistence is unavailable',
+			});
+		},
+	);
 	it('creates pending data and appends an audit event inside the same transaction', async () => {
 		await writes.create(context, { name: 'Soho Gym', slug: 'soho' });
 		expect(database.create.mock.calls[0]?.[0]).toMatchObject({
