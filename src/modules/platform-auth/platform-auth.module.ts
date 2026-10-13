@@ -28,6 +28,12 @@ import { PlatformTotpService } from './platform-totp.service.js';
 		PlatformTokenService,
 		PlatformTotpService,
 	],
-	exports: [PlatformPermissionGuard, PlatformSessionGuard],
+	// Nest instantiates controller guards in the consuming feature's module context.
+	exports: [
+		PlatformCookieService,
+		PlatformPermissionGuard,
+		PlatformSessionGuard,
+		PlatformSessionService,
+	],
 })
 export class PlatformAuthModule {}
