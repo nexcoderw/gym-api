@@ -34,9 +34,9 @@ describe('platform authentication cryptography', () => {
 		await expect(passwords.verify(approvedHash, 'fictional strong password')).resolves.toBe(true);
 		await expect(passwords.verify(approvedHash, 'incorrect password')).resolves.toBe(false);
 		await expect(passwords.verify(weakHash, 'fictional strong password')).resolves.toBe(false);
-		await expect(passwords.verify(provisionedHash, provisionedPassword.toString('utf8'))).resolves.toBe(
-			true,
-		);
+		await expect(
+			passwords.verify(provisionedHash, provisionedPassword.toString('utf8')),
+		).resolves.toBe(true);
 	});
 
 	it('creates opaque tokens and stable keyed digests', () => {
