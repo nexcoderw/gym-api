@@ -41,11 +41,50 @@ PLATFORM_TOTP_ACTIVE_KEY_ID=production-v1
 PLATFORM_OWNER_BOOTSTRAP_ENABLED=true
 PLATFORM_OWNER_BOOTSTRAP_EXPECTED_DATABASE_HOST=exact-neon-host
 PLATFORM_OWNER_BOOTSTRAP_EXPECTED_DATABASE_NAME=neondb
+PLATFORM_OWNER_BOOTSTRAP_EXPECTED_DATABASE_ROLE=gym_bootstrap
+PLATFORM_OWNER_BOOTSTRAP_EXPECTED_DATABASE_MARKER=nexcode-gym:bootstrap:replace-with-uuid-v4
 ```
 
 All other required production variables must remain valid. Environment validation compares the URL's
 actual hostname and database name with the explicit fingerprint before the CLI can start. It never
 prints the connection URL, username, password, keyring, or token pepper.
+
+Step 7 additionally checks the connected backend inside every initialization/activation transaction.
+The actual database name, `current_user`, `session_user`, and database comment must match the approved
+configuration. The role must be dedicated to bootstrap (`gym_bootstrap` or a `gym_bootstrap_` suffix),
+must not own the database/public objects or have CREATE rights on the database/public schema, and must
+not have membership in roles granting superuser, role/database creation, replication, RLS bypass,
+Neon administrative privileges, or blanket data access. Failures stop before administrator writes.
+`neondb_owner`, an API runtime user, and the normal integration-test user are unsuitable.
+
+Provision the operator role through reviewed SQL rather than inheriting Neon administrative roles.
+An authorized database owner runs the following on the confirmed branch; the CLI never runs it:
+
+```sql
+CREATE ROLE gym_bootstrap LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE
+  NOREPLICATION NOBYPASSRLS;
+GRANT CONNECT ON DATABASE neondb TO gym_bootstrap;
+GRANT USAGE ON SCHEMA public TO gym_bootstrap;
+GRANT SELECT, INSERT, UPDATE ON TABLE
+  public.users, public.password_credentials, public.platform_staff,
+  public.platform_roles, public.platform_permissions, public.platform_staff_roles,
+  public.platform_role_permissions, public.platform_totp_credentials,
+  public.platform_recovery_codes TO gym_bootstrap;
+COMMENT ON DATABASE neondb IS 'nexcode-gym:bootstrap:replace-with-uuid-v4';
+```
+
+Generate the UUID using `node -p "require('node:crypto').randomUUID()"`, review any existing database
+comment before replacing it, and put the identical complete marker in operator configuration. Set the
+role password through an approved protected password prompt or Neon role password reset, then obtain
+its connection URL. Keep the role free of memberships. If PUBLIC grants CREATE, have the database
+administrator review and remove those grants before bootstrap; the CLI does not change shared grants.
+
+PostgreSQL cannot attest a Neon endpoint hostname or branch ID. The URL host check remains a routing
+check, while the independently provisioned marker verifies backend identity. Neon clones copy database
+comments: assign each clone a new marker and confirm its endpoint in the Neon console. A marker is an
+operational safeguard, not cryptographic attestation against a malicious server or database owner.
+Direct and pooled connections both run the lock and checks on one transaction connection. Changing
+between direct and pooled hostnames requires updating the explicit expected hostname.
 
 ## Stage A: initialize the pending owner
 
@@ -66,6 +105,15 @@ platform staff identity already exists or if the email belongs to an existing us
 `User` and `PlatformStaff` records, an Argon2id password credential, the system-owned
 `platform.owner` role, only the reviewed `platform.dashboard.read` permission, and an unverified
 AES-256-GCM TOTP credential. All writes roll back together on failure.
+
+Both stages use a parameterized `$queryRaw` query calling `pg_try_advisory_xact_lock` with the existing
+dedicated 64-bit identifier cast to `bigint`. Its boolean result avoids PostgreSQL's unsupported `void`
+result type. Only a single row with `acquired=true` permits further work. Contention fails promptly
+with `BOOTSTRAP_CONCURRENT_OPERATION`; there is no automatic retry. PostgreSQL releases the lock on
+commit, rollback, or connection termination. No session advisory lock is used. Serializable isolation
+and the existing state/conditional-write checks remain in place; serialization conflicts also fail
+closed. Advisory locks coordinate cooperating callers, so unrelated SQL clients must not write owner
+records during bootstrap.
 
 Enroll the displayed `otpauth://` URI or manual Base32 secret immediately in the owner's authenticator.
 Do not copy it into notes, chat, source files, logs, or screenshots. Re-running initialization never
@@ -107,6 +155,10 @@ Do not reuse the enrollment verification TOTP step. Wait for the next 30-second 
 ## Failure recovery
 
 - Target or authorization mismatch: stop and review environment configuration; do not bypass it.
+- `BOOTSTRAP_UNSAFE_DATABASE`: review the connected database marker and restricted operator role.
+- `BOOTSTRAP_DATABASE_FAILED`: verify migrations, grants, and connectivity through protected operator
+  diagnostics. Original causes remain attached in memory for protected debugging; the CLI prints only
+  the safe code/message, never raw SQL, exception, URL, credential, or enrollment data on failure.
 - Existing platform staff or identity conflict: stop. Do not delete or overwrite the record through
   this utility.
 - Initialization failure: the transaction rolls back. Confirm database state before any retry.
@@ -120,3 +172,81 @@ Do not reuse the enrollment verification TOTP step. Wait for the next 30-second 
 Operational logs are not a tamper-resistant privileged audit trail. Production release still requires
 a reviewed audit mechanism, secret retention controls, Neon role verification, and human evidence of
 the independent mailbox challenge.
+
+## Disposable PostgreSQL verification
+
+The module contract test uses fakes. Real lock behavior is covered separately by
+`test/integration/platform-bootstrap-postgres.integration.spec.ts`; it is skipped unless
+`BOOTSTRAP_POSTGRES_TESTS=1`. A skipped suite is not evidence that PostgreSQL behavior passed.
+
+Use a new dedicated Neon test branch/database, separate from the API, operator, shadow, and existing
+integration-test databases. Apply the two existing DB migrations through the DB repository's human
+workflow. The fixture database must initially have no platform staff and neither the `platform.owner`
+role nor the `platform.dashboard.read` permission. Do not erase existing records to meet this condition.
+The suite holds a separate transaction lock while running to exclude another copy of itself; other
+applications must not use this disposable database. A prior crashed run with fixture records needs
+review or a new disposable branch, never automatic broad cleanup.
+
+In that branch only, provision `gym_bootstrap_test` with the same role flags, CONNECT, USAGE, and
+table grants as above. Grant DELETE on the same listed tables for fixture cleanup, and assign a fresh
+database comment `nexcode-gym:disposable-bootstrap-test:<uuid-v4>`. This marker must differ from the
+operator marker. The suite verifies actual identity and privileges before writes, then deletes only
+its generated email/ID fixtures inside another verified, locked transaction. It refuses owner/admin
+credentials, missing markers, shared configured targets, and unsafe DDL rights.
+
+Supply the test URL and complete marker through a protected environment (no credentials in shell
+history). The suite does not automatically load `.env.local`. Run from `api/api`:
+
+```bash
+BOOTSTRAP_POSTGRES_TESTS=1 npm run test:integration -- --testPathPattern=platform-bootstrap-postgres
+```
+
+Required environment variables are `BOOTSTRAP_TEST_DATABASE_URL` (username `gym_bootstrap_test`) and
+`BOOTSTRAP_TEST_DATABASE_MARKER`. Do not set `DATABASE_URL` to that test URL: reference URL comparisons
+intentionally reject it. Do not run the bootstrap CLI as a test command.
+
+The real suite covers lock exclusion, release on commit/rollback, concurrent initialization, database
+write errors, late-failure rollback, connected identity/marker denial, existing-owner denial, role
+preservation, unauthorized permission denial, independent-mailbox confirmation, and actual TOTP
+verification. It uses the real password hashing and encrypted-enrollment services. Unit tests also
+cover malformed lock results and rejected role privileges. These tests have been authored but must
+be executed by the developer.
+
+## Package and human verification
+
+The inspected source package declares `0.1.1` and publicly exports `PrismaService`, `Prisma`, and the
+authentication model types. The API currently resolves a local link to that source package; its
+committed lockfile has no `gym-db` entry. A published artifact containing these changes is unverified.
+Do not treat a local link or matching version string as an immutable release.
+
+```bash
+npm view @nexcoderw/gym-db@0.1.1 version dist.integrity gitHead --registry=https://npm.pkg.github.com
+```
+
+If authorized access returns 404, an owner must publish an approved artifact or grant registry access.
+Do not invent a replacement version. After a verified artifact is available, the developer runs
+`npm install @nexcoderw/gym-db@0.1.1 --save-exact --registry=https://npm.pkg.github.com` and reviews the
+human-generated lockfile. If 0.1.1 is an older immutable artifact, the DB owner must release a new
+verified version and the developer updates the API dependency to that exact version.
+
+For local review only, the developer may build the reviewed DB source and explicitly link it:
+
+```bash
+cd ../db
+npm run prisma:generate
+npm run build
+npm link
+cd ../api
+npm link @nexcoderw/gym-db --no-save
+npm run format
+npm run lint
+npm run typecheck
+PLATFORM_OWNER_BOOTSTRAP_ENABLED=false npm run test:unit
+PLATFORM_OWNER_BOOTSTRAP_ENABLED=false npm run test:integration
+PLATFORM_OWNER_BOOTSTRAP_ENABLED=false npm run test:e2e
+npm run build
+```
+
+Run the opt-in real suite above with its protected environment as well. Return check failures with
+secrets redacted and the real-suite pass/skip summary. No installation, tests, build, PostgreSQL
+commands, bootstrap operation, or publication was executed by the agent for Step 7.
