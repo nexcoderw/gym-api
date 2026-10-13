@@ -40,8 +40,13 @@ export function organizationFailure(error: unknown): HttpException {
 			});
 		}
 	}
-	return new ServiceUnavailableException({
-		code: 'ORGANIZATION_PERSISTENCE_UNAVAILABLE',
-		message: 'Organization persistence is unavailable',
-	});
+	// Keep the cause internal so the exception filter can log its allowlisted machine code.
+	// Never copy provider messages or metadata into the public response body.
+	return new ServiceUnavailableException(
+		{
+			code: 'ORGANIZATION_PERSISTENCE_UNAVAILABLE',
+			message: 'Organization persistence is unavailable',
+		},
+		{ cause: error },
+	);
 }
