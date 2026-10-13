@@ -24,6 +24,11 @@ export class PlatformTokenService {
 		return createHmac('sha256', this.pepper).update(token, 'utf8').digest('hex');
 	}
 
+	/** Bind low-entropy codes to one challenge and mailbox with the managed secret pepper. */
+	emailOtpDigest(challengeId: string, email: string, code: string): string {
+		return this.digest(JSON.stringify(['platform-email-otp-v1', challengeId, email.toLowerCase(), code]));
+	}
+
 	equal(left: string, right: string): boolean {
 		const leftBuffer = Buffer.from(left, 'utf8');
 		const rightBuffer = Buffer.from(right, 'utf8');
