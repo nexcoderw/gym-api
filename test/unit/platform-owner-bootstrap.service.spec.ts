@@ -10,12 +10,16 @@ import { PlatformTokenService } from '../../src/modules/platform-auth/platform-t
 import { PlatformTotpService } from '../../src/modules/platform-auth/platform-totp.service.js';
 import { PlatformOwnerBootstrapService } from '../../src/modules/platform-bootstrap/platform-owner-bootstrap.service.js';
 
+interface UserUpdateManyInput {
+	readonly data: { readonly status: UserStatus };
+}
+
 describe('PlatformOwnerBootstrapService', () => {
 	const executeRaw = jest.fn<() => Promise<number>>();
 	const staffCount = jest.fn<() => Promise<number>>();
 	const userFindUnique = jest.fn<() => Promise<unknown>>();
 	const userCreate = jest.fn<() => Promise<unknown>>();
-	const userUpdateMany = jest.fn<(input: unknown) => Promise<{ count: number }>>();
+	const userUpdateMany = jest.fn<(input: UserUpdateManyInput) => Promise<{ count: number }>>();
 	const staffUpdateMany = jest.fn<() => Promise<{ count: number }>>();
 	const roleFindUnique = jest.fn<() => Promise<unknown>>();
 	const roleCreate = jest.fn<() => Promise<unknown>>();
@@ -201,9 +205,7 @@ describe('PlatformOwnerBootstrapService', () => {
 		).toBe(true);
 		expect(totpUpdateMany).toHaveBeenCalledTimes(1);
 		const userUpdate = userUpdateMany.mock.calls[0]?.[0];
-		expect(isRecord(userUpdate) && isRecord(userUpdate.data) && userUpdate.data.status).toBe(
-			UserStatus.ACTIVE,
-		);
+		expect(userUpdate?.data.status).toBe(UserStatus.ACTIVE);
 		expect(staffUpdateMany).toHaveBeenCalledWith({
 			where: { id: 'staff-id', status: PlatformStaffStatus.PENDING },
 			data: { status: PlatformStaffStatus.ACTIVE },
