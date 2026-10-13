@@ -1,16 +1,20 @@
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Test } from '@nestjs/testing';
+import { PrismaService } from '@nexcoderw/gym-db';
 import request from 'supertest';
 
-import { configureApplication } from '../../src/app-bootstrap';
-import { AppModule } from '../../src/app.module';
-import { validateEnvironment } from '../../src/config/environment.validation';
+import { configureApplication } from '../../src/app-bootstrap.js';
+import { AppModule } from '../../src/app.module.js';
+import { validateEnvironment } from '../../src/config/environment.validation.js';
 
 describe('API foundation (e2e)', () => {
 	let application: NestExpressApplication;
 
 	beforeAll(async () => {
-		const module = await Test.createTestingModule({ imports: [AppModule] }).compile();
+		const module = await Test.createTestingModule({ imports: [AppModule] })
+			.overrideProvider(PrismaService)
+			.useValue({})
+			.compile();
 		application = module.createNestApplication<NestExpressApplication>();
 		configureApplication(
 			application,
