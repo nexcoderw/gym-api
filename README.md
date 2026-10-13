@@ -239,6 +239,14 @@ SQL or provider messages. Investigate the emitted `databaseCode`: `P2028` indica
 timing, `P2034` contention, and `P2021/P2022` missing schema. The previous redacted log alone cannot
 establish which database failure occurred.
 
+Organization persistence failures also retain their cause internally. The exception filter emits
+only an allowlisted Prisma `databaseCode` alongside `ORGANIZATION_PERSISTENCE_UNAVAILABLE` and the
+request ID. Clients never receive provider messages, SQL, credentials or error metadata. Diagnose
+the active API database, not the disposable test database: `P2021/P2022` require checking deployed
+migrations and the rebuilt local database package; `P1010` requires checking application-role
+access; `P2028` requires investigating transaction acquisition/execution and pool pressure. Do not
+fix these distinct conditions with blanket grants, automatic migrations or unlimited retries.
+
 `POST /api/v1/platform/auth/login` validates password and administrator eligibility but creates only
 a short-lived MFA challenge. `POST /api/v1/platform/auth/mfa/verify` atomically consumes that
 challenge plus a TOTP step, recovery code or enabled email OTP before setting the session cookie. `GET
