@@ -31,7 +31,7 @@ class PlatformPermissionProbeController {
 }
 
 describe('platform authentication HTTP API (e2e)', () => {
-	let application: NestExpressApplication;
+	let application: NestExpressApplication | undefined;
 	const login = jest.fn<PlatformLoginService['login']>();
 	const verifyMfa = jest.fn<PlatformMfaService['verify']>();
 	const authenticate = jest.fn<PlatformSessionService['authenticate']>();
@@ -65,7 +65,12 @@ describe('platform authentication HTTP API (e2e)', () => {
 		const module = await Test.createTestingModule({
 			imports: [AppModule],
 			controllers: [PlatformPermissionProbeController],
-			providers: [PlatformCookieService, PlatformPermissionGuard, PlatformSessionGuard],
+			providers: [
+				PlatformCookieService,
+				PlatformPermissionGuard,
+				PlatformSessionGuard,
+				PlatformSessionService,
+			],
 		})
 			.overrideProvider(PrismaService)
 			.useValue({})
@@ -82,11 +87,11 @@ describe('platform authentication HTTP API (e2e)', () => {
 	});
 
 	afterAll(async () => {
-		await application.close();
+		await application?.close();
 	});
 
 	it('creates an MFA challenge without a session cookie', async () => {
-		const response = await request(application.getHttpServer())
+		const response = await request(requireApplication(application).getHttpServer())
 			.post('/api/v1/platform/auth/login')
 			.set('Origin', ADMIN_ORIGIN)
 			.send({ email: ' ADMIN@EXAMPLE.COM ', password: 'fictional password' })
@@ -110,7 +115,7 @@ describe('platform authentication HTTP API (e2e)', () => {
 	});
 
 	it('rejects login from an unapproved Origin', async () => {
-		await request(application.getHttpServer())
+		await request(requireApplication(application).getHttpServer())
 			.post('/api/v1/platform/auth/login')
 			.set('Origin', 'https://attacker.example')
 			.send({ email: 'admin@example.com', password: 'fictional password' })
@@ -118,7 +123,7 @@ describe('platform authentication HTTP API (e2e)', () => {
 	});
 
 	it('rejects invalid login DTOs without exposing credentials', async () => {
-		const response = await request(application.getHttpServer())
+		const response = await request(requireApplication(application).getHttpServer())
 			.post('/api/v1/platform/auth/login')
 			.set('Origin', ADMIN_ORIGIN)
 			.send({ email: 'invalid', password: '' })
@@ -128,7 +133,7 @@ describe('platform authentication HTTP API (e2e)', () => {
 	});
 
 	it('requires CSRF validation before issuing a session', async () => {
-		await request(application.getHttpServer())
+		await request(requireApplication(application).getHttpServer())
 			.post('/api/v1/platform/auth/mfa/verify')
 			.set('Origin', ADMIN_ORIGIN)
 			.send({
@@ -140,7 +145,7 @@ describe('platform authentication HTTP API (e2e)', () => {
 	});
 
 	it('issues a host-only HttpOnly session cookie after MFA', async () => {
-		const response = await request(application.getHttpServer())
+		const response = await request(requireApplication(application).getHttpServer())
 			.post('/api/v1/platform/auth/mfa/verify')
 			.set('Origin', ADMIN_ORIGIN)
 			.set('Cookie', `nexcode-platform-csrf=${CSRF_TOKEN}`)
@@ -160,7 +165,7 @@ describe('platform authentication HTTP API (e2e)', () => {
 	});
 
 	it('returns current server-resolved roles and permissions', async () => {
-		const response = await request(application.getHttpServer())
+		const response = await request(requireApplication(application).getHttpServer())
 			.get('/api/v1/platform/auth/session')
 			.set('Cookie', `nexcode-platform-session=${SESSION_TOKEN}`)
 			.expect(200);
@@ -170,11 +175,13 @@ describe('platform authentication HTTP API (e2e)', () => {
 	});
 
 	it('rejects a missing session cookie', async () => {
-		await request(application.getHttpServer()).get('/api/v1/platform/auth/session').expect(401);
+		await request(requireApplication(application).getHttpServer())
+			.get('/api/v1/platform/auth/session')
+			.expect(401);
 	});
 
 	it('permits an authenticated session with the explicit permission', async () => {
-		await request(application.getHttpServer())
+		await request(requireApplication(application).getHttpServer())
 			.get('/api/v1/platform/permission-probe')
 			.set('Cookie', `nexcode-platform-session=${SESSION_TOKEN}`)
 			.expect(200, { status: 'permitted' });
@@ -192,14 +199,14 @@ describe('platform authentication HTTP API (e2e)', () => {
 			permissions: [],
 		});
 
-		await request(application.getHttpServer())
+		await request(requireApplication(application).getHttpServer())
 			.get('/api/v1/platform/permission-probe')
 			.set('Cookie', `nexcode-platform-session=${SESSION_TOKEN}`)
 			.expect(403);
 	});
 
 	it('revokes only the presented session and clears its cookie', async () => {
-		const response = await request(application.getHttpServer())
+		const response = await request(requireApplication(application).getHttpServer())
 			.post('/api/v1/platform/auth/logout')
 			.set('Origin', ADMIN_ORIGIN)
 			.set(
@@ -215,4 +222,13 @@ describe('platform authentication HTTP API (e2e)', () => {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function requireApplication(
+	application: NestExpressApplication | undefined,
+): NestExpressApplication {
+	if (application === undefined) {
+		throw new Error('The e2e application was not initialized.');
+	}
+	return application;
 }
