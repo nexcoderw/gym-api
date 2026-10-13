@@ -24,12 +24,12 @@ describe('PlatformLoginAttemptService', () => {
 		service.recordFailure('192.0.2.10', 'admin@example.com', now);
 		service.recordFailure('192.0.2.10', 'admin@example.com', now);
 
-		expect(() => service.assertAllowed('192.0.2.10', 'other@example.com', now)).toThrow(
-			HttpException,
-		);
-		expect(() => service.assertAllowed('192.0.2.11', 'admin@example.com', now)).toThrow(
-			HttpException,
-		);
+		expect(() => {
+			service.assertAllowed('192.0.2.10', 'other@example.com', now);
+		}).toThrow(HttpException);
+		expect(() => {
+			service.assertAllowed('192.0.2.11', 'admin@example.com', now);
+		}).toThrow(HttpException);
 	});
 
 	it('allows attempts again after the bounded window expires', () => {
@@ -41,8 +41,8 @@ describe('PlatformLoginAttemptService', () => {
 		service.recordFailure('192.0.2.10', 'admin@example.com', now);
 		service.recordFailure('192.0.2.10', 'admin@example.com', now);
 
-		expect(() =>
-			service.assertAllowed('192.0.2.10', 'admin@example.com', now + 60_001),
-		).not.toThrow();
+		expect(() => {
+			service.assertAllowed('192.0.2.10', 'admin@example.com', now + 60_001);
+		}).not.toThrow();
 	});
 });
