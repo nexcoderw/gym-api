@@ -187,9 +187,38 @@ Errors use this shape:
 
 ## Platform administrator authentication
 
+Email verification is an opt-in, weaker fallback than authenticator MFA. Set
+`PLATFORM_AUTH_EMAIL_OTP_ENABLED=true`, `RESEND_API_KEY` (a sending-only key), and
+`RESEND_FROM_EMAIL` (a bare address on your Resend-verified domain) in the API's ignored `.env.local`
+only after reviewing that tradeoff. No Resend credential belongs in the admin frontend.
+`POST /api/v1/platform/auth/mfa/email` requires the live password challenge, trusted Origin and
+CSRF proof. It never accepts a recipient or issues cookies. A fixed HTTPS adapter sends one email;
+there is no SDK dependency or automatic delivery retry. Codes expire within five minutes or at
+challenge expiry, whichever comes first. Only keyed digests bound to challenge and verified mailbox
+are stored. Resends replace the old code; each challenge permits three sends, including failed
+deliveries, with a durable 60-second cooldown. Verification uses the existing failed-attempt budget
+and atomically consumes the code and challenge before creating a session. Confirmed authenticator
+or recovery enrollment remains required. Disabling the flag immediately blocks email verification.
+
+Before deploying this API change, the human must generate, review and deploy the DB expansion
+migration adding `emailOtp*` fields to `PlatformMfaChallenge`, then regenerate and rebuild the DB
+package. Never edit an applied migration or use `db push`. Existing challenges have no email code
+and retain their original factors. Run provider-fake unit, integration and HTTP tests, then verify
+real Resend delivery using a disposable development account. Provider acceptance is not proof of
+inbox delivery. Keep email fallback disabled by default, especially in production.
+
+Session validation retries at most one confirmed serializable conflict (`P2034`) inside an
+18-second total budget, reducing the retry's acquisition/execution limits to preserve the BFF
+deadline. Expiry is rechecked using elapsed time on retry. Other transaction timeouts
+are not blindly retried. Known database availability errors return 503 without revoking a valid
+session. Safe operational logs contain request ID, HTTP error code and Prisma machine code, not
+SQL or provider messages. Investigate the emitted `databaseCode`: `P2028` indicates transaction
+timing, `P2034` contention, and `P2021/P2022` missing schema. The previous redacted log alone cannot
+establish which database failure occurred.
+
 `POST /api/v1/platform/auth/login` validates password and administrator eligibility but creates only
 a short-lived MFA challenge. `POST /api/v1/platform/auth/mfa/verify` atomically consumes that
-challenge plus a TOTP step or recovery code before setting the session cookie. `GET
+challenge plus a TOTP step, recovery code or enabled email OTP before setting the session cookie. `GET
 /api/v1/platform/auth/session` reloads current permissions, status, expiry, idle timeout, and password
 state. `POST /api/v1/platform/auth/logout` revokes only the presented session.
 
