@@ -1,4 +1,4 @@
-import { HealthService } from '../../src/modules/health/health.service';
+import { HealthService } from '../../src/modules/health/health.service.js';
 
 describe('HealthService', () => {
 	it('reports process liveness without claiming dependency readiness', () => {
