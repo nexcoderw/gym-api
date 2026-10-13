@@ -1,4 +1,4 @@
-export type PlatformMfaMethod = 'totp' | 'recovery_code';
+export type PlatformMfaMethod = 'email_otp' | 'totp' | 'recovery_code';
 
 /** Server-established platform identity attached only after full session validation. */
 export interface PlatformPrincipal {
