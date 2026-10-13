@@ -1,4 +1,4 @@
-import { createDecipheriv } from 'node:crypto';
+import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
 
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -8,6 +8,9 @@ import type { EnvironmentVariables } from '../../config/environment.types.js';
 import type { AcceptedTotp } from './platform-auth.types.js';
 
 const TOTP_PERIOD_SECONDS = 30;
+const TOTP_SECRET_BYTES = 20;
+const TOTP_ENCRYPTION_VERSION = 1;
+const TOTP_ISSUER = 'NEXCODE Gym';
 
 export interface EncryptedTotpSecret {
 	readonly platformStaffId: string;
@@ -18,12 +21,67 @@ export interface EncryptedTotpSecret {
 	readonly encryptionVersion: number;
 }
 
+export interface PlatformTotpEnrollment extends EncryptedTotpSecret {
+	readonly secret: string;
+	readonly enrollmentUri: string;
+}
+
 @Injectable()
 export class PlatformTotpService {
 	private readonly keyring: Readonly<Record<string, string>>;
+	private readonly activeKeyId: string;
 
 	constructor(config: ConfigService<EnvironmentVariables, true>) {
 		this.keyring = config.get('PLATFORM_TOTP_KEYRING', { infer: true });
+		this.activeKeyId = config.get('PLATFORM_TOTP_ACTIVE_KEY_ID', { infer: true });
+	}
+
+	/** Generates and encrypts one enrollment using the verifier's versioned AES-GCM format. */
+	createEnrollment(platformStaffId: string, accountLabel: string): PlatformTotpEnrollment {
+		const encodedKey = this.keyring[this.activeKeyId];
+		if (encodedKey === undefined) {
+			throw new Error('The active TOTP encryption key is unavailable.');
+		}
+
+		const secret = new OTPAuth.Secret({ size: TOTP_SECRET_BYTES });
+		const base32Secret = secret.base32;
+		const plaintext = Buffer.from(base32Secret, 'utf8');
+		const initializationVector = randomBytes(12);
+		try {
+			const cipher = createCipheriv(
+				'aes-256-gcm',
+				Buffer.from(encodedKey, 'base64'),
+				initializationVector,
+			);
+			cipher.setAAD(
+				Buffer.from(
+					`${platformStaffId}:${this.activeKeyId}:${String(TOTP_ENCRYPTION_VERSION)}`,
+					'utf8',
+				),
+			);
+			const encryptedSecret = Buffer.concat([cipher.update(plaintext), cipher.final()]);
+			const enrollmentUri = new OTPAuth.TOTP({
+				issuer: TOTP_ISSUER,
+				label: accountLabel,
+				algorithm: 'SHA1',
+				digits: 6,
+				period: TOTP_PERIOD_SECONDS,
+				secret,
+			}).toString();
+			return {
+				platformStaffId,
+				encryptedSecret,
+				initializationVector,
+				authenticationTag: cipher.getAuthTag(),
+				encryptionKeyId: this.activeKeyId,
+				encryptionVersion: TOTP_ENCRYPTION_VERSION,
+				secret: base32Secret,
+				enrollmentUri,
+			};
+		} finally {
+			plaintext.fill(0);
+			secret.bytes.fill(0);
+		}
 	}
 
 	verify(credential: EncryptedTotpSecret, token: string, now: Date): AcceptedTotp | null {
