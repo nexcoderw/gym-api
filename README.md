@@ -205,11 +205,11 @@ The response is HTTP 200 JSON with `Cache-Control: no-store`. Fictional example:
 
 ```json
 {
-  "generatedAt": "2026-10-13T08:00:00.000Z",
-  "globalUsers": { "total": 1 },
-  "platformStaff": { "total": 1, "pending": 0, "active": 1, "suspended": 0, "revoked": 0 },
-  "platformRoles": { "total": 1 },
-  "platformPermissions": { "total": 1 }
+	"generatedAt": "2026-10-13T08:00:00.000Z",
+	"globalUsers": { "total": 1 },
+	"platformStaff": { "total": 1, "pending": 0, "active": 1, "suspended": 0, "revoked": 0 },
+	"platformRoles": { "total": 1 },
+	"platformPermissions": { "total": 1 }
 }
 ```
 
