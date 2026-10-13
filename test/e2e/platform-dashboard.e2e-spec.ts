@@ -1,3 +1,5 @@
+import { jest } from '@jest/globals';
+import { Logger } from '@nestjs/common';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Test } from '@nestjs/testing';
 import { getOptionsToken } from '@nestjs/throttler';
@@ -216,20 +218,28 @@ describe('platform dashboard HTTP API (real session and permission guards)', () 
 	});
 
 	it('uses the centralized safe error envelope for aggregate failures', async () => {
-		database.userCount.mockRejectedValueOnce(
-			new Error('fictional SQL failure secret=do-not-expose'),
-		);
-		const response = await request(app().getHttpServer())
-			.get(ENDPOINT)
-			.set('Cookie', COOKIE)
-			.expect(500);
-		const body: unknown = response.body;
-		expect(body).toMatchObject({
-			error: { code: 'INTERNAL_ERROR', message: 'An unexpected error occurred' },
-			path: ENDPOINT,
-		});
-		expect(JSON.stringify(body)).not.toContain('fictional SQL');
-		expect(JSON.stringify(body)).not.toContain('do-not-expose');
+		const errorLog = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+		try {
+			database.userCount.mockRejectedValueOnce(
+				new Error('fictional SQL failure secret=do-not-expose'),
+			);
+			const response = await request(app().getHttpServer())
+				.get(ENDPOINT)
+				.set('Cookie', COOKIE)
+				.expect(500);
+			const body: unknown = response.body;
+			expect(body).toMatchObject({
+				error: { code: 'INTERNAL_ERROR', message: 'An unexpected error occurred' },
+				path: ENDPOINT,
+			});
+			expect(JSON.stringify(body)).not.toContain('fictional SQL');
+			expect(JSON.stringify(body)).not.toContain('do-not-expose');
+			expect(errorLog).toHaveBeenCalled();
+			expect(JSON.stringify(errorLog.mock.calls)).not.toContain('fictional SQL');
+			expect(JSON.stringify(errorLog.mock.calls)).not.toContain('do-not-expose');
+		} finally {
+			errorLog.mockRestore();
+		}
 	});
 
 	it('retains the real global throttler and returns 429 when the request limit is exceeded', async () => {
