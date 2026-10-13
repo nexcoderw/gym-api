@@ -57,7 +57,8 @@ npm run bootstrap:platform-owner:init
 ```
 
 The operator must type the exact target confirmation and authorization phrases. The CLI then requests
-the email, display name, and password interactively. Password input is not echoed and is never accepted
+the email, display name, and password interactively. The password must contain between 8 and 1024
+bytes and must not contain the owner email address. Password input is not echoed and is never accepted
 as a command argument.
 
 Initialization obtains a transaction-scoped PostgreSQL advisory lock and refuses to continue if any
