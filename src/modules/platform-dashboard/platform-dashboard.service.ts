@@ -13,10 +13,18 @@ export class PlatformDashboardService {
 	 * Persistence failures propagate to the centralized safe HTTP exception boundary.
 	 */
 	async getSummary(): Promise<PlatformDashboardSummaryDto> {
+		const staffGroupByArgs = {
+			by: ['status'],
+			orderBy: { status: 'asc' },
+			_count: { _all: true },
+		} satisfies Prisma.PlatformStaffGroupByArgs;
+		// Infer the exact aggregate payload before the transaction's tuple context widens it.
+		// Prisma promises are lazy: this query still executes only inside the transaction.
+		const staffStatusQuery = this.prisma.platformStaff.groupBy(staffGroupByArgs);
 		const [users, staffGroups, roles, permissions] = await this.prisma.$transaction(
 			[
 				this.prisma.user.count(),
-				this.prisma.platformStaff.groupBy({ by: ['status'], _count: { _all: true } }),
+				staffStatusQuery,
 				this.prisma.platformRole.count(),
 				this.prisma.platformPermission.count(),
 			],
