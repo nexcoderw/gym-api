@@ -1,4 +1,4 @@
-import { validateEnvironment } from '../../src/config/environment.validation';
+import { validateEnvironment } from '../../src/config/environment.validation.js';
 
 describe('validateEnvironment', () => {
 	it('returns safe development defaults', () => {
@@ -10,6 +10,24 @@ describe('validateEnvironment', () => {
 			SWAGGER_ENABLED: true,
 			RATE_LIMIT_TTL_MS: 60_000,
 			RATE_LIMIT_LIMIT: 100,
+			DATABASE_URL: 'postgresql://gym_app:local-only@localhost:5432/nexcode_gym',
+			DATABASE_POOL_MAX: 10,
+			DATABASE_CONNECTION_TIMEOUT_MS: 10_000,
+			PLATFORM_ADMIN_ORIGIN: 'http://localhost:3000',
+			PLATFORM_AUTH_COOKIE_SECURE: false,
+			PLATFORM_AUTH_DUMMY_PASSWORD_HASH:
+				'$argon2id$v=19$m=65536,t=3,p=1$c3ludGhldGljLXNhbHQ$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+			PLATFORM_AUTH_TOKEN_PEPPER: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
+			PLATFORM_AUTH_SESSION_TTL_SECONDS: 28_800,
+			PLATFORM_AUTH_IDLE_TTL_SECONDS: 1_800,
+			PLATFORM_AUTH_MFA_CHALLENGE_TTL_SECONDS: 300,
+			PLATFORM_AUTH_MFA_MAX_ATTEMPTS: 5,
+			PLATFORM_AUTH_LOGIN_ATTEMPT_WINDOW_MS: 900_000,
+			PLATFORM_AUTH_LOGIN_ATTEMPT_LIMIT: 5,
+			PLATFORM_AUTH_SINGLE_INSTANCE: true,
+			PLATFORM_TOTP_KEYRING: {
+				'local-v1': 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
+			},
 		});
 	});
 
@@ -32,9 +50,34 @@ describe('validateEnvironment', () => {
 		const configuration = validateEnvironment({
 			NODE_ENV: 'production',
 			CORS_ORIGINS: 'https://gym.rw,https://admin.gym.rw',
+			DATABASE_URL: 'postgresql://gym_app:password@database.example/nexcode_gym',
+			PLATFORM_ADMIN_ORIGIN: 'https://admin.gym.rw',
+			PLATFORM_AUTH_DUMMY_PASSWORD_HASH:
+				'$argon2id$v=19$m=65536,t=3,p=1$c3ludGhldGljLXNhbHQ$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+			PLATFORM_AUTH_TOKEN_PEPPER: 'AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=',
+			PLATFORM_AUTH_SINGLE_INSTANCE: 'true',
+			PLATFORM_TOTP_KEYRING:
+				'production-v1=AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI=',
 		});
 
 		expect(configuration.SWAGGER_ENABLED).toBe(false);
 		expect(configuration.CORS_ORIGINS).toEqual(['https://gym.rw', 'https://admin.gym.rw']);
+	});
+
+	it('rejects the development key material in production', () => {
+		expect(() =>
+			validateEnvironment({
+				NODE_ENV: 'production',
+				CORS_ORIGINS: 'https://admin.gym.rw',
+				DATABASE_URL: 'postgresql://gym_app:password@database.example/nexcode_gym',
+				PLATFORM_ADMIN_ORIGIN: 'https://admin.gym.rw',
+				PLATFORM_AUTH_DUMMY_PASSWORD_HASH:
+					'$argon2id$v=19$m=65536,t=3,p=1$c3ludGhldGljLXNhbHQ$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+				PLATFORM_AUTH_TOKEN_PEPPER: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
+				PLATFORM_AUTH_SINGLE_INSTANCE: 'true',
+				PLATFORM_TOTP_KEYRING:
+					'production-v1=AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI=',
+			}),
+		).toThrow('PLATFORM_AUTH_TOKEN_PEPPER must not use the local development key.');
 	});
 });
