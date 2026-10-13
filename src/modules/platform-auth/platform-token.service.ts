@@ -1,0 +1,32 @@
+import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+
+import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+
+import type { EnvironmentVariables } from '../../config/environment.types.js';
+
+const TOKEN_BYTES = 32;
+
+/** Creates opaque credentials and one-way keyed digests suitable for database lookup. */
+@Injectable()
+export class PlatformTokenService {
+	private readonly pepper: Buffer;
+
+	constructor(config: ConfigService<EnvironmentVariables, true>) {
+		this.pepper = Buffer.from(config.get('PLATFORM_AUTH_TOKEN_PEPPER', { infer: true }), 'base64');
+	}
+
+	createToken(): string {
+		return randomBytes(TOKEN_BYTES).toString('base64url');
+	}
+
+	digest(token: string): string {
+		return createHmac('sha256', this.pepper).update(token, 'utf8').digest('hex');
+	}
+
+	equal(left: string, right: string): boolean {
+		const leftBuffer = Buffer.from(left, 'utf8');
+		const rightBuffer = Buffer.from(right, 'utf8');
+		return leftBuffer.length === rightBuffer.length && timingSafeEqual(leftBuffer, rightBuffer);
+	}
+}
