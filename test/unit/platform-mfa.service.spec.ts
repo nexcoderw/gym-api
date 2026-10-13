@@ -48,7 +48,9 @@ describe('PlatformMfaService', () => {
 					provide: PlatformTokenService,
 					useValue: {
 						createToken: jest.fn<() => string>().mockReturnValue('session-token'),
-						digest: jest.fn<(value: string) => string>().mockImplementation((value) => `${value}-digest`),
+						digest: jest
+							.fn<(value: string) => string>()
+							.mockImplementation((value) => `${value}-digest`),
 					},
 				},
 				{ provide: PlatformTotpService, useValue: { verify: verifyTotp } },
