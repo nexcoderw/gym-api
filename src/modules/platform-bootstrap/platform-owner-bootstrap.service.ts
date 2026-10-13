@@ -7,6 +7,7 @@ import { PlatformStaffStatus, Prisma, PrismaService, UserStatus } from '@nexcode
 
 import type { EnvironmentVariables } from '../../config/environment.types.js';
 import { PlatformPasswordService } from '../platform-auth/platform-password.service.js';
+import { acceptsBootstrapPassword } from '../platform-auth/platform-password-policy.js';
 import { PlatformTokenService } from '../platform-auth/platform-token.service.js';
 import { PlatformTotpService } from '../platform-auth/platform-totp.service.js';
 import {
@@ -25,8 +26,6 @@ import {
 	type PlatformOwnerEnrollment,
 } from './platform-bootstrap.types.js';
 
-const MINIMUM_PASSWORD_BYTES = 8;
-const MAXIMUM_PASSWORD_BYTES = 1_024;
 const MINIMUM_DISPLAY_NAME_LENGTH = 2;
 const MAXIMUM_DISPLAY_NAME_LENGTH = 160;
 const TRANSACTION_TIMEOUT_MILLISECONDS = 15_000;
@@ -440,20 +439,10 @@ function containsControlCharacter(value: string): boolean {
 }
 
 function validatePassword(password: Buffer, email: string): void {
-	const normalizedEmail = Buffer.from(email, 'utf8');
-	try {
-		if (
-			password.length < MINIMUM_PASSWORD_BYTES ||
-			password.length > MAXIMUM_PASSWORD_BYTES ||
-			password.includes(0) ||
-			password.toString('utf8').toLowerCase().includes(normalizedEmail.toString('utf8'))
-		) {
-			throw invalidInput(
-				'Use a password of 8 to 1024 bytes that does not contain the owner email address.',
-			);
-		}
-	} finally {
-		normalizedEmail.fill(0);
+	if (!acceptsBootstrapPassword(password, email)) {
+		throw invalidInput(
+			'Use 12 to 1024 characters within 1024 UTF-8 bytes, without controls or your email address.',
+		);
 	}
 }
 
