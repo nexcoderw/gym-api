@@ -121,8 +121,8 @@ describe('PlatformOwnerBootstrapService', () => {
 		digest.mockImplementation((value) => `${value}-digest`);
 	});
 
-	it('accepts an eight-byte password and creates one pending owner', async () => {
-		const password = Buffer.from('A7!b2@Qx', 'utf8');
+	it('accepts a twelve-character password and creates one pending owner', async () => {
+		const password = Buffer.from('A7!b2@Qx9#Za', 'utf8');
 
 		await expect(
 			service.initialize({
@@ -148,6 +148,30 @@ describe('PlatformOwnerBootstrapService', () => {
 			},
 			select: { id: true },
 		});
+		expect(password.every((value) => value === 0)).toBe(true);
+	});
+
+	it.each([
+		Buffer.from('A7!b2@Qx'),
+		Buffer.from('A7!b2@Qx9#Z'),
+		Buffer.from('😀'.repeat(6)),
+		Buffer.from('x'.repeat(1025)),
+		Buffer.from('é'.repeat(513)),
+		Buffer.from('Owner@Example.com!'),
+		Buffer.from('valid password\u0000'),
+		Buffer.from('valid password\n'),
+		Buffer.from('valid password\u007f'),
+		Buffer.from('valid password\u0085'),
+		Buffer.concat([Buffer.from('valid password'), Buffer.from([0xc3, 0x28])]),
+	])('rejects invalid future credentials before hashing or writing: %#', async (input) => {
+		const password = Buffer.from(input);
+		await expect(
+			service.initialize({ email: 'owner@example.com', displayName: 'Owner', password }),
+		).rejects.toMatchObject({ code: 'BOOTSTRAP_INVALID_INPUT' });
+		expect(hashPassword).not.toHaveBeenCalled();
+		expect(runTransaction).not.toHaveBeenCalled();
+		expect(userCreate).not.toHaveBeenCalled();
+		expect(totpCreate).not.toHaveBeenCalled();
 		expect(password.every((value) => value === 0)).toBe(true);
 	});
 
