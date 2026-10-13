@@ -16,7 +16,7 @@ import { RequirePlatformPermissions } from '../../src/modules/platform-auth/plat
 import { PlatformSessionGuard } from '../../src/modules/platform-auth/platform-session.guard.js';
 import { PlatformSessionService } from '../../src/modules/platform-auth/platform-session.service.js';
 
-const ADMIN_ORIGIN = 'http://localhost:3000';
+const ADMIN_ORIGIN = 'http://localhost:4000';
 const CSRF_TOKEN = 'fictional-csrf-token-with-more-than-32-characters';
 const SESSION_TOKEN = 'fictional-session-token-with-more-than-32-characters';
 
