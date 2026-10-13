@@ -14,9 +14,15 @@ export class PlatformMfaVerifyDto {
 	@MaxLength(256)
 	challengeToken!: string;
 
-	@ApiProperty({ enum: ['totp', 'recovery_code'], example: 'totp' })
-	@IsIn(['totp', 'recovery_code'])
+	@ApiProperty({ enum: ['email_otp', 'totp', 'recovery_code'], example: 'totp' })
+	@IsIn(['email_otp', 'totp', 'recovery_code'])
 	method!: PlatformMfaMethod;
+
+	@ApiPropertyOptional({ description: 'Six-digit code delivered to the verified account email.', example: '012345' })
+	@IsOptional()
+	@IsString()
+	@Matches(/^\d{6}$/u)
+	emailOtpCode?: string;
 
 	@ApiPropertyOptional({ description: 'Current six-digit authenticator code.', example: '123456' })
 	@IsOptional()
