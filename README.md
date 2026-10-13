@@ -458,11 +458,13 @@ npm run prisma:format
 npm run prisma:validate
 npm run migration:status
 npx prisma migrate status --config prisma.test.config.ts
-npm run migration:create -- --name harden_organization_constraints
+npm run migration:create -- --name enforce_organization_integrity
 ```
 
 Stop and review the new unapplied forward SQL, using the database README's exact name/slug/reserved
 checks. Do not repeat create_organizations, accept reset prompts, use db push or change applied SQL.
+The earlier harden_organization_constraints draft was empty and already applied somewhere; preserve
+it unchanged. The new draft must be populated and reviewed before deployment, not applied empty.
 Verify existing records satisfy the checks; corrections require separate approval. After SQL approval
 only, deploy to the independently marked disposable target and apply approved table-specific test
 grants with the correct restricted test role, then generate/build and test the owning package:
