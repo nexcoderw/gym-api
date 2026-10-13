@@ -25,6 +25,9 @@ export interface EnvironmentVariables {
 	readonly PLATFORM_AUTH_LOGIN_ATTEMPT_WINDOW_MS: number;
 	readonly PLATFORM_AUTH_LOGIN_ATTEMPT_LIMIT: number;
 	readonly PLATFORM_AUTH_SINGLE_INSTANCE: boolean;
+	readonly PLATFORM_AUTH_EMAIL_OTP_ENABLED: boolean;
+	readonly RESEND_API_KEY: string | null;
+	readonly RESEND_FROM_EMAIL: string | null;
 	readonly PLATFORM_TOTP_KEYRING: Readonly<Record<string, string>>;
 	readonly PLATFORM_TOTP_ACTIVE_KEY_ID: string;
 	readonly PLATFORM_OWNER_BOOTSTRAP_ENABLED: boolean;
