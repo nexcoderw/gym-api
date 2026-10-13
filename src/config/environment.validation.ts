@@ -318,12 +318,22 @@ export function validateEnvironment(input: Record<string, unknown>): Environment
 		'PLATFORM_AUTH_EMAIL_OTP_ENABLED',
 		false,
 	);
-	const resendApiKey = emailOtpEnabled ? requireString(input.RESEND_API_KEY, 'RESEND_API_KEY') : null;
-	const resendFromEmail = emailOtpEnabled ? requireString(input.RESEND_FROM_EMAIL, 'RESEND_FROM_EMAIL') : null;
+	const resendApiKey = emailOtpEnabled
+		? requireString(input.RESEND_API_KEY, 'RESEND_API_KEY')
+		: null;
+	const resendFromEmail = emailOtpEnabled
+		? requireString(input.RESEND_FROM_EMAIL, 'RESEND_FROM_EMAIL')
+		: null;
 	if (resendApiKey !== null && !/^re_[A-Za-z0-9_-]{1,256}$/u.test(resendApiKey)) {
 		throw new Error('RESEND_API_KEY must be a valid Resend API key.');
 	}
-	if (resendFromEmail !== null && (resendFromEmail.length > 254 || !/^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$/u.test(resendFromEmail))) {
+	if (
+		resendFromEmail !== null &&
+		(resendFromEmail.length > 254 ||
+			!/^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$/u.test(
+				resendFromEmail,
+			))
+	) {
 		throw new Error('RESEND_FROM_EMAIL must be a bare email address on a verified sender domain.');
 	}
 
