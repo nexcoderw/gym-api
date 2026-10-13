@@ -6,10 +6,7 @@ import { createValidationException } from './common/pipes/validation-exception.f
 import type { EnvironmentVariables } from './config/environment.types.js';
 import { configureSwagger } from './docs/swagger.js';
 
-type ApplicationConfiguration = Pick<
-	EnvironmentVariables,
-	'CORS_ORIGINS' | 'SWAGGER_ENABLED'
->;
+type ApplicationConfiguration = Pick<EnvironmentVariables, 'CORS_ORIGINS' | 'SWAGGER_ENABLED'>;
 
 /** Applies transport-wide security and API conventions to production and test applications. */
 export function configureApplication(
