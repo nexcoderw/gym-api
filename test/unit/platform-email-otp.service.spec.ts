@@ -68,14 +68,12 @@ describe('PlatformEmailOtpService', () => {
 			expect.stringMatching(/^\d{6}$/u),
 			expect.any(String),
 		);
-		expect(updateMany).toHaveBeenCalledWith(
-			expect.objectContaining({
-				data: expect.objectContaining({
-					emailOtpDigest: 'keyed-otp-digest',
-					emailOtpSendCount: { increment: 1 },
-				}),
-			}),
-		);
+		expect(updateMany.mock.calls[0]?.[0]).toMatchObject({
+			data: {
+				emailOtpDigest: 'keyed-otp-digest',
+				emailOtpSendCount: { increment: 1 },
+			},
+		});
 		const plaintext = sendOtp.mock.calls[0]?.[1];
 		expect(plaintext).toBeDefined();
 		expect(JSON.stringify(updateMany.mock.calls)).not.toContain(plaintext);
