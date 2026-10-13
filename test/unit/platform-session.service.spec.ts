@@ -51,9 +51,9 @@ describe('PlatformSessionService', () => {
 	});
 
 	it('returns current database roles and permissions and advances idle expiry', async () => {
-		sessionFindUnique.mockResolvedValue(createSession([
-			{ platformPermission: { key: 'platform.dashboard.read' } },
-		]));
+		sessionFindUnique.mockResolvedValue(
+			createSession([{ platformPermission: { key: 'platform.dashboard.read' } }]),
+		);
 
 		await expect(
 			service.authenticate(
