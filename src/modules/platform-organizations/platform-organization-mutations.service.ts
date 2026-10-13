@@ -1,0 +1,141 @@
+import { Injectable } from '@nestjs/common';
+import { OrganizationStatus, Prisma, PrismaService } from '@nexcoderw/gym-db';
+
+import type { CreateOrganizationDto } from './dto/create-organization.dto.js';
+import type { UpdateOrganizationDto } from './dto/update-organization.dto.js';
+import type { OrganizationResponseDto } from './dto/organization-response.dto.js';
+import {
+	PlatformOrganizationAudit,
+	type OrganizationMutationContext,
+} from './platform-organization-audit.js';
+import {
+	organizationFailure,
+	organizationNotFound,
+	staleOrganization,
+} from './platform-organization-errors.js';
+import {
+	lifecycleStatus,
+	type OrganizationLifecycleAction,
+} from './platform-organization-lifecycle.js';
+import { ORGANIZATION_SELECT, organizationResponse } from './platform-organization-mapping.js';
+import { ORGANIZATION_TRANSACTION_OPTIONS } from './platform-organizations.constants.js';
+
+@Injectable()
+export class PlatformOrganizationMutationsService {
+	constructor(
+		private readonly prisma: PrismaService,
+		private readonly audit: PlatformOrganizationAudit,
+	) {}
+
+	async create(
+		context: OrganizationMutationContext,
+		input: CreateOrganizationDto,
+	): Promise<OrganizationResponseDto> {
+		this.audit.assertAvailable();
+		try {
+			return await this.prisma.$transaction(async (transaction) => {
+				const row = await transaction.organization.create({
+					data: { name: input.name, slug: input.slug, status: OrganizationStatus.PENDING },
+					select: ORGANIZATION_SELECT,
+				});
+				await this.audit.record(transaction, {
+					...context,
+					action: 'create',
+					organizationId: row.id,
+					occurredAt: new Date(),
+					previousStatus: null,
+					resultingStatus: row.status,
+					changedFields: ['name', 'slug', 'status'],
+				});
+				return organizationResponse(row);
+			}, ORGANIZATION_TRANSACTION_OPTIONS);
+		} catch (error: unknown) {
+			throw organizationFailure(error);
+		}
+	}
+
+	update(
+		context: OrganizationMutationContext,
+		id: string,
+		input: UpdateOrganizationDto,
+		expected: Date,
+	): Promise<OrganizationResponseDto> {
+		return this.change(context, id, expected, { name: input.name });
+	}
+
+	lifecycle(
+		context: OrganizationMutationContext,
+		id: string,
+		action: OrganizationLifecycleAction,
+		expected: Date,
+	): Promise<OrganizationResponseDto> {
+		return this.change(context, id, expected, { action });
+	}
+
+	private async change(
+		context: OrganizationMutationContext,
+		id: string,
+		expected: Date,
+		command: { readonly name: string } | { readonly action: OrganizationLifecycleAction },
+	): Promise<OrganizationResponseDto> {
+		this.audit.assertAvailable();
+		try {
+			return await this.prisma.$transaction(
+				async (transaction) => {
+					const previous = await transaction.organization.findUnique({
+						where: { id },
+						select: ORGANIZATION_SELECT,
+					});
+					if (previous === null) throw organizationNotFound();
+					if (previous.updatedAt.getTime() !== expected.getTime()) throw staleOrganization();
+					const now = new Date();
+					// API-managed writes advance monotonically even when two requests share a clock millisecond.
+					const updatedAt = new Date(Math.max(now.getTime(), previous.updatedAt.getTime() + 1));
+					const status =
+						'action' in command
+							? lifecycleStatus(previous.status, command.action)
+							: previous.status;
+					const data =
+						'name' in command
+							? { name: command.name, updatedAt }
+							: {
+									status,
+									updatedAt,
+									...(command.action === 'activation'
+										? { activatedAt: now }
+										: { suspendedAt: now }),
+								};
+					const result = await transaction.organization.updateMany({
+						where: { id, updatedAt: expected, status: previous.status },
+						data,
+					});
+					if (result.count !== 1) throw staleOrganization();
+					const row = await transaction.organization.findUnique({
+						where: { id },
+						select: ORGANIZATION_SELECT,
+					});
+					if (row === null) throw organizationNotFound();
+					await this.audit.record(transaction, {
+						...context,
+						action: 'action' in command ? command.action : 'update',
+						organizationId: id,
+						occurredAt: now,
+						previousStatus: previous.status,
+						resultingStatus: row.status,
+						changedFields:
+							'name' in command
+								? ['name']
+								: ['status', command.action === 'activation' ? 'activatedAt' : 'suspendedAt'],
+					});
+					return organizationResponse(row);
+				},
+				{
+					...ORGANIZATION_TRANSACTION_OPTIONS,
+					isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+				},
+			);
+		} catch (error: unknown) {
+			throw organizationFailure(error);
+		}
+	}
+}
