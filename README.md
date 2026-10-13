@@ -90,12 +90,20 @@ conflicting workflow variables before running local commands. Do not `source .en
 Database migrations and their separate privileged configuration remain exclusively in `../db`;
 see that package's README for `.env.migrations.local`, `.env.test.local`, and test migration deployment.
 
-When migrating an existing setup, move test URL/marker values to `.env.bootstrap-test.local` without
-changing them, move `PLATFORM_OWNER_BOOTSTRAP_EXPECTED_*` values to `.env.bootstrap.local`, and preserve
-the operator URL there before setting `PLATFORM_OWNER_BOOTSTRAP_ENABLED=false` in `.env.local`.
-Moving a URL does not verify its password, role privileges, database marker, or migrations; those
-checks still run against the live backend before test writes. Do not delete databases or branches
-as part of this configuration-only change.
+### Two Neon branches
+
+Normal local operation uses `development / gym_dev`. The interactive owner CLI uses that same
+database with the restricted `gym_bootstrap` role, while `.env.local` uses `gym_app`. The separate
+`gym_bootstrap_test` database lives on the same development branch and is used only by the opt-in
+PostgreSQL test command. Database-package integration tests and Prisma shadowing use `gym_test` and
+`gym_shadow` on that branch. Production uses `production / gym_prod` with independently provisioned
+credentials and authentication keys. `NODE_ENV=development` does not redirect a production URL.
+
+When replacing an empty Neon project, retain the authentication implementation, migrations, test
+safety checks, and workflow profiles. Update all real URLs, password-free reference URLs, approved
+operator fingerprints, and independently provisioned markers before running commands. Do not copy
+old pending-owner records or reuse disposable test enrollment secrets for your development owner.
+Do not delete the old project until the new targets and human-operated checks have been verified.
 
 | Variable                                            | Default                           | Requirement                                                             |
 | --------------------------------------------------- | --------------------------------- | ----------------------------------------------------------------------- |
