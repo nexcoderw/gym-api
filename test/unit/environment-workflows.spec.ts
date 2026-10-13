@@ -6,6 +6,25 @@ async function readRootFile(name: string): Promise<string> {
 }
 
 describe('API workflow environment boundaries', () => {
+	it('separates operator and disposable bootstrap databases on one endpoint', async () => {
+		const runtime = parseEnv(await readRootFile('.env.local.example'));
+		const operator = parseEnv(await readRootFile('.env.bootstrap.local.example'));
+		const tests = parseEnv(await readRootFile('.env.bootstrap-test.local.example'));
+		const targets = [
+			[runtime.DATABASE_URL, '/gym_dev', 'gym_app'],
+			[operator.DATABASE_URL, '/gym_dev', 'gym_bootstrap'],
+			[tests.BOOTSTRAP_TEST_DATABASE_URL, '/gym_bootstrap_test', 'gym_bootstrap_test'],
+		];
+		for (const [value, database, role] of targets) {
+			if (value === undefined) throw new Error('A development database target is missing.');
+			const url = new URL(value);
+			expect(url.hostname).toBe('localhost');
+			expect(url.pathname).toBe(database);
+			expect(url.username).toBe(role);
+		}
+		expect(operator.PLATFORM_OWNER_BOOTSTRAP_EXPECTED_DATABASE_NAME).toBe('gym_dev');
+	});
+
 	it('routes bootstrap startup failures to the CLI handler without enabling raw logs', async () => {
 		const cli = await readRootFile('src/cli/platform-owner-bootstrap.ts');
 		const options = /createApplicationContext\(PlatformBootstrapCliModule,\s*\{([^}]*)\}/u.exec(
