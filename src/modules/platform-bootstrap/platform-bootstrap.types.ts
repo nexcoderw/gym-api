@@ -9,7 +9,9 @@ export type PlatformBootstrapErrorCode =
 	| 'BOOTSTRAP_PENDING_OWNER_NOT_FOUND'
 	| 'BOOTSTRAP_STATE_CONFLICT'
 	| 'BOOTSTRAP_MFA_REJECTED'
-	| 'BOOTSTRAP_CONCURRENT_OPERATION';
+	| 'BOOTSTRAP_CONCURRENT_OPERATION'
+	| 'BOOTSTRAP_UNSAFE_DATABASE'
+	| 'BOOTSTRAP_DATABASE_FAILED';
 
 export class PlatformBootstrapError extends Error {
 	override readonly name = 'PlatformBootstrapError';
@@ -17,8 +19,9 @@ export class PlatformBootstrapError extends Error {
 	constructor(
 		readonly code: PlatformBootstrapErrorCode,
 		message: string,
+		options?: ErrorOptions,
 	) {
-		super(message);
+		super(message, options);
 	}
 }
 
