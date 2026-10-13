@@ -8,7 +8,7 @@ import {
 import type { Response } from 'express';
 import { type Observable, finalize } from 'rxjs';
 
-import type { RequestWithContext } from '../types/request-with-context';
+import type { RequestWithContext } from '../types/request-with-context.js';
 
 /** Logs bounded request metadata while excluding bodies, credentials, and query values. */
 @Injectable()
