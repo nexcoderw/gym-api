@@ -39,15 +39,13 @@ describe('organization module integration (adapter fake; no live PostgreSQL)', (
 	});
 	it('never enters organization persistence for the production audit gate', async () => {
 		await expect(
-			module
-				.get(PlatformOrganizationMutationsService)
-				.create(
-					{
-						actorPlatformStaffId: '33333333-3333-4333-8333-333333333333',
-						requestId: 'fictional-request',
-					},
-					{ name: 'Soho Gym', slug: 'soho' },
-				),
+			module.get(PlatformOrganizationMutationsService).create(
+				{
+					actorPlatformStaffId: '33333333-3333-4333-8333-333333333333',
+					requestId: 'fictional-request',
+				},
+				{ name: 'Soho Gym', slug: 'soho' },
+			),
 		).rejects.toMatchObject({ status: 503 });
 		expect(database.create).not.toHaveBeenCalled();
 	});
