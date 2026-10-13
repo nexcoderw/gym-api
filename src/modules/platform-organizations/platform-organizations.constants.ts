@@ -1,0 +1,43 @@
+export const ORGANIZATION_PERMISSION = Object.freeze({
+	create: 'platform.organizations.create',
+	read: 'platform.organizations.read',
+	update: 'platform.organizations.update',
+	activate: 'platform.organizations.activate',
+	suspend: 'platform.organizations.suspend',
+});
+
+export const ORGANIZATION_RESERVED_SLUGS = Object.freeze([
+	'admin',
+	'api',
+	'app',
+	'www',
+	'auth',
+	'login',
+	'member',
+	'members',
+	'portal',
+	'dashboard',
+	'billing',
+	'support',
+	'status',
+	'static',
+	'assets',
+	'cdn',
+	'mail',
+	'dev',
+	'staging',
+	'test',
+	'localhost',
+	'account',
+	'accounts',
+	'oauth',
+	'console',
+	'internal',
+	'health',
+	'metrics',
+	'production',
+	'development',
+	'bootstrap',
+]);
+
+export const ORGANIZATION_TRANSACTION_OPTIONS = Object.freeze({ maxWait: 5_000, timeout: 10_000 });
