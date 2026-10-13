@@ -1,3 +1,6 @@
+import { randomInt } from 'node:crypto';
+import { setTimeout as delay } from 'node:timers/promises';
+
 import {
 	Injectable,
 	Logger,
@@ -17,6 +20,7 @@ import { effectivePlatformPermissions } from './platform-permission-policy.js';
 const TRANSACTION_MAX_WAIT_MS = 5_000;
 const TRANSACTION_TIMEOUT_MS = 10_000;
 const AUTHENTICATION_BUDGET_MS = 18_000;
+const AUTHENTICATION_MAX_ATTEMPTS = 3;
 
 @Injectable()
 export class PlatformSessionService {
@@ -35,7 +39,7 @@ export class PlatformSessionService {
 	async authenticate(token: string, now = new Date()): Promise<PlatformPrincipal> {
 		const tokenDigest = this.tokens.digest(token);
 		const startedAt = performance.now();
-		for (let attempt = 0; attempt < 2; attempt += 1) {
+		for (let attempt = 0; attempt < AUTHENTICATION_MAX_ATTEMPTS; attempt += 1) {
 			const elapsed = performance.now() - startedAt;
 			const remaining = Math.floor(AUTHENTICATION_BUDGET_MS - elapsed);
 			if (attempt > 0 && remaining < 2_000) {
@@ -63,9 +67,12 @@ export class PlatformSessionService {
 				// Only a confirmed rollback may be retried. Keep the total below the BFF deadline.
 				if (
 					code === 'P2034' &&
-					attempt === 0 &&
+					attempt + 1 < AUTHENTICATION_MAX_ATTEMPTS &&
 					performance.now() - startedAt < AUTHENTICATION_BUDGET_MS - 2_000
 				) {
+					// Parallel requests refresh the same session row. Jitter avoids synchronized retries.
+					// The next iteration recomputes the budget and rechecks expiry and live permissions.
+					await delay(randomInt(100, 251) * (attempt + 1));
 					continue;
 				}
 				if (
