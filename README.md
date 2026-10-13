@@ -14,11 +14,14 @@ platform operations and independently authorized gym organizations and branches 
 - Central exception responses without stack, SQL, or provider leakage
 - Swagger/OpenAPI, enabled by default outside production
 - `GET /api/v1/health/live`, which reports process liveness only
+- Platform-administrator password plus MFA authentication under `/api/v1/platform/auth`
+- Opaque server-side platform sessions in host-only HttpOnly cookies
+- Exact administrative Origin checks, CSRF protection, revocation, idle expiry, and live permissions
 - Unit, integration, and e2e foundation tests
 
-Authentication, tenant resolution, authorization, database registration, business modules, readiness
-checks, feature entitlements, queues, payments, and notifications are documented future work—not
-implemented behavior.
+Tenant authentication, tenant resolution, organization authorization, readiness checks, feature
+entitlements, queues, payments, notifications, administrator bootstrap, password recovery, and MFA
+enrollment remain future work.
 
 ## Architecture
 
@@ -59,7 +62,12 @@ deployment configuration, not committed files.
 | `SWAGGER_ENABLED`   | true outside production           | Defaults false in production                     |
 | `RATE_LIMIT_TTL_MS` | `60000`                           | Window from 1000 through 3600000 ms              |
 | `RATE_LIMIT_LIMIT`  | `100`                             | Requests per window from 1 through 100000        |
-| `DATABASE_URL`      | none                              | Future database-package integration prerequisite |
+| `DATABASE_URL`      | local disposable URL              | Least-privilege runtime database URL              |
+| `PLATFORM_ADMIN_ORIGIN` | `http://localhost:3000`       | Exact browser Origin for platform authentication  |
+| `PLATFORM_AUTH_COOKIE_SECURE` | false outside production | Must be true in production                     |
+| `PLATFORM_AUTH_TOKEN_PEPPER` | development-only test key | Managed base64 32-byte secret in production       |
+| `PLATFORM_TOTP_KEYRING` | development-only test keyring | Managed `key-id=base64-key` rotation keyring      |
+| `PLATFORM_AUTH_SINGLE_INSTANCE` | true outside production | Required production acknowledgement until distributed throttling exists |
 
 `CORS_ORIGINS` accepts origins only, such as `https://admin.gym.rw`, with no path. CORS does not prove
 tenant identity or authorization.
@@ -106,12 +114,36 @@ Errors use this shape:
 }
 ```
 
+## Platform administrator authentication
+
+`POST /api/v1/platform/auth/login` validates password and administrator eligibility but creates only
+a short-lived MFA challenge. `POST /api/v1/platform/auth/mfa/verify` atomically consumes that
+challenge plus a TOTP step or recovery code before setting the session cookie. `GET
+/api/v1/platform/auth/session` reloads current permissions, status, expiry, idle timeout, and password
+state. `POST /api/v1/platform/auth/logout` revokes only the presented session.
+
+Production uses a `__Host-nexcode-platform-session` cookie with `Secure`, `HttpOnly`, `SameSite=Strict`,
+`Path=/`, and no `Domain`. The admin frontend sends credentialed requests directly from
+`https://admin.gym.rw` to `https://api.gym.rw`; it stores no session token. State-changing requests
+must have the exact configured Origin. MFA verification and logout also echo the returned CSRF value
+in `X-Platform-CSRF-Token`. Local HTTP uses explicitly non-prefixed, non-Secure cookies and disposable
+accounts only; production cookie requirements cannot be disabled.
+
+The current per-account authentication limiter is process-local. Production is restricted to one API
+instance through explicit configuration until a distributed limiter is implemented. Operational logs
+are redacted security signals, not a complete privileged audit trail. No production administrator is
+created automatically; a separately reviewed human bootstrap and MFA enrollment remains mandatory.
+
+See [Platform authentication](docs/security/platform-authentication.md) for configuration, deployment,
+key rotation, and verification details.
+
 ## Database package integration
 
-Do not add a local Prisma dependency or schema. Once the package is published, the human will install
-an exact version, inspect its actual public exports, register its documented module once, and add a
-database readiness indicator. No migration runs during API startup. See
-[ADR 0003](docs/adr/0003-database-package-boundary.md).
+The API registers `DatabaseModule` once and consumes only public exports from the exact database
+package dependency. It never runs migrations at startup. The current source package reports `0.1.1`,
+but has no release tag proving that the registry artifact contains the Step 4 models. Before install,
+the human must verify the immutable tarball or publish a new SemVer version and update this manifest.
+See [ADR 0003](docs/adr/0003-database-package-boundary.md).
 
 ## Engineering rules
 
