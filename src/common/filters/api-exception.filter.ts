@@ -47,6 +47,8 @@ export class ApiExceptionFilter implements ExceptionFilter {
 			this.logger.error(`${request.method} ${request.path} failed requestId=${request.requestId}`);
 		}
 
+		// Guard and validation failures occur before controller response headers are applied.
+		response.setHeader('Cache-Control', 'no-store');
 		response.status(status).json({
 			error: {
 				code,
