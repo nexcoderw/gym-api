@@ -106,10 +106,7 @@ describe('PlatformLoginService', () => {
 		verifyPassword.mockResolvedValue(false);
 
 		await expect(
-			service.login(
-				{ email: 'missing@example.com', password: 'fictional password' },
-				'192.0.2.10',
-			),
+			service.login({ email: 'missing@example.com', password: 'fictional password' }, '192.0.2.10'),
 		).rejects.toMatchObject({ status: 401 });
 		expect(verifyPassword).toHaveBeenCalledWith('dummy-hash', 'fictional password');
 		expect(recordFailure).toHaveBeenCalledTimes(1);
@@ -132,10 +129,7 @@ describe('PlatformLoginService', () => {
 		verifyPassword.mockResolvedValue(true);
 
 		await expect(
-			service.login(
-				{ email: 'admin@example.com', password: 'fictional password' },
-				'192.0.2.10',
-			),
+			service.login({ email: 'admin@example.com', password: 'fictional password' }, '192.0.2.10'),
 		).rejects.toMatchObject({ status: 412 });
 		expect(challengeCreate).not.toHaveBeenCalled();
 	});
