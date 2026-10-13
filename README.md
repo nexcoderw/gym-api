@@ -193,6 +193,70 @@ CLI described in the [platform owner bootstrap runbook](docs/runbooks/platform-o
 See [Platform authentication](docs/security/platform-authentication.md) for configuration, deployment,
 key rotation, and verification details.
 
+## Platform dashboard summary
+
+`GET /api/v1/platform/dashboard/summary` returns read-only platform identity and authorization
+statistics. Both existing guards are mandatory: the session guard revalidates the live administrator
+and MFA-authenticated session, then the permission guard requires `platform.dashboard.read` from
+current database role assignments. A role named `platform.owner` is not a bypass. Tenant IDs, gym
+ownership, and client-provided permission headers do not authorize this endpoint.
+
+The response is HTTP 200 JSON with `Cache-Control: no-store`. Fictional example:
+
+```json
+{
+  "generatedAt": "2026-10-13T08:00:00.000Z",
+  "globalUsers": { "total": 1 },
+  "platformStaff": { "total": 1, "pending": 0, "active": 1, "suspended": 0, "revoked": 0 },
+  "platformRoles": { "total": 1 },
+  "platformPermissions": { "total": 1 }
+}
+```
+
+- `globalUsers.total`: all global identity accounts, regardless of status; not gym members.
+- `platformStaff`: all staff assignments grouped by their database status. An active assignment is
+  not necessarily a logged-in administrator or an otherwise eligible user.
+- `platformRoles.total`: all platform roles, whether assigned or not.
+- `platformPermissions.total`: all registered platform permissions, whether assigned or not.
+- `generatedAt`: ISO 8601 UTC response generation time after reading the database; not a snapshot ID.
+
+The existing `PrismaService` performs three counts and one staff-status `groupBy` inside a single
+repeatable-read transaction. Staff total is the sum of all status groups. Missing groups become zero.
+Only aggregate values are fetched; no user lists, related identities, or authentication secrets are
+returned. The service performs no writes. Existing session authentication may still refresh session
+idle expiry or revoke invalid sessions; this is unchanged authentication behavior, not dashboard
+business mutation. Permission validation and statistics run in separate transactions: this is not
+an atomic guarantee against permission revocation occurring during an already authorized request.
+Database failures use the established safe error envelope rather than fabricated zero statistics.
+
+No gym, branch, subscription, payment, membership, or revenue statistics are implemented. Future
+metrics require separately reviewed database-domain changes in `gym-db` and explicit API permission
+design. No schema, migration, dependency, or authentication policy was changed for this endpoint.
+
+Verification from `api/api`:
+
+```bash
+npm run format
+npm run lint
+npm run typecheck
+npm run test:unit
+npm run test:integration
+npm run test:e2e
+npm test
+npm run build
+```
+
+Dashboard unit and module integration tests use an explicitly fake Prisma adapter and never open
+PostgreSQL. HTTP tests exercise the actual session service, cookie handling, permission guards,
+exception boundary and global rate limiter while faking only persistence. These tests are not proof
+of PostgreSQL aggregate execution or transaction isolation; a real-database dashboard smoke check
+remains a human verification task against an independently verified disposable target. Existing
+opt-in bootstrap PostgreSQL tests remain separate and do not validate dashboard statistics.
+Swagger tests check cookie security, permission documentation, schemas, the fictional example,
+cache headers, and 200/401/403/429/500 responses. No new package installation is needed for the
+dashboard when the inspected local package is already linked; release packaging must still resolve
+the private dependency and lockfile inconsistency described below.
+
 ## Database package integration
 
 The API registers `DatabaseModule` once and consumes only public exports from the exact database
