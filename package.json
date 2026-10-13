@@ -17,11 +17,11 @@
 		"lint": "eslint .",
 		"lint:fix": "eslint . --fix",
 		"typecheck": "tsc --noEmit -p tsconfig.json",
-		"test": "jest --config jest.config.cjs --runInBand",
-		"test:unit": "jest --config jest.config.cjs --selectProjects unit --runInBand",
-		"test:integration": "jest --config jest.config.cjs --selectProjects integration --runInBand",
-		"test:e2e": "jest --config jest.config.cjs --selectProjects e2e --runInBand",
-		"test:cov": "jest --config jest.config.cjs --coverage --runInBand"
+		"test": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --config jest.config.cjs --runInBand",
+		"test:unit": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --config jest.config.cjs --selectProjects unit --runInBand",
+		"test:integration": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --config jest.config.cjs --selectProjects integration --runInBand",
+		"test:e2e": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --config jest.config.cjs --selectProjects e2e --runInBand",
+		"test:cov": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --config jest.config.cjs --coverage --runInBand"
 	},
 	"engines": {
 		"node": "^20.19.0 || ^22.12.0 || >=24.0.0",
