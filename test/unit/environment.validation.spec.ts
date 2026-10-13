@@ -5,15 +5,15 @@ describe('validateEnvironment', () => {
 		expect(validateEnvironment({ NODE_ENV: 'development' })).toEqual({
 			NODE_ENV: 'development',
 			HOST: '127.0.0.1',
-			PORT: 3001,
-			CORS_ORIGINS: ['http://localhost:3000'],
+			PORT: 3000,
+			CORS_ORIGINS: ['http://localhost:4000', 'http://localhost:4001'],
 			SWAGGER_ENABLED: true,
 			RATE_LIMIT_TTL_MS: 60_000,
 			RATE_LIMIT_LIMIT: 100,
 			DATABASE_URL: 'postgresql://gym_app:local-only@localhost:5432/nexcode_gym',
 			DATABASE_POOL_MAX: 10,
 			DATABASE_CONNECTION_TIMEOUT_MS: 10_000,
-			PLATFORM_ADMIN_ORIGIN: 'http://localhost:3000',
+			PLATFORM_ADMIN_ORIGIN: 'http://localhost:4000',
 			PLATFORM_AUTH_COOKIE_SECURE: false,
 			PLATFORM_AUTH_DUMMY_PASSWORD_HASH:
 				'$argon2id$v=19$m=65536,t=3,p=1$c3ludGhldGljLXNhbHQ$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
@@ -35,6 +35,17 @@ describe('validateEnvironment', () => {
 			PLATFORM_OWNER_BOOTSTRAP_EXPECTED_DATABASE_ROLE: null,
 			PLATFORM_OWNER_BOOTSTRAP_EXPECTED_DATABASE_MARKER: null,
 		});
+	});
+
+	it('preserves an explicitly configured port and rejects the old admin origin', () => {
+		expect(validateEnvironment({ NODE_ENV: 'development', PORT: '3100' }).PORT).toBe(3100);
+		expect(() =>
+			validateEnvironment({
+				NODE_ENV: 'development',
+				CORS_ORIGINS: 'http://localhost:4000,http://localhost:4001',
+				PLATFORM_ADMIN_ORIGIN: 'http://localhost:3000',
+			}),
+		).toThrow('PLATFORM_ADMIN_ORIGIN must also be present in CORS_ORIGINS.');
 	});
 
 	it('requires explicit production origins', () => {
