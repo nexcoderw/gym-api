@@ -77,7 +77,9 @@ describe('validateEnvironment', () => {
 				PLATFORM_OWNER_BOOTSTRAP_EXPECTED_DATABASE_HOST: 'wrong.neon.tech',
 				PLATFORM_OWNER_BOOTSTRAP_EXPECTED_DATABASE_NAME: 'neondb',
 			}),
-		).toThrow('The configured database does not match the approved platform owner bootstrap target.');
+		).toThrow(
+			'The configured database does not match the approved platform owner bootstrap target.',
+		);
 	});
 
 	it('rejects the development key material in production', () => {
