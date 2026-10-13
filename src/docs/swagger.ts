@@ -1,7 +1,8 @@
 import type { INestApplication } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule, type OpenAPIObject } from '@nestjs/swagger';
 
-import { API_VERSION } from '../common/constants/api.constants';
+import { API_VERSION } from '../common/constants/api.constants.js';
+import { PLATFORM_SESSION_COOKIE } from '../modules/platform-auth/platform-auth.constants.js';
 
 /** Builds the OpenAPI document used by protected Swagger UI and JSON export workflows. */
 export function createOpenApiDocument(application: INestApplication): OpenAPIObject {
@@ -12,7 +13,11 @@ export function createOpenApiDocument(application: INestApplication): OpenAPIObj
 		)
 		.setVersion(API_VERSION)
 		.addServer(`/api/v${API_VERSION}`, 'Current API version')
-		.addCookieAuth('session', { type: 'apiKey', in: 'cookie' })
+		.addCookieAuth(
+			PLATFORM_SESSION_COOKIE,
+			{ type: 'apiKey', in: 'cookie' },
+			'platform-session',
+		)
 		.addBearerAuth({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT' }, 'mobile-access-token')
 		.build();
 
