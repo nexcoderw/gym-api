@@ -25,6 +25,9 @@ describe('validateEnvironment', () => {
 			PLATFORM_AUTH_LOGIN_ATTEMPT_WINDOW_MS: 900_000,
 			PLATFORM_AUTH_LOGIN_ATTEMPT_LIMIT: 5,
 			PLATFORM_AUTH_SINGLE_INSTANCE: true,
+			PLATFORM_AUTH_EMAIL_OTP_ENABLED: false,
+			RESEND_API_KEY: null,
+			RESEND_FROM_EMAIL: null,
 			PLATFORM_TOTP_KEYRING: {
 				'local-v1': 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
 			},
@@ -35,6 +38,12 @@ describe('validateEnvironment', () => {
 			PLATFORM_OWNER_BOOTSTRAP_EXPECTED_DATABASE_ROLE: null,
 			PLATFORM_OWNER_BOOTSTRAP_EXPECTED_DATABASE_MARKER: null,
 		});
+	});
+
+	it('requires Resend credentials only when email verification is enabled', () => {
+		expect(() => validateEnvironment({ NODE_ENV: 'test', PLATFORM_AUTH_EMAIL_OTP_ENABLED: 'true' })).toThrow('RESEND_API_KEY');
+		expect(() => validateEnvironment({ NODE_ENV: 'test', PLATFORM_AUTH_EMAIL_OTP_ENABLED: 'true', RESEND_API_KEY: 're_fictional', RESEND_FROM_EMAIL: 'invalid' })).toThrow('RESEND_FROM_EMAIL');
+		expect(validateEnvironment({ NODE_ENV: 'test', PLATFORM_AUTH_EMAIL_OTP_ENABLED: 'true', RESEND_API_KEY: 're_fictional', RESEND_FROM_EMAIL: 'security@example.com' }).PLATFORM_AUTH_EMAIL_OTP_ENABLED).toBe(true);
 	});
 
 	it('preserves an explicitly configured port and rejects the old admin origin', () => {
