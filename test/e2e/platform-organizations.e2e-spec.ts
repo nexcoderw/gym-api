@@ -154,8 +154,16 @@ describe('organization HTTP security (real guards, fake persistence)', () => {
 					],
 				},
 			});
-			await call(route).expect(503);
-			expect(database.create).not.toHaveBeenCalled();
+			const errorLog = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+			try {
+				await call(route).expect(503);
+				expect(database.create).not.toHaveBeenCalled();
+				expect(errorLog).toHaveBeenCalledWith(
+					expect.stringContaining('code=ORGANIZATION_AUDIT_UNAVAILABLE'),
+				);
+			} finally {
+				errorLog.mockRestore();
+			}
 		},
 	);
 
