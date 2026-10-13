@@ -313,6 +313,20 @@ export function validateEnvironment(input: Record<string, unknown>): Environment
 		throw new Error('PLATFORM_AUTH_IDLE_TTL_SECONDS must not exceed the session lifetime.');
 	}
 
+	const emailOtpEnabled = parseBoolean(
+		input.PLATFORM_AUTH_EMAIL_OTP_ENABLED,
+		'PLATFORM_AUTH_EMAIL_OTP_ENABLED',
+		false,
+	);
+	const resendApiKey = emailOtpEnabled ? requireString(input.RESEND_API_KEY, 'RESEND_API_KEY') : null;
+	const resendFromEmail = emailOtpEnabled ? requireString(input.RESEND_FROM_EMAIL, 'RESEND_FROM_EMAIL') : null;
+	if (resendApiKey !== null && !/^re_[A-Za-z0-9_-]{1,256}$/u.test(resendApiKey)) {
+		throw new Error('RESEND_API_KEY must be a valid Resend API key.');
+	}
+	if (resendFromEmail !== null && (resendFromEmail.length > 254 || !/^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$/u.test(resendFromEmail))) {
+		throw new Error('RESEND_FROM_EMAIL must be a bare email address on a verified sender domain.');
+	}
+
 	return Object.freeze({
 		NODE_ENV: nodeEnvironment,
 		HOST: typeof host === 'string' ? host : '127.0.0.1',
@@ -385,6 +399,9 @@ export function validateEnvironment(input: Record<string, unknown>): Environment
 			20,
 		),
 		PLATFORM_AUTH_SINGLE_INSTANCE: singleInstance,
+		PLATFORM_AUTH_EMAIL_OTP_ENABLED: emailOtpEnabled,
+		RESEND_API_KEY: resendApiKey,
+		RESEND_FROM_EMAIL: resendFromEmail,
 		PLATFORM_TOTP_KEYRING: totpKeyring,
 		PLATFORM_TOTP_ACTIVE_KEY_ID: activeTotpKeyId,
 		PLATFORM_OWNER_BOOTSTRAP_ENABLED: bootstrapEnabled,
