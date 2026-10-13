@@ -31,7 +31,7 @@ postgresDescribe('first-owner bootstrap with disposable PostgreSQL', () => {
 	let verified = false;
 	let lease: Promise<unknown> | undefined;
 	let disconnect: (() => Promise<void>) | undefined;
-	const releaseLease = deferred<void>();
+	const releaseLease = deferred<undefined>();
 	const fixtureEmails = new Set<string>();
 	const fixtureRoleId = randomUUID();
 	const fixturePermissionId = randomUUID();
@@ -86,7 +86,7 @@ postgresDescribe('first-owner bootstrap with disposable PostgreSQL', () => {
 		const url = new URL(databaseUrl);
 		if (
 			decodeURIComponent(url.username) !== 'gym_bootstrap_test' ||
-			!/^nexcode-gym:disposable-bootstrap-test:/u.test(marker) ||
+			!marker.startsWith('nexcode-gym:disposable-bootstrap-test:') ||
 			/(?:prod|production|live)/iu.test(`${url.hostname}/${url.pathname}`) ||
 			['postgres', 'template0', 'template1'].includes(url.pathname.slice(1))
 		) {
@@ -131,7 +131,7 @@ postgresDescribe('first-owner bootstrap with disposable PostgreSQL', () => {
 		);
 		await observer.$connect();
 		// A separate transaction lock excludes a second copy of this suite for its whole lifetime.
-		const ready = deferred<void>();
+		const ready = deferred<undefined>();
 		lease = prisma
 			.$transaction(
 				async (transaction) => {
@@ -140,7 +140,7 @@ postgresDescribe('first-owner bootstrap with disposable PostgreSQL', () => {
 			`;
 					if (rows[0]?.acquired !== true)
 						throw new Error('Another bootstrap test suite is running.');
-					ready.resolve();
+					ready.resolve(undefined);
 					await releaseLease.promise;
 				},
 				{ maxWait: 30_000, timeout: 600_000 },
@@ -228,7 +228,7 @@ postgresDescribe('first-owner bootstrap with disposable PostgreSQL', () => {
 	});
 
 	afterAll(async () => {
-		releaseLease.resolve();
+		releaseLease.resolve(undefined);
 		try {
 			if (lease !== undefined) expect(await lease).toBeUndefined();
 		} finally {
