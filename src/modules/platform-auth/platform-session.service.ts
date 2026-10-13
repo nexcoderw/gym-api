@@ -1,4 +1,9 @@
-import { Injectable, Logger, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
+import {
+	Injectable,
+	Logger,
+	ServiceUnavailableException,
+	UnauthorizedException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PlatformStaffStatus, Prisma, PrismaService, UserStatus } from '@nexcoderw/gym-db';
 
@@ -7,6 +12,7 @@ import { databaseErrorCode } from '../../common/errors/database-error-code.js';
 import { PLATFORM_AUTH_ERROR } from './platform-auth.constants.js';
 import type { PlatformPrincipal } from './platform-auth.types.js';
 import { PlatformTokenService } from './platform-token.service.js';
+import { effectivePlatformPermissions } from './platform-permission-policy.js';
 
 const TRANSACTION_MAX_WAIT_MS = 5_000;
 const TRANSACTION_TIMEOUT_MS = 10_000;
@@ -33,10 +39,19 @@ export class PlatformSessionService {
 			const elapsed = performance.now() - startedAt;
 			const remaining = Math.floor(AUTHENTICATION_BUDGET_MS - elapsed);
 			if (attempt > 0 && remaining < 2_000) {
-				throw new ServiceUnavailableException({ code: 'PLATFORM_SESSION_UNAVAILABLE', message: 'Session verification is temporarily unavailable.' });
+				throw new ServiceUnavailableException({
+					code: 'PLATFORM_SESSION_UNAVAILABLE',
+					message: 'Session verification is temporarily unavailable.',
+				});
 			}
-			const maxWait = attempt === 0 ? TRANSACTION_MAX_WAIT_MS : Math.min(TRANSACTION_MAX_WAIT_MS, remaining - 1_000);
-			const timeout = attempt === 0 ? TRANSACTION_TIMEOUT_MS : Math.min(TRANSACTION_TIMEOUT_MS, remaining - maxWait);
+			const maxWait =
+				attempt === 0
+					? TRANSACTION_MAX_WAIT_MS
+					: Math.min(TRANSACTION_MAX_WAIT_MS, remaining - 1_000);
+			const timeout =
+				attempt === 0
+					? TRANSACTION_TIMEOUT_MS
+					: Math.min(TRANSACTION_TIMEOUT_MS, remaining - maxWait);
 			try {
 				return await this.authenticateTransaction(
 					tokenDigest,
@@ -46,12 +61,22 @@ export class PlatformSessionService {
 			} catch (error: unknown) {
 				const code = databaseErrorCode(error);
 				// Only a confirmed rollback may be retried. Keep the total below the BFF deadline.
-				if (code === 'P2034' && attempt === 0 && performance.now() - startedAt < AUTHENTICATION_BUDGET_MS - 2_000) {
+				if (
+					code === 'P2034' &&
+					attempt === 0 &&
+					performance.now() - startedAt < AUTHENTICATION_BUDGET_MS - 2_000
+				) {
 					continue;
 				}
-				if (code !== undefined && ['P1001', 'P1002', 'P1008', 'P1017', 'P2024', 'P2028', 'P2034', 'P2037'].includes(code)) {
+				if (
+					code !== undefined &&
+					['P1001', 'P1002', 'P1008', 'P1017', 'P2024', 'P2028', 'P2034', 'P2037'].includes(code)
+				) {
 					throw new ServiceUnavailableException(
-						{ code: 'PLATFORM_SESSION_UNAVAILABLE', message: 'Session verification is temporarily unavailable.' },
+						{
+							code: 'PLATFORM_SESSION_UNAVAILABLE',
+							message: 'Session verification is temporarily unavailable.',
+						},
 						{ cause: error },
 					);
 				}
@@ -98,6 +123,7 @@ export class PlatformSessionService {
 										platformRole: {
 											select: {
 												key: true,
+												isSystem: true,
 												permissions: {
 													select: {
 														platformPermission: { select: { key: true } },
@@ -117,13 +143,7 @@ export class PlatformSessionService {
 
 				const passwordChangedAt = session.platformStaff.user.passwordCredential?.passwordChangedAt;
 				const roles = session.platformStaff.roles.map(({ platformRole }) => platformRole.key);
-				const permissions = [
-					...new Set(
-						session.platformStaff.roles.flatMap(({ platformRole }) =>
-							platformRole.permissions.map(({ platformPermission }) => platformPermission.key),
-						),
-					),
-				];
+				const permissions = effectivePlatformPermissions(session.platformStaff.roles);
 				const invalid =
 					session.revokedAt !== null ||
 					session.expiresAt <= now ||
