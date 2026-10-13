@@ -107,8 +107,8 @@ describe('PlatformOwnerBootstrapService', () => {
 		digest.mockImplementation((value) => `${value}-digest`);
 	});
 
-	it('creates one pending owner with an explicit permission allowlist', async () => {
-		const password = Buffer.from('fictional owner password', 'utf8');
+	it('accepts an eight-byte password and creates one pending owner', async () => {
+		const password = Buffer.from('A7!b2@Qx', 'utf8');
 
 		await expect(
 			service.initialize({
@@ -162,7 +162,7 @@ describe('PlatformOwnerBootstrapService', () => {
 	});
 
 	it('rejects a weak password and clears its mutable buffer', async () => {
-		const password = Buffer.from('short', 'utf8');
+		const password = Buffer.from('A7!b2@Q', 'utf8');
 
 		await expect(
 			service.initialize({
