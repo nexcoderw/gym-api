@@ -36,7 +36,8 @@ export class PlatformDashboardSummaryDto {
 
 	@ApiProperty({
 		type: PlatformDashboardStaffDto,
-		description: 'Assignment status counts, not logged-in or fully authorized administrator counts.',
+		description:
+			'Assignment status counts, not logged-in or fully authorized administrator counts.',
 	})
 	platformStaff!: PlatformDashboardStaffDto;
 
