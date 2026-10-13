@@ -4,10 +4,11 @@ import {
 	type NodeEnvironment,
 } from './environment.types.js';
 
-const DEFAULT_PORT = 3001;
+const DEFAULT_PORT = 3000;
 const DEFAULT_RATE_LIMIT_TTL_MS = 60_000;
 const DEFAULT_RATE_LIMIT_LIMIT = 100;
-const DEFAULT_LOCAL_ORIGIN = 'http://localhost:3000';
+const DEFAULT_LOCAL_ORIGIN = 'http://localhost:4000';
+const DEFAULT_MANAGER_ORIGIN = 'http://localhost:4001';
 const DEFAULT_DATABASE_URL = 'postgresql://gym_app:local-only@localhost:5432/nexcode_gym';
 const DEFAULT_LOCAL_KEY = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=';
 const DEFAULT_DUMMY_PASSWORD_HASH =
@@ -82,7 +83,7 @@ function parseOrigins(value: unknown, environment: NodeEnvironment): string[] {
 		if (environment === 'production') {
 			throw new Error('CORS_ORIGINS is required in production.');
 		}
-		return [DEFAULT_LOCAL_ORIGIN];
+		return [DEFAULT_LOCAL_ORIGIN, DEFAULT_MANAGER_ORIGIN];
 	}
 
 	return candidates.map((candidate) => {
