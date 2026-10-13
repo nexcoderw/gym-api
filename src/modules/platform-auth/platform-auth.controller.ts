@@ -19,6 +19,7 @@ import {
 	ApiOkResponse,
 	ApiOperation,
 	ApiPreconditionFailedResponse,
+	ApiServiceUnavailableResponse,
 	ApiTooManyRequestsResponse,
 	ApiUnauthorizedResponse,
 	ApiTags,
@@ -31,9 +32,12 @@ import {
 	PlatformMfaChallengeResponseDto,
 	PlatformMfaVerifiedResponseDto,
 	PlatformSessionResponseDto,
+	PlatformEmailOtpSentResponseDto,
 } from './dto/platform-auth-response.dto.js';
 import { PlatformLoginDto } from './dto/platform-login.dto.js';
 import { PlatformMfaVerifyDto } from './dto/platform-mfa-verify.dto.js';
+import { PlatformEmailOtpRequestDto } from './dto/platform-email-otp-request.dto.js';
+import { PlatformEmailOtpService } from './platform-email-otp.service.js';
 import { RequirePlatformCsrf } from './platform-csrf.decorator.js';
 import { PLATFORM_AUTH_ERROR } from './platform-auth.constants.js';
 import { PlatformCookieService } from './platform-cookie.service.js';
@@ -54,6 +58,7 @@ export class PlatformAuthController {
 		private readonly sessionService: PlatformSessionService,
 		private readonly cookies: PlatformCookieService,
 		private readonly tokens: PlatformTokenService,
+		private readonly emailOtp: PlatformEmailOtpService,
 	) {}
 
 	@Post('login')
@@ -97,6 +102,23 @@ export class PlatformAuthController {
 		return result;
 	}
 
+	@Post('mfa/email')
+	@HttpCode(HttpStatus.OK)
+	@Header('Cache-Control', 'no-store')
+	@Throttle({ default: { limit: 3, ttl: 60_000 } })
+	@UseGuards(PlatformOriginCsrfGuard)
+	@RequirePlatformCsrf()
+	@ApiOperation({ summary: 'Send an email verification code', description: 'Requires a live password challenge and CSRF proof. Opt-in fallback delivered only to the verified account mailbox; never accepts a recipient. Three sends per challenge, sixty-second cooldown, expiry at most five minutes. No session is issued.' })
+	@ApiOkResponse({ type: PlatformEmailOtpSentResponseDto })
+	@ApiBadRequestResponse({ type: ApiErrorResponseDto, description: 'Invalid challenge input.' })
+	@ApiUnauthorizedResponse({ type: ApiErrorResponseDto, description: 'Challenge is invalid or email verification is disabled.' })
+	@ApiForbiddenResponse({ type: ApiErrorResponseDto, description: 'Origin or CSRF proof is invalid.' })
+	@ApiTooManyRequestsResponse({ type: ApiErrorResponseDto, description: 'Send cooldown or request quota reached.' })
+	@ApiServiceUnavailableResponse({ type: ApiErrorResponseDto, description: 'Delivery could not be confirmed.' })
+	sendEmailOtp(@Body() input: PlatformEmailOtpRequestDto): Promise<PlatformEmailOtpSentResponseDto> {
+		return this.emailOtp.send(input.challengeToken);
+	}
+
 	@Post('mfa/verify')
 	@HttpCode(HttpStatus.OK)
 	@Header('Cache-Control', 'no-store')
@@ -106,7 +128,7 @@ export class PlatformAuthController {
 	@ApiOperation({
 		summary: 'Complete platform administrator MFA',
 		description:
-			'Consumes one MFA challenge and one valid TOTP step or recovery code before issuing a host-only HttpOnly session cookie.',
+			'Consumes one MFA challenge and a valid authenticator step, recovery code or enabled email OTP before issuing a host-only HttpOnly session cookie.',
 	})
 	@ApiOkResponse({
 		description: 'MFA succeeded and the session cookie was issued.',
