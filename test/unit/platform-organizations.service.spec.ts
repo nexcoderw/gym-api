@@ -161,7 +161,9 @@ describe('organization service contracts (adapter fake, not PostgreSQL)', () => 
 	});
 	it('fails closed before transactions when audit persistence is absent', async () => {
 		const unavailable = new UnavailableOrganizationAudit();
-		available.mockImplementation(() => unavailable.assertAvailable());
+		available.mockImplementation(() => {
+			unavailable.assertAvailable();
+		});
 		await expect(writes.create(context, { name: 'Soho Gym', slug: 'soho' })).rejects.toMatchObject({
 			status: 503,
 		});
