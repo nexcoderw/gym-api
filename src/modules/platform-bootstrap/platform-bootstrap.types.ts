@@ -1,0 +1,51 @@
+export type PlatformBootstrapStage = 'initialize' | 'activate';
+
+export type PlatformBootstrapErrorCode =
+	| 'BOOTSTRAP_DISABLED'
+	| 'BOOTSTRAP_INVALID_INPUT'
+	| 'BOOTSTRAP_ALREADY_INITIALIZED'
+	| 'BOOTSTRAP_IDENTITY_CONFLICT'
+	| 'BOOTSTRAP_ROLE_CONFLICT'
+	| 'BOOTSTRAP_PENDING_OWNER_NOT_FOUND'
+	| 'BOOTSTRAP_STATE_CONFLICT'
+	| 'BOOTSTRAP_MFA_REJECTED'
+	| 'BOOTSTRAP_CONCURRENT_OPERATION';
+
+export class PlatformBootstrapError extends Error {
+	override readonly name = 'PlatformBootstrapError';
+
+	constructor(
+		readonly code: PlatformBootstrapErrorCode,
+		message: string,
+	) {
+		super(message);
+	}
+}
+
+export interface PlatformBootstrapTarget {
+	readonly environment: string;
+	readonly databaseHost: string;
+	readonly databaseName: string;
+}
+
+export interface InitializePlatformOwnerInput {
+	readonly email: string;
+	readonly displayName: string;
+	readonly password: Buffer;
+}
+
+export interface PlatformOwnerEnrollment {
+	readonly enrollmentUri: string;
+	readonly secret: string;
+}
+
+export interface ActivatePlatformOwnerInput {
+	readonly email: string;
+	readonly totpCode: string;
+	readonly emailOwnershipVerified: boolean;
+}
+
+export interface PlatformOwnerActivation {
+	readonly recoveryCodes: readonly string[];
+}
+
