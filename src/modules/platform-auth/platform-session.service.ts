@@ -7,6 +7,9 @@ import { PLATFORM_AUTH_ERROR } from './platform-auth.constants.js';
 import type { PlatformPrincipal } from './platform-auth.types.js';
 import { PlatformTokenService } from './platform-token.service.js';
 
+const TRANSACTION_MAX_WAIT_MS = 5_000;
+const TRANSACTION_TIMEOUT_MS = 10_000;
+
 @Injectable()
 export class PlatformSessionService {
 	private readonly logger = new Logger(PlatformSessionService.name);
@@ -129,7 +132,12 @@ export class PlatformSessionService {
 					permissions,
 				};
 			},
-			{ isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+			{
+				isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+				// Bound remote connection acquisition separately from session validation work.
+				maxWait: TRANSACTION_MAX_WAIT_MS,
+				timeout: TRANSACTION_TIMEOUT_MS,
+			},
 		);
 
 		if (principal === null) {
