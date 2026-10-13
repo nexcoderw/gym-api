@@ -53,21 +53,21 @@ future Nest major upgrade must be coordinated across both packages.
 Copy `.env.local.example` to ignored `.env.local` for development. Production values come from managed
 deployment configuration, not committed files.
 
-| Variable            | Default                           | Requirement                                      |
-| ------------------- | --------------------------------- | ------------------------------------------------ |
-| `NODE_ENV`          | `development`                     | `development`, `test`, or `production`           |
-| `HOST`              | `127.0.0.1`                       | Explicit production bind address recommended     |
-| `PORT`              | `3001`                            | Integer from 1 through 65535                     |
-| `CORS_ORIGINS`      | local frontend outside production | Required comma-separated origins in production   |
-| `SWAGGER_ENABLED`   | true outside production           | Defaults false in production                     |
-| `RATE_LIMIT_TTL_MS` | `60000`                           | Window from 1000 through 3600000 ms              |
-| `RATE_LIMIT_LIMIT`  | `100`                             | Requests per window from 1 through 100000        |
-| `DATABASE_URL`      | local disposable URL              | Least-privilege runtime database URL              |
-| `PLATFORM_ADMIN_ORIGIN` | `http://localhost:3000`       | Exact browser Origin for platform authentication  |
-| `PLATFORM_AUTH_COOKIE_SECURE` | false outside production | Must be true in production                     |
-| `PLATFORM_AUTH_TOKEN_PEPPER` | development-only test key | Managed base64 32-byte secret in production       |
-| `PLATFORM_TOTP_KEYRING` | development-only test keyring | Managed `key-id=base64-key` rotation keyring      |
-| `PLATFORM_AUTH_SINGLE_INSTANCE` | true outside production | Required production acknowledgement until distributed throttling exists |
+| Variable                        | Default                           | Requirement                                                             |
+| ------------------------------- | --------------------------------- | ----------------------------------------------------------------------- |
+| `NODE_ENV`                      | `development`                     | `development`, `test`, or `production`                                  |
+| `HOST`                          | `127.0.0.1`                       | Explicit production bind address recommended                            |
+| `PORT`                          | `3001`                            | Integer from 1 through 65535                                            |
+| `CORS_ORIGINS`                  | local frontend outside production | Required comma-separated origins in production                          |
+| `SWAGGER_ENABLED`               | true outside production           | Defaults false in production                                            |
+| `RATE_LIMIT_TTL_MS`             | `60000`                           | Window from 1000 through 3600000 ms                                     |
+| `RATE_LIMIT_LIMIT`              | `100`                             | Requests per window from 1 through 100000                               |
+| `DATABASE_URL`                  | local disposable URL              | Least-privilege runtime database URL                                    |
+| `PLATFORM_ADMIN_ORIGIN`         | `http://localhost:3000`           | Exact browser Origin for platform authentication                        |
+| `PLATFORM_AUTH_COOKIE_SECURE`   | false outside production          | Must be true in production                                              |
+| `PLATFORM_AUTH_TOKEN_PEPPER`    | development-only test key         | Managed base64 32-byte secret in production                             |
+| `PLATFORM_TOTP_KEYRING`         | development-only test keyring     | Managed `key-id=base64-key` rotation keyring                            |
+| `PLATFORM_AUTH_SINGLE_INSTANCE` | true outside production           | Required production acknowledgement until distributed throttling exists |
 
 `CORS_ORIGINS` accepts origins only, such as `https://admin.gym.rw`, with no path. CORS does not prove
 tenant identity or authorization.
