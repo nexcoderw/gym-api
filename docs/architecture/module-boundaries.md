@@ -3,13 +3,14 @@
 ## Current modules
 
 - `HealthModule`: process liveness only; it owns no dependency readiness claim.
+- `PlatformAuthModule`: platform password/MFA challenges, sessions, CSRF, and permission guards.
 - `ConfigModule`: validated process configuration.
 - `common`: HTTP filters, middleware, interceptors, DTO infrastructure, constants, and types.
 - `docs`: OpenAPI construction, not business behavior.
 
 ## Planned feature modules
 
-Authentication/session, principals, organizations, branches, staff, members, attendance, gym-member
+Tenant authentication, principals, organizations, branches, staff, members, attendance, gym-member
 billing, platform subscriptions, entitlements, audit, notifications, and integrations will each own
 their controller, application service, DTOs, policies, and tests. They may depend on narrow public
 contracts, never each other’s controllers or private persistence details.
