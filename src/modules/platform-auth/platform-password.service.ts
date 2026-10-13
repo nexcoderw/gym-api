@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { verify } from 'argon2';
+import { argon2id, hash as createArgon2Hash, verify } from 'argon2';
 
 import type { EnvironmentVariables } from '../../config/environment.types.js';
 
@@ -10,6 +10,12 @@ const MAXIMUM_MEMORY_COST = 262_144;
 const MINIMUM_TIME_COST = 3;
 const MAXIMUM_TIME_COST = 6;
 const MAXIMUM_PARALLELISM = 4;
+const PASSWORD_HASH_PARAMETERS = Object.freeze({
+	type: argon2id,
+	memoryCost: MINIMUM_MEMORY_COST,
+	timeCost: MINIMUM_TIME_COST,
+	parallelism: 1,
+});
 
 @Injectable()
 export class PlatformPasswordService {
@@ -31,6 +37,11 @@ export class PlatformPasswordService {
 		} catch {
 			return false;
 		}
+	}
+
+	/** Produces the same bounded Argon2id format accepted by the login verifier. */
+	async hash(password: Buffer): Promise<string> {
+		return await createArgon2Hash(password, PASSWORD_HASH_PARAMETERS);
 	}
 
 	private hasApprovedParameters(hash: string): boolean {
