@@ -1,0 +1,85 @@
+import { createCipheriv } from 'node:crypto';
+
+import { ConfigService } from '@nestjs/config';
+import { argon2id, hash } from 'argon2';
+import * as OTPAuth from 'otpauth';
+
+import type { EnvironmentVariables } from '../../src/config/environment.types.js';
+import { validateEnvironment } from '../../src/config/environment.validation.js';
+import { PlatformPasswordService } from '../../src/modules/platform-auth/platform-password.service.js';
+import { PlatformTokenService } from '../../src/modules/platform-auth/platform-token.service.js';
+import { PlatformTotpService } from '../../src/modules/platform-auth/platform-totp.service.js';
+
+describe('platform authentication cryptography', () => {
+	const environment = validateEnvironment({ NODE_ENV: 'test' });
+	const config = new ConfigService<EnvironmentVariables, true>(environment);
+
+	it('verifies approved Argon2id hashes and rejects weak parameters', async () => {
+		const passwords = new PlatformPasswordService(config);
+		const approvedHash = await hash('fictional strong password', {
+			type: argon2id,
+			memoryCost: 65_536,
+			timeCost: 3,
+			parallelism: 1,
+		});
+		const weakHash = await hash('fictional strong password', {
+			type: argon2id,
+			memoryCost: 4_096,
+			timeCost: 2,
+			parallelism: 1,
+		});
+
+		await expect(passwords.verify(approvedHash, 'fictional strong password')).resolves.toBe(true);
+		await expect(passwords.verify(approvedHash, 'incorrect password')).resolves.toBe(false);
+		await expect(passwords.verify(weakHash, 'fictional strong password')).resolves.toBe(false);
+	});
+
+	it('creates opaque tokens and stable keyed digests', () => {
+		const tokens = new PlatformTokenService(config);
+		const first = tokens.createToken();
+		const second = tokens.createToken();
+
+		expect(first).not.toBe(second);
+		expect(tokens.digest(first)).toHaveLength(64);
+		expect(tokens.digest(first)).toBe(tokens.digest(first));
+		expect(tokens.equal(first, first)).toBe(true);
+		expect(tokens.equal(first, second)).toBe(false);
+	});
+
+	it('decrypts an authenticated secret and validates the current TOTP step', () => {
+		const staffId = 'a652ac64-47b5-499e-a849-dca02166c46b';
+		const keyId = 'local-v1';
+		const version = 1;
+		const key = Buffer.alloc(32);
+		const initializationVector = Buffer.alloc(12, 1);
+		const secret = 'JBSWY3DPEHPK3PXP';
+		const now = new Date('2030-01-01T00:00:00.000Z');
+		const cipher = createCipheriv('aes-256-gcm', key, initializationVector);
+		cipher.setAAD(Buffer.from(`${staffId}:${keyId}:${String(version)}`, 'utf8'));
+		const encryptedSecret = Buffer.concat([
+			cipher.update(Buffer.from(secret, 'utf8')),
+			cipher.final(),
+		]);
+		const token = new OTPAuth.TOTP({
+			algorithm: 'SHA1',
+			digits: 6,
+			period: 30,
+			secret: OTPAuth.Secret.fromBase32(secret),
+		}).generate({ timestamp: now.getTime() });
+
+		expect(
+			new PlatformTotpService(config).verify(
+				{
+					platformStaffId: staffId,
+					encryptedSecret,
+					initializationVector,
+					authenticationTag: cipher.getAuthTag(),
+					encryptionKeyId: keyId,
+					encryptionVersion: version,
+				},
+				token,
+				now,
+			),
+		).toEqual({ timeStep: BigInt(Math.floor(now.getTime() / 30_000)) });
+	});
+});
