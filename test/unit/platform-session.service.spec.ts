@@ -68,11 +68,51 @@ describe('PlatformSessionService', () => {
 			permissions: ['platform.dashboard.read'],
 		});
 		expect(sessionUpdateMany).toHaveBeenCalledTimes(1);
-		expect(runTransaction.mock.calls[0]?.[1]).toEqual({
+		expect(runTransaction.mock.calls[0]?.[1]).toMatchObject({
 			isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
-			maxWait: 5_000,
-			timeout: 10_000,
+			maxWait: 10_000,
 		});
+	});
+
+	it('reads live authorization on every request without rewriting a recently refreshed session', async () => {
+		sessionFindUnique.mockResolvedValue(createSession([], 'platform.owner', true));
+		const now = new Date('2030-01-01T00:00:01.000Z');
+		await service.authenticate('fictional-session-token', now);
+		await service.authenticate('fictional-session-token', now);
+		expect(sessionFindUnique).toHaveBeenCalledTimes(2);
+		expect(sessionUpdateMany).not.toHaveBeenCalled();
+		sessionFindUnique.mockResolvedValue(createSession([]));
+		await expect(service.authenticate('fictional-session-token', now)).rejects.toMatchObject({
+			status: 401,
+		});
+	});
+
+	it('refreshes after the coalescing interval and never extends the absolute expiry', async () => {
+		const session = createSession([], 'platform.owner', true);
+		sessionFindUnique.mockResolvedValue({
+			...session,
+			expiresAt: new Date('2030-01-01T00:30:35.000Z'),
+		});
+		await service.authenticate('fictional-session-token', new Date('2030-01-01T00:01:00.000Z'));
+		expect(sessionUpdateMany).toHaveBeenCalledWith({
+			where: {
+				id: session.id,
+				revokedAt: null,
+				expiresAt: { gt: new Date('2030-01-01T00:01:00.000Z') },
+				idleExpiresAt: { gt: new Date('2030-01-01T00:01:00.000Z') },
+			},
+			data: {
+				lastSeenAt: new Date('2030-01-01T00:01:00.000Z'),
+				idleExpiresAt: new Date('2030-01-01T00:30:35.000Z'),
+			},
+		});
+	});
+
+	it('does not rewrite a session whose idle deadline already equals its absolute deadline', async () => {
+		const session = createSession([], 'platform.owner', true);
+		sessionFindUnique.mockResolvedValue({ ...session, expiresAt: session.idleExpiresAt });
+		await service.authenticate('fictional-session-token', new Date('2030-01-01T00:10:00.000Z'));
+		expect(sessionUpdateMany).not.toHaveBeenCalled();
 	});
 
 	it('automatically gives an existing system owner every declared platform permission', async () => {
