@@ -192,7 +192,7 @@ Errors use this shape:
 An active staff member with a live database assignment to the system role `platform.owner`
 (`isSystem=true`) is the platform superadmin. After all session eligibility checks, Nest grants this
 principal every permission declared in `platform-permission.constants.ts`. This currently includes
-dashboard read and all five organization permissions. Existing owners receive these effective
+dashboard read and all six organization permissions, including archival. Existing owners receive these effective
 permissions on their next successful session check; no SQL grants, owner reinitialization or
 frontend role bypass is needed. New platform capabilities must register their permission in the
 same catalog before an endpoint requires it; all system owners then receive it automatically.
@@ -208,7 +208,7 @@ Removing individual permission links does not restrict a system owner under this
 the owner-role assignment, suspend/revoke the staff account, or revoke its session to remove access.
 The next live check enforces that change. MFA, email verification, password state, session expiry,
 Origin/CSRF, tenant boundaries, entitlements and durable audit gates are unchanged. In particular,
-full organization permission does not bypass the currently unavailable mutation audit provider.
+full organization permission never bypasses a failed durable audit insert.
 
 Email verification is an opt-in, weaker fallback than authenticator MFA. Set
 `PLATFORM_AUTH_EMAIL_OTP_ENABLED=true`, `RESEND_API_KEY` (a sending-only key), and
@@ -239,6 +239,16 @@ session. Safe operational logs contain request ID, HTTP error code and Prisma ma
 SQL or provider messages. Investigate the emitted `databaseCode`: `P2028` indicates transaction
 timing, `P2034` contention, and `P2021/P2022` missing schema. The previous redacted log alone cannot
 establish which database failure occurred.
+
+Session reads always resolve live identity, revocation, expiry, roles and permissions. Activity
+writes are coalesced: idle expiry and lastSeenAt refresh only when the new idle deadline advances
+by at least the smaller of 30 seconds or one tenth of the idle TTL. This reduces competing row
+writes during parallel navigation without caching authorization; it can shorten, never lengthen,
+the effective idle window by that interval. Acquisition uses DATABASE_CONNECTION_TIMEOUT_MS capped
+at 10 seconds; execution is capped at 10 seconds and reduced to fit the remaining 18-second budget.
+These bounds do not guarantee remote availability. Investigate persistent P2028 failures rather
+than disabling session checks or retrying uncertain writes. Access logs now use response finish,
+after exception filters, so a failed mutation is logged with its actual 503 rather than a premature 201.
 
 Organization persistence failures also retain their cause internally. The exception filter emits
 only an allowlisted Prisma `databaseCode` alongside `ORGANIZATION_PERSISTENCE_UNAVAILABLE` and the
@@ -420,22 +430,24 @@ database operations, bootstrap, registry checks, package publishing, browser aut
 
 This is the NEXCODE control plane, not tenant CRUD. The feature imports the existing platform auth
 module and the one globally registered PrismaService. Services are private to their feature module;
-no tenant-wide query helper, schema, migration, client, frontend adapter or new dependency is added.
+no tenant-wide query helper, frontend adapter or new dependency is added. The archival audit enum
+expansion belongs to the sibling gym-db package and requires the rollout described below.
 
 | Method/path under /api/v1/platform/organizations | Permission                      | Current behavior                          |
 | ------------------------------------------------ | ------------------------------- | ----------------------------------------- |
 | GET /                                            | platform.organizations.read     | Bounded safe listing                      |
 | GET /:id                                         | platform.organizations.read     | Safe details or 404, with updatedAt ETag  |
-| POST /                                           | platform.organizations.create   | Audit-blocked 503; prepared 201/PENDING   |
-| PATCH /:id                                       | platform.organizations.update   | Audit-blocked 503; prepared name-only 200 |
-| POST /:id/activation                             | platform.organizations.activate | Audit-blocked 503; prepared 200           |
-| POST /:id/suspension                             | platform.organizations.suspend  | Audit-blocked 503; prepared 200           |
+| POST /                                           | platform.organizations.create   | Atomic audit and 201/PENDING             |
+| PATCH /:id                                       | platform.organizations.update   | Atomic audit and name-only 200           |
+| POST /:id/activation                             | platform.organizations.activate | Atomic audit and ACTIVE/200              |
+| POST /:id/suspension                             | platform.organizations.suspend  | Atomic audit and SUSPENDED/200           |
+| POST /:id/archival                               | platform.organizations.archive  | Retained record and history; ARCHIVED/200 |
 
 Every endpoint reuses live platform session and explicit permission guards. System owners receive
 the declared organization permissions through the backend policy. A non-system owner name,
 dashboard.read alone, tenant cookies and caller-provided permission hints grant nothing. Normal auth
-session validation may refresh idle expiry or revoke invalid sessions, but the organization audit
-gate prevents organization writes. Reads and all error responses are no-store. Writes additionally
+session validation may refresh idle expiry or revoke invalid sessions. Organization writes and
+their audit events share one transaction. Reads and all error responses are no-store. Writes additionally
 require the configured administrative Origin and matching CSRF cookie/header via the existing guard.
 The auth module exports the existing Origin/CSRF guard and token provider for consuming feature DI;
 no second authentication mechanism is introduced. Global whitelist/unknown-field rejection and
@@ -450,7 +462,8 @@ concurrent creation and slugs held by archived organizations. No identity, branc
 subscription, payment account, entitlement or platform privilege is created automatically.
 
 Listing defaults to 20 rows, caps at 50, accepts an optional OrganizationStatus filter and UUID
-cursor, and returns `{ items, nextCursor }`, with null when no additional row is observed. Ordering
+cursor, and returns `{ items, nextCursor }`, with null when no additional row is observed. With no
+status filter it excludes ARCHIVED; an explicit status=ARCHIVED lists retained records. Ordering
 is createdAt DESC, id ASC. The UUID cursor is resolved by PostgreSQL/Prisma, preserving timestamptz
 microseconds rather than rounding an encoded timestamp in JavaScript. Cursor lookup and listing
 share a bounded repeatable-read transaction. Missing/deleted/filter-mismatched cursors return 400;
@@ -460,15 +473,17 @@ filtered ordering; unfiltered listings need measured query-plan review before pr
 
 Safe responses contain only id/name/slug/status and lifecycle/record timestamps, never Prisma
 relations, credentials or tenant-private data. Ordinary profile updates accept only name; UUID,
-slug and status cannot be assigned. Prepared PATCH requires If-Match with the quoted updatedAt ETag
+slug and status cannot be assigned. PATCH requires If-Match with the quoted updatedAt ETag
 from details. Lifecycle actions take only `{ "expectedUpdatedAt": "2026-10-13T12:00:00.000Z" }`.
 Activation allows PENDING/SUSPENDED to ACTIVE and records activatedAt; suspension allows ACTIVE to
 SUSPENDED and records suspendedAt. Existing history is retained. Archived activation, repeated
 activation/suspension and suspension of pending/archived records yield 409 with a current precondition.
-Stale or concurrently changed snapshots yield 412; absent resources yield 404. There is no archival,
-slug-change or entitlement workflow.
+Stale or concurrently changed snapshots yield 412; absent resources yield 404. Archival accepts
+PENDING/ACTIVE/SUSPENDED, sets archivedAt, preserves all history and reserves the existing slug.
+Archived records cannot be renamed, activated, suspended or archived again (409). Details remain
+available to authorized readers. There is no hard-delete, restoration, slug-change or entitlement workflow.
 
-Prepared updates use serializable transactions and a conditional id/status/updatedAt update with
+Updates use serializable transactions and a conditional id/status/updatedAt update with
 count=1; API writes advance updatedAt monotonically by at least one millisecond. A serialization
 conflict becomes 412, not an automatic retry. This is not an immutable database version field:
 raw writers can violate timestamp discipline, and sub-millisecond raw timestamps may conservatively
@@ -483,26 +498,29 @@ No process-local idempotency cache or public privilege-assignment endpoint is im
 
 ### Durable audit gate and permission provisioning
 
-The registered UnavailableOrganizationAudit always fails closed with ORGANIZATION_AUDIT_UNAVAILABLE
-before starting an organization mutation transaction. There is no environment switch that bypasses
-it. A prepared transaction invokes the audit provider before committing and never returns success
-when recording fails. Request logs are not audit events; mocked test providers are not production
-audit implementations.
+The registered DurableOrganizationAudit appends to organization_audit_events using only the mutation's
+transaction client. A failed insert throws ORGANIZATION_AUDIT_UNAVAILABLE and aborts the transaction;
+there is no success fallback or bypass switch. The unavailable provider is retained only as a
+negative-test adapter. Events explicitly map action, actor, request ID, organization, event time,
+prior/resulting status and allowed changed fields. Names are recorded only for create/rename.
+recordedAt is database-controlled. Request logs are not audit records. Never persist credentials,
+tokens, connection URLs or arbitrary bodies. Driver causes remain protected operational diagnostics.
 
-Separate gym-db work is required before replacing this provider: an append-only audit-event model
-with UUID ID, restricted actor platform-staff and organization foreign keys, action, correlation ID,
-UTC event time, previous/resulting status and a constrained safe changed-field allowlist. Review
-failure-event recording separately from the transaction that rolls back successful-event writes.
-Restrict tenant/read access, forbid ordinary audit UPDATE/DELETE, establish integrity/retention and
-tamper-resistance controls, and verify that organization mutation and success event commit atomically.
-Never persist cookies, passwords, MFA/recovery material, tokens, connection URLs or arbitrary bodies.
-Review its migration, exports, runtime grants and real rollback tests before production installation.
+Before running this API version, generate and review a NEW gym-db migration adding the archive audit
+enum value and extending the metadata CHECK; never edit applied history. Follow the archival rollout
+section in the DB README, including existing audit prerequisites and targeted gym_app privileges.
+Regenerate and build the sibling DB package before API typechecking/building. No GitHub Packages
+lookup is required. No migration, grant, generated client, build or live write was run by the agent.
+The backend endpoint is ready for a separately reviewed admin archive action; this change does not
+add an archive button or permanent deletion UI.
 
 The first-owner persisted bootstrap allowlist remains dashboard.read only, while eligible system
 owners now automatically receive all declared platform permissions through the live policy above.
 For ordinary staff, permission provisioning remains a separate privileged human operation:
 
-1. Approve the five named permission registrations in the database catalog, including descriptions.
+1. Approve the required permission registrations in the database catalog, including descriptions.
+   The existing organization-manager provisioning contract covers five permissions; archival requires
+   separate explicit approval for ordinary staff and is not silently added to that contract.
 2. Review a dedicated platform.organization-operator role with only approved subsets; do not grant
    it automatic system-owner privileges. Preserve the bootstrap's exact persisted allowlist contract.
 3. Independently verify the chosen active platform staff UUID and active user before explicit role
@@ -572,18 +590,22 @@ npm run build
 Review formatting diffs before committing. New unit/module/HTTP tests mock only persistence/audit
 boundaries, retain actual session/permission/Origin/CSRF guards and make no PostgreSQL connections.
 They do not establish uniqueness, CHECK enforcement, actual transaction rollback or audit durability.
-Real PostgreSQL mutation/rollback tests remain blocked until the required audit migration/provider
-exists. Step 10's database tests cover organization integrity after its reviewed migration is deployed.
+DB integration tests exercise real mutation/audit rollback and archival retention after reviewed
+constraints, enum migration, triggers and disposable test-role grants are deployed. These tests
+remain human-run and have not been executed for this change.
 
 Manual smoke, on an approved isolated development target: authenticate a fictional operator with
 explicit read permission; list at limit 1/20/50, follow nextCursor with the same filter, inspect UUID
 details/ETag, test bad input and missing resources, then remove permission and verify next-request 403. Check safe no-store errors and denied tenant/dashboard-only identities. For an independently
-provisioned operator with mutation permissions, valid Origin/CSRF/DTO must still return audit 503 with
-no organization changes. Do not bypass the gate to obtain a happy-path creation screenshot.
+provisioned operator with mutation permissions and valid Origin/CSRF/DTO, create, rename, activate,
+suspend and archive a disposable organization. Verify one matching audit per committed mutation,
+default-list exclusion after archival and explicit archived-list/detail access. In an isolated test
+transaction, make the audit insert fail and verify no organization change commits. A reported 503
+must never be treated as success or cause a blind creation retry.
 Keep credentials outside shell arguments, logs and test artifacts. Existing auth/dashboard suites
 remain regression checks. No commands or live tests were executed by the agent.
 
 Production also needs an approved reproducible package strategy (immutable publication or pinned
 sibling builds), deployment topology/rate-limit review and authorization/audit retention review.
 No registry artifact/version is invented. No frontend, branch, owner membership, subscription,
-payment, tenant login, archival, domain provisioning or Step 12 implementation is included.
+payment, tenant login, domain provisioning or operator provisioning CLI is included.
