@@ -437,10 +437,10 @@ expansion belongs to the sibling gym-db package and requires the rollout describ
 | ------------------------------------------------ | ------------------------------- | ----------------------------------------- |
 | GET /                                            | platform.organizations.read     | Bounded safe listing                      |
 | GET /:id                                         | platform.organizations.read     | Safe details or 404, with updatedAt ETag  |
-| POST /                                           | platform.organizations.create   | Atomic audit and 201/PENDING             |
-| PATCH /:id                                       | platform.organizations.update   | Atomic audit and name-only 200           |
-| POST /:id/activation                             | platform.organizations.activate | Atomic audit and ACTIVE/200              |
-| POST /:id/suspension                             | platform.organizations.suspend  | Atomic audit and SUSPENDED/200           |
+| POST /                                           | platform.organizations.create   | Atomic audit and 201/PENDING              |
+| PATCH /:id                                       | platform.organizations.update   | Atomic audit and name-only 200            |
+| POST /:id/activation                             | platform.organizations.activate | Atomic audit and ACTIVE/200               |
+| POST /:id/suspension                             | platform.organizations.suspend  | Atomic audit and SUSPENDED/200            |
 | POST /:id/archival                               | platform.organizations.archive  | Retained record and history; ARCHIVED/200 |
 
 Every endpoint reuses live platform session and explicit permission guards. System owners receive
