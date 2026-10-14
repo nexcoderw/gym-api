@@ -17,7 +17,7 @@ import type { PlatformPrincipal } from './platform-auth.types.js';
 import { PlatformTokenService } from './platform-token.service.js';
 import { effectivePlatformPermissions } from './platform-permission-policy.js';
 
-const TRANSACTION_MAX_WAIT_MS = 5_000;
+const TRANSACTION_MAX_WAIT_MS = 10_000;
 const TRANSACTION_TIMEOUT_MS = 10_000;
 const AUTHENTICATION_BUDGET_MS = 18_000;
 const AUTHENTICATION_MAX_ATTEMPTS = 3;
@@ -26,6 +26,7 @@ const AUTHENTICATION_MAX_ATTEMPTS = 3;
 export class PlatformSessionService {
 	private readonly logger = new Logger(PlatformSessionService.name);
 	private readonly idleLifetimeMilliseconds: number;
+	private readonly transactionMaxWaitMilliseconds: number;
 
 	constructor(
 		config: ConfigService<EnvironmentVariables, true>,
@@ -34,6 +35,10 @@ export class PlatformSessionService {
 	) {
 		this.idleLifetimeMilliseconds =
 			config.get('PLATFORM_AUTH_IDLE_TTL_SECONDS', { infer: true }) * 1000;
+		this.transactionMaxWaitMilliseconds = Math.min(
+			config.get('DATABASE_CONNECTION_TIMEOUT_MS', { infer: true }),
+			TRANSACTION_MAX_WAIT_MS,
+		);
 	}
 
 	async authenticate(token: string, now = new Date()): Promise<PlatformPrincipal> {
@@ -42,20 +47,14 @@ export class PlatformSessionService {
 		for (let attempt = 0; attempt < AUTHENTICATION_MAX_ATTEMPTS; attempt += 1) {
 			const elapsed = performance.now() - startedAt;
 			const remaining = Math.floor(AUTHENTICATION_BUDGET_MS - elapsed);
-			if (attempt > 0 && remaining < 2_000) {
+			if (remaining < 2_000) {
 				throw new ServiceUnavailableException({
 					code: 'PLATFORM_SESSION_UNAVAILABLE',
 					message: 'Session verification is temporarily unavailable.',
 				});
 			}
-			const maxWait =
-				attempt === 0
-					? TRANSACTION_MAX_WAIT_MS
-					: Math.min(TRANSACTION_MAX_WAIT_MS, remaining - 1_000);
-			const timeout =
-				attempt === 0
-					? TRANSACTION_TIMEOUT_MS
-					: Math.min(TRANSACTION_TIMEOUT_MS, remaining - maxWait);
+			const maxWait = Math.min(this.transactionMaxWaitMilliseconds, remaining - 1_000);
+			const timeout = Math.min(TRANSACTION_TIMEOUT_MS, remaining - maxWait);
 			try {
 				return await this.authenticateTransaction(
 					tokenDigest,
@@ -175,17 +174,22 @@ export class PlatformSessionService {
 				const idleExpiresAt = new Date(
 					Math.min(session.expiresAt.getTime(), now.getTime() + this.idleLifetimeMilliseconds),
 				);
-				const refreshed = await transaction.platformAdminSession.updateMany({
-					where: {
-						id: session.id,
-						revokedAt: null,
-						expiresAt: { gt: now },
-						idleExpiresAt: { gt: now },
-					},
-					data: { lastSeenAt: now, idleExpiresAt },
-				});
-				if (refreshed.count !== 1) {
-					return null;
+				// Coalesce activity writes, not authorization reads. Every request checks live state.
+				// This may shorten the idle window by at most 30 seconds; it never extends expiry.
+				const refreshInterval = Math.min(30_000, this.idleLifetimeMilliseconds / 10);
+				if (idleExpiresAt.getTime() - session.idleExpiresAt.getTime() >= refreshInterval) {
+					const refreshed = await transaction.platformAdminSession.updateMany({
+						where: {
+							id: session.id,
+							revokedAt: null,
+							expiresAt: { gt: now },
+							idleExpiresAt: { gt: now },
+						},
+						data: { lastSeenAt: now, idleExpiresAt },
+					});
+					if (refreshed.count !== 1) {
+						return null;
+					}
 				}
 
 				return {
