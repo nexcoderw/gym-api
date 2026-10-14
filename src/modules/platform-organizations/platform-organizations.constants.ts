@@ -6,6 +6,7 @@ export const ORGANIZATION_PERMISSION = Object.freeze({
 	update: PLATFORM_PERMISSION.organizationsUpdate,
 	activate: PLATFORM_PERMISSION.organizationsActivate,
 	suspend: PLATFORM_PERMISSION.organizationsSuspend,
+	archive: PLATFORM_PERMISSION.organizationsArchive,
 });
 
 export const ORGANIZATION_RESERVED_SLUGS = Object.freeze([
