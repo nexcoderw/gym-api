@@ -4,7 +4,7 @@ import { PrismaService } from '@nexcoderw/gym-db';
 import { AppModule } from '../../src/app.module.js';
 import {
 	PlatformOrganizationAudit,
-	UnavailableOrganizationAudit,
+	DurableOrganizationAudit,
 } from '../../src/modules/platform-organizations/platform-organization-audit.js';
 import { PlatformOrganizationsController } from '../../src/modules/platform-organizations/platform-organizations.controller.js';
 import { PlatformOrganizationMutationsService } from '../../src/modules/platform-organizations/platform-organization-mutations.service.js';
@@ -26,9 +26,9 @@ describe('organization module integration (adapter fake; no live PostgreSQL)', (
 		await module.close();
 	});
 
-	it('reuses the existing database provider and registers an unavailable audit provider', () => {
+	it('reuses the existing database provider and registers the durable audit provider', () => {
 		expect(module.get(PrismaService)).toBe(database.prisma);
-		expect(module.get(PlatformOrganizationAudit)).toBeInstanceOf(UnavailableOrganizationAudit);
+		expect(module.get(PlatformOrganizationAudit)).toBeInstanceOf(DurableOrganizationAudit);
 	});
 	it('resolves the registered controller and explicit read contract', async () => {
 		const controller = module.get(PlatformOrganizationsController);
@@ -37,7 +37,7 @@ describe('organization module integration (adapter fake; no live PostgreSQL)', (
 			nextCursor: null,
 		});
 	});
-	it('never enters organization persistence for the production audit gate', async () => {
+	it('writes an allowlisted audit event through the mutation transaction', async () => {
 		await expect(
 			module.get(PlatformOrganizationMutationsService).create(
 				{
@@ -46,7 +46,38 @@ describe('organization module integration (adapter fake; no live PostgreSQL)', (
 				},
 				{ name: 'Soho Gym', slug: 'soho' },
 			),
-		).rejects.toMatchObject({ status: 503 });
-		expect(database.create).not.toHaveBeenCalled();
+		).resolves.toMatchObject({ id: ORGANIZATION_ID });
+		expect(database.auditCreate).toHaveBeenCalledWith({
+			data: {
+				organizationId: ORGANIZATION_ID,
+				actorPlatformStaffId: '33333333-3333-4333-8333-333333333333',
+				requestId: 'fictional-request',
+				action: 'CREATE',
+				occurredAt: expect.any(Date),
+				previousStatus: null,
+				resultingStatus: 'PENDING',
+				changedFields: ['name', 'slug', 'status'],
+				previousName: null,
+				resultingName: 'Soho Gym',
+			},
+			select: { id: true },
+		});
+	});
+	it('rejects the transaction when the durable insert fails and preserves protected diagnostics', async () => {
+		const cause = { code: 'P2039', message: 'private provider detail' };
+		database.auditCreate.mockRejectedValueOnce(cause);
+		await expect(
+			module.get(PlatformOrganizationMutationsService).create(
+				{
+					actorPlatformStaffId: '33333333-3333-4333-8333-333333333333',
+					requestId: 'fictional-request',
+				},
+				{ name: 'Soho Gym', slug: 'soho' },
+			),
+		).rejects.toMatchObject({
+			status: 503,
+			cause,
+			response: { code: 'ORGANIZATION_AUDIT_UNAVAILABLE' },
+		});
 	});
 });
