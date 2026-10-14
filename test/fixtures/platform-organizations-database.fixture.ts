@@ -44,6 +44,11 @@ export function createPlatformOrganizationsDatabaseFixture() {
 		.fn<(args: unknown) => Promise<{ count: number }>>()
 		.mockResolvedValue({ count: 1 });
 	const client = {
+		organizationAuditEvent: {
+			create: jest.fn<(args: unknown) => Promise<{ id: string }>>().mockResolvedValue({
+				id: '77777777-7777-4777-8777-777777777777',
+			}),
+		},
 		...base.prisma,
 		organization: { findUnique, findFirst, findMany, create, updateMany },
 	};
@@ -60,6 +65,7 @@ export function createPlatformOrganizationsDatabaseFixture() {
 		findMany,
 		create,
 		updateMany,
+		auditCreate: client.organizationAuditEvent.create,
 		runTransaction,
 		prisma: { ...client, $transaction: runTransaction },
 	};
