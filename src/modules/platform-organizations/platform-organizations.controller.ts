@@ -78,7 +78,7 @@ export class PlatformOrganizationsController {
 	@ApiOperation({
 		summary: 'List platform-managed organizations',
 		description:
-			'Requires platform.organizations.read. Default 20, maximum 50; createdAt descending then UUID ascending. Keep the status filter; missing/deleted cursor returns 400. No tenant authorization or subscription inference.',
+			'Requires platform.organizations.read. Default excludes archived organizations; use status=ARCHIVED to inspect retained records. Default 20, maximum 50; createdAt descending then UUID ascending. Keep the status filter; unavailable cursor returns 400.',
 	})
 	@ApiOkResponse({ type: OrganizationListResponseDto })
 	list(@Query() query: ListOrganizationsQueryDto): Promise<OrganizationListResponseDto> {
@@ -115,13 +115,13 @@ export class PlatformOrganizationsController {
 	@RequirePlatformCsrf()
 	@ApiHeader({ name: 'x-platform-csrf-token', required: true })
 	@ApiOperation({
-		summary: 'Register a pending organization (audit-blocked)',
+		summary: 'Register a pending organization',
 		description:
-			'Requires platform.organizations.create, configured admin Origin and CSRF. Currently returns 503 before organization writes: durable audit persistence is absent. Prepared success is 201/PENDING; ambiguous creation must be reconciled, not blindly retried.',
+			'Requires platform.organizations.create, configured admin Origin and CSRF. Organization and audit event commit together; audit failure returns 503 and rolls back the mutation. Success is 201/PENDING; ambiguous creation must be reconciled, not blindly retried.',
 	})
 	@ApiCreatedResponse({
 		type: OrganizationResponseDto,
-		description: 'Prepared contract; unavailable until durable auditing is reviewed and installed.',
+		description: 'Pending organization and durable audit event committed atomically.',
 	})
 	@ApiConflictResponse({ type: ApiErrorResponseDto })
 	create(
@@ -140,13 +140,14 @@ export class PlatformOrganizationsController {
 	@ApiHeader({ name: 'x-platform-csrf-token', required: true })
 	@ApiHeader({ name: 'If-Match', required: true, example: '"2026-10-13T12:00:00.000Z"' })
 	@ApiOperation({
-		summary: 'Update organization name (audit-blocked)',
+		summary: 'Update organization name',
 		description:
-			'Requires platform.organizations.update, admin Origin and CSRF. Name only; slug/UUID/status are immutable here. Conditional updatedAt conflict returns 412. Currently blocked with 503 before organization writes.',
+			'Requires platform.organizations.update, admin Origin and CSRF. Name only; slug/UUID/status are immutable here. Archived organizations return 409; stale updatedAt returns 412. Audit failure returns 503 and rolls back the mutation.',
 	})
 	@ApiOkResponse({ type: OrganizationResponseDto })
 	@ApiNotFoundResponse({ type: ApiErrorResponseDto })
 	@ApiPreconditionFailedResponse({ type: ApiErrorResponseDto })
+	@ApiConflictResponse({ type: ApiErrorResponseDto })
 	update(
 		@Param('id', new ParseUUIDPipe()) id: string,
 		@Body() input: UpdateOrganizationDto,
@@ -170,9 +171,9 @@ export class PlatformOrganizationsController {
 	@ApiParam({ name: 'id', format: 'uuid' })
 	@ApiHeader({ name: 'x-platform-csrf-token', required: true })
 	@ApiOperation({
-		summary: 'Activate an organization (audit-blocked)',
+		summary: 'Activate an organization',
 		description:
-			'Requires platform.organizations.activate, admin Origin and CSRF. Only PENDING/SUSPENDED to ACTIVE. Repeated activation or ARCHIVED returns 409 with a current precondition; stale timestamp returns 412. No entitlements are granted. Currently blocked with 503.',
+			'Requires platform.organizations.activate, admin Origin and CSRF. Only PENDING/SUSPENDED to ACTIVE. Repeated activation or ARCHIVED returns 409 with a current precondition; stale timestamp returns 412. No entitlements are granted. Audit failure returns 503 and rolls back the mutation.',
 	})
 	@ApiOkResponse({ type: OrganizationResponseDto })
 	@ApiNotFoundResponse({ type: ApiErrorResponseDto })
@@ -200,9 +201,9 @@ export class PlatformOrganizationsController {
 	@ApiParam({ name: 'id', format: 'uuid' })
 	@ApiHeader({ name: 'x-platform-csrf-token', required: true })
 	@ApiOperation({
-		summary: 'Suspend an organization (audit-blocked)',
+		summary: 'Suspend an organization',
 		description:
-			'Requires platform.organizations.suspend, admin Origin and CSRF. Only ACTIVE to SUSPENDED. Repeated suspension or pending/archived state returns 409 with a current precondition; stale timestamp returns 412. Currently blocked with 503.',
+			'Requires platform.organizations.suspend, admin Origin and CSRF. Only ACTIVE to SUSPENDED. Repeated suspension or pending/archived state returns 409 with a current precondition; stale timestamp returns 412. Audit failure returns 503 and rolls back the mutation.',
 	})
 	@ApiOkResponse({ type: OrganizationResponseDto })
 	@ApiNotFoundResponse({ type: ApiErrorResponseDto })
@@ -217,6 +218,36 @@ export class PlatformOrganizationsController {
 			this.context(request),
 			id,
 			'suspension',
+			organizationPrecondition(`"${input.expectedUpdatedAt}"`),
+		);
+	}
+
+	@Post(':id/archival')
+	@HttpCode(HttpStatus.OK)
+	@Header('Cache-Control', 'no-store')
+	@RequirePlatformPermissions(ORGANIZATION_PERMISSION.archive)
+	@UseGuards(PlatformOriginCsrfGuard)
+	@RequirePlatformCsrf()
+	@ApiParam({ name: 'id', format: 'uuid' })
+	@ApiHeader({ name: 'x-platform-csrf-token', required: true })
+	@ApiOperation({
+		summary: 'Archive an organization while retaining audit history',
+		description:
+			'Requires platform.organizations.archive, admin Origin and CSRF. PENDING/ACTIVE/SUSPENDED become ARCHIVED and disappear from the default list. No hard deletion or restoration. Repeated archival returns 409; stale timestamp returns 412. Audit failure returns 503 and rolls back the mutation.',
+	})
+	@ApiOkResponse({ type: OrganizationResponseDto })
+	@ApiNotFoundResponse({ type: ApiErrorResponseDto })
+	@ApiConflictResponse({ type: ApiErrorResponseDto })
+	@ApiPreconditionFailedResponse({ type: ApiErrorResponseDto })
+	archive(
+		@Param('id', new ParseUUIDPipe()) id: string,
+		@Body() input: OrganizationActionDto,
+		@Req() request: PlatformRequest,
+	): Promise<OrganizationResponseDto> {
+		return this.mutations.lifecycle(
+			this.context(request),
+			id,
+			'archival',
 			organizationPrecondition(`"${input.expectedUpdatedAt}"`),
 		);
 	}
