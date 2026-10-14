@@ -115,6 +115,9 @@ describe('platform organization policies and transport DTOs', () => {
 			if (status === OrganizationStatus.ACTIVE)
 				expect(lifecycleStatus(status, 'suspension')).toBe(OrganizationStatus.SUSPENDED);
 			else expect(() => lifecycleStatus(status, 'suspension')).toThrow();
+			if (status !== OrganizationStatus.ARCHIVED)
+				expect(lifecycleStatus(status, 'archival')).toBe(OrganizationStatus.ARCHIVED);
+			else expect(() => lifecycleStatus(status, 'archival')).toThrow();
 		},
 	);
 	it('validates quoted preconditions without coerced arrays or wildcard tags', () => {
