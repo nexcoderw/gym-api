@@ -6,6 +6,7 @@ export const PLATFORM_PERMISSION = Object.freeze({
 	organizationsUpdate: 'platform.organizations.update',
 	organizationsActivate: 'platform.organizations.activate',
 	organizationsSuspend: 'platform.organizations.suspend',
+	organizationsArchive: 'platform.organizations.archive',
 });
 
 /** Trusted system-role key, never an email address, display name or request header. */
