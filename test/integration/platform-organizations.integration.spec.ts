@@ -38,6 +38,7 @@ describe('organization module integration (adapter fake; no live PostgreSQL)', (
 		});
 	});
 	it('writes an allowlisted audit event through the mutation transaction', async () => {
+		const occurredAt: unknown = expect.any(Date);
 		await expect(
 			module.get(PlatformOrganizationMutationsService).create(
 				{
@@ -53,7 +54,7 @@ describe('organization module integration (adapter fake; no live PostgreSQL)', (
 				actorPlatformStaffId: '33333333-3333-4333-8333-333333333333',
 				requestId: 'fictional-request',
 				action: 'CREATE',
-				occurredAt: expect.any(Date),
+				occurredAt,
 				previousStatus: null,
 				resultingStatus: 'PENDING',
 				changedFields: ['name', 'slug', 'status'],
