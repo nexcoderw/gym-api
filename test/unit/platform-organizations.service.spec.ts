@@ -77,6 +77,16 @@ describe('organization service contracts (adapter fake, not PostgreSQL)', () => 
 		await expect(reads.list({ limit: 51 })).rejects.toMatchObject({ status: 400 });
 		expect(database.findMany).not.toHaveBeenCalled();
 	});
+	it('excludes archived records by default but allows an explicit archived filter', async () => {
+		await reads.list({ limit: 20 });
+		expect(database.findMany.mock.calls[0]?.[0]).toMatchObject({
+			where: { status: { not: OrganizationStatus.ARCHIVED } },
+		});
+		await reads.list({ limit: 20, status: OrganizationStatus.ARCHIVED });
+		expect(database.findMany.mock.calls[1]?.[0]).toMatchObject({
+			where: { status: OrganizationStatus.ARCHIVED },
+		});
+	});
 	it('returns 404 for a missing organization', async () => {
 		database.findUnique.mockResolvedValue(null);
 		await expect(reads.get(ORGANIZATION_ID)).rejects.toMatchObject({ status: 404 });
@@ -109,6 +119,8 @@ describe('organization service contracts (adapter fake, not PostgreSQL)', () => 
 				action: 'create',
 				previousStatus: null,
 				resultingStatus: OrganizationStatus.PENDING,
+				previousName: null,
+				resultingName: 'Soho Gym',
 			}),
 		);
 	});
@@ -142,6 +154,10 @@ describe('organization service contracts (adapter fake, not PostgreSQL)', () => 
 		expect(record).toHaveBeenCalledTimes(1);
 	});
 	it('requires matching timestamp and status in the conditional profile update', async () => {
+		database.findUnique.mockResolvedValueOnce(organizationFixture()).mockResolvedValueOnce({
+			...organizationFixture(),
+			name: 'Power Gym',
+		});
 		await writes.update(context, ORGANIZATION_ID, { name: 'Power Gym' }, ORGANIZATION_TIME);
 		expect(database.updateMany.mock.calls[0]?.[0]).toMatchObject({
 			where: {
@@ -150,6 +166,11 @@ describe('organization service contracts (adapter fake, not PostgreSQL)', () => 
 				status: OrganizationStatus.PENDING,
 			},
 			data: { name: 'Power Gym' },
+		});
+		expect(record.mock.calls[0]?.[1]).toMatchObject({
+			previousName: 'Soho Gym',
+			resultingName: 'Power Gym',
+			changedFields: ['name'],
 		});
 	});
 	it('rejects stale or concurrently changed rows and never appends a success audit', async () => {
@@ -176,6 +197,48 @@ describe('organization service contracts (adapter fake, not PostgreSQL)', () => 
 		});
 		expect(record.mock.calls[0]?.[1].resultingStatus).toBe(OrganizationStatus.ACTIVE);
 		expect(database.userCount).not.toHaveBeenCalled();
+	});
+	it.each([OrganizationStatus.PENDING, OrganizationStatus.ACTIVE, OrganizationStatus.SUSPENDED])(
+		'archives %s with a retained record and an atomic audit event',
+		async (status) => {
+			const previous = { ...organizationFixture(), status };
+			database.findUnique.mockResolvedValueOnce(previous).mockResolvedValueOnce({
+				...previous,
+				status: OrganizationStatus.ARCHIVED,
+			});
+			await writes.lifecycle(context, ORGANIZATION_ID, 'archival', ORGANIZATION_TIME);
+			expect(database.updateMany.mock.calls[0]?.[0]).toMatchObject({
+				where: { id: ORGANIZATION_ID, status, updatedAt: ORGANIZATION_TIME },
+				data: {
+					status: OrganizationStatus.ARCHIVED,
+					archivedAt: record.mock.calls[0]?.[1].occurredAt,
+				},
+			});
+			expect(record.mock.calls[0]?.[1]).toMatchObject({
+				action: 'archival',
+				previousStatus: status,
+				resultingStatus: OrganizationStatus.ARCHIVED,
+				changedFields: ['status', 'archivedAt'],
+				previousName: null,
+				resultingName: null,
+			});
+		},
+	);
+	it('rejects all modifications of an archived organization', async () => {
+		database.findUnique.mockResolvedValue({
+			...organizationFixture(),
+			status: OrganizationStatus.ARCHIVED,
+		});
+		await expect(
+			writes.update(context, ORGANIZATION_ID, { name: 'Power Gym' }, ORGANIZATION_TIME),
+		).rejects.toMatchObject({ status: 409 });
+		for (const action of ['activation', 'suspension', 'archival'] as const) {
+			await expect(
+				writes.lifecycle(context, ORGANIZATION_ID, action, ORGANIZATION_TIME),
+			).rejects.toMatchObject({ status: 409 });
+		}
+		expect(database.updateMany).not.toHaveBeenCalled();
+		expect(record).not.toHaveBeenCalled();
 	});
 	it('fails closed before transactions when audit persistence is absent', async () => {
 		const unavailable = new UnavailableOrganizationAudit();
