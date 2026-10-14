@@ -1,12 +1,21 @@
 import { ConflictException } from '@nestjs/common';
 import { OrganizationStatus } from '@nexcoderw/gym-db';
 
-export type OrganizationLifecycleAction = 'activation' | 'suspension';
+export type OrganizationLifecycleAction = 'activation' | 'suspension' | 'archival';
+
+export const ORGANIZATION_LIFECYCLE_TIMESTAMP = {
+	activation: 'activatedAt',
+	suspension: 'suspendedAt',
+	archival: 'archivedAt',
+} as const;
 
 export function lifecycleStatus(
 	current: OrganizationStatus,
 	action: OrganizationLifecycleAction,
 ): OrganizationStatus {
+	if (action === 'archival' && current !== OrganizationStatus.ARCHIVED) {
+		return OrganizationStatus.ARCHIVED;
+	}
 	if (
 		action === 'activation' &&
 		(current === OrganizationStatus.PENDING || current === OrganizationStatus.SUSPENDED)
