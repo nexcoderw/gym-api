@@ -3,7 +3,12 @@ import { Logger } from '@nestjs/common';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Test } from '@nestjs/testing';
 import { getOptionsToken } from '@nestjs/throttler';
-import { PlatformStaffStatus, PrismaService, UserStatus } from '@nexcoderw/gym-db';
+import {
+	OrganizationStatus,
+	PlatformStaffStatus,
+	PrismaService,
+	UserStatus,
+} from '@nexcoderw/gym-db';
 import request from 'supertest';
 
 import { configureApplication } from '../../src/app-bootstrap.js';
@@ -59,6 +64,12 @@ const ROUTES = [
 		permission: ORGANIZATION_PERMISSION.suspend,
 		body: { expectedUpdatedAt: ORGANIZATION_TIME.toISOString() },
 	},
+	{
+		method: 'post',
+		path: `${ROOT}/${ORGANIZATION_ID}/archival`,
+		permission: ORGANIZATION_PERMISSION.archive,
+		body: { expectedUpdatedAt: ORGANIZATION_TIME.toISOString() },
+	},
 ] as const;
 
 describe('organization HTTP security (real guards, fake persistence)', () => {
@@ -85,6 +96,9 @@ describe('organization HTTP security (real guards, fake persistence)', () => {
 		session = organizationSessionFixture(Object.values(ORGANIZATION_PERMISSION));
 		database.sessionFindUnique.mockReset().mockResolvedValue(session);
 		database.findUnique.mockReset().mockResolvedValue(organizationFixture());
+		database.auditCreate.mockReset().mockResolvedValue({
+			id: '77777777-7777-4777-8777-777777777777',
+		});
 	});
 	afterAll(async () => {
 		await application?.close();
@@ -110,6 +124,25 @@ describe('organization HTTP security (real guards, fake persistence)', () => {
 			.set('If-Match', `"${ORGANIZATION_TIME.toISOString()}"`);
 		if (route.body !== undefined) operation.send(route.body);
 		return operation;
+	}
+	function prepareMutation(route: (typeof ROUTES)[number]) {
+		const previous = organizationFixture();
+		if (route.permission === ORGANIZATION_PERMISSION.suspend) {
+			previous.status = OrganizationStatus.ACTIVE;
+			previous.activatedAt = ORGANIZATION_TIME;
+		}
+		const result = { ...previous, updatedAt: new Date(ORGANIZATION_TIME.getTime() + 1) };
+		if (route.permission === ORGANIZATION_PERMISSION.update) result.name = 'Power Gym';
+		if (route.permission === ORGANIZATION_PERMISSION.activate) {
+			result.status = OrganizationStatus.ACTIVE;
+		}
+		if (route.permission === ORGANIZATION_PERMISSION.suspend) {
+			result.status = OrganizationStatus.SUSPENDED;
+		}
+		if (route.permission === ORGANIZATION_PERMISSION.archive) {
+			result.status = OrganizationStatus.ARCHIVED;
+		}
+		database.findUnique.mockResolvedValueOnce(previous).mockResolvedValueOnce(result);
 	}
 
 	it.each(ROUTES)('requires authentication for $method $path', async (route) => {
@@ -137,7 +170,7 @@ describe('organization HTTP security (real guards, fake persistence)', () => {
 		expect(database.findMany).toHaveBeenCalled();
 	});
 	it.each(ROUTES.filter((route) => route.method !== 'get'))(
-		'keeps the audit gate for system owners: $method $path',
+		'allows trusted system owners to perform audited mutations: $method $path',
 		async (route) => {
 			database.sessionFindUnique.mockResolvedValue({
 				...session,
@@ -154,15 +187,23 @@ describe('organization HTTP security (real guards, fake persistence)', () => {
 					],
 				},
 			});
-			const errorLog = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
-			try {
-				await call(route).expect(503);
-				expect(database.create).not.toHaveBeenCalled();
-				expect(errorLog).toHaveBeenCalledWith(
-					expect.stringContaining('code=ORGANIZATION_AUDIT_UNAVAILABLE'),
-				);
-			} finally {
-				errorLog.mockRestore();
+			prepareMutation(route);
+			await call(route).expect(route.path === ROOT ? 201 : 200);
+			expect(database.auditCreate).toHaveBeenCalledTimes(1);
+			expect(database.auditCreate.mock.calls[0]?.[0]).toMatchObject({
+				data: { actorPlatformStaffId: session.platformStaff.id, organizationId: ORGANIZATION_ID },
+			});
+			if (route.permission === ORGANIZATION_PERMISSION.archive) {
+				expect(database.auditCreate.mock.calls[0]?.[0]).toMatchObject({
+					data: {
+						action: 'ARCHIVE',
+						previousStatus: 'PENDING',
+						resultingStatus: 'ARCHIVED',
+						changedFields: ['status', 'archivedAt'],
+						previousName: null,
+						resultingName: null,
+					},
+				});
 			}
 		},
 	);
@@ -237,15 +278,27 @@ describe('organization HTTP security (real guards, fake persistence)', () => {
 			await call(route).set('Origin', 'https://attacker.example.invalid').expect(403);
 			await call(route).set('x-platform-csrf-token', 'c'.repeat(43)).expect(403);
 			await call(route).send({ untrusted: true }).expect(400);
+			expect(database.create).not.toHaveBeenCalled();
+			expect(database.updateMany).not.toHaveBeenCalled();
+			prepareMutation(route);
+			database.auditCreate.mockRejectedValueOnce(new Error('private audit failure'));
 			const errorLog = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+			const accessLog = jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
 			try {
 				const response = await call(route).expect(503);
 				const body: unknown = response.body;
 				expect(body).toMatchObject({ error: { code: 'ORGANIZATION_AUDIT_UNAVAILABLE' } });
-				expect(database.create).not.toHaveBeenCalled();
-				expect(database.updateMany).not.toHaveBeenCalled();
+				expect(database.auditCreate).toHaveBeenCalledTimes(1);
+				expect(JSON.stringify(body)).not.toContain('private audit failure');
+				expect(accessLog).toHaveBeenCalledWith(
+					expect.stringContaining(`${route.method.toUpperCase()} ${route.path} 503 `),
+				);
+				expect(accessLog).not.toHaveBeenCalledWith(
+					expect.stringContaining(`${route.method.toUpperCase()} ${route.path} 201 `),
+				);
 			} finally {
 				errorLog.mockRestore();
+				accessLog.mockRestore();
 			}
 		},
 	);
@@ -261,7 +314,7 @@ describe('organization HTTP security (real guards, fake persistence)', () => {
 			errorLog.mockRestore();
 		}
 	});
-	it('documents every route and the non-operational audit boundary', () => {
+	it('documents every route and the atomic audit failure boundary', () => {
 		const document = createOpenApiDocument(app());
 		expect(document.paths['/api/v1/platform/organizations']?.get?.security).toEqual([
 			{ 'platform-session': [] },
