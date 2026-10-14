@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { Prisma, PrismaService } from '@nexcoderw/gym-db';
+import { OrganizationStatus, Prisma, PrismaService } from '@nexcoderw/gym-db';
 
 import type { ListOrganizationsQueryDto } from './dto/list-organizations-query.dto.js';
 import type { OrganizationListResponseDto } from './dto/organization-list-response.dto.js';
@@ -36,7 +36,10 @@ export class PlatformOrganizationsService {
 		try {
 			return await this.prisma.$transaction(
 				async (transaction) => {
-					const where = query.status === undefined ? {} : { status: query.status };
+					const where: Prisma.OrganizationWhereInput =
+						query.status === undefined
+							? { status: { not: OrganizationStatus.ARCHIVED } }
+							: { status: query.status };
 					if (query.cursor !== undefined) {
 						const cursor = await transaction.organization.findFirst({
 							where: { ...where, id: query.cursor },
