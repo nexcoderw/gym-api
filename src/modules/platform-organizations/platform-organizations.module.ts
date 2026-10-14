@@ -3,7 +3,7 @@ import { Module } from '@nestjs/common';
 import { PlatformAuthModule } from '../platform-auth/platform-auth.module.js';
 import {
 	PlatformOrganizationAudit,
-	UnavailableOrganizationAudit,
+	DurableOrganizationAudit,
 } from './platform-organization-audit.js';
 import { PlatformOrganizationMutationsService } from './platform-organization-mutations.service.js';
 import { PlatformOrganizationsController } from './platform-organizations.controller.js';
@@ -15,7 +15,7 @@ import { PlatformOrganizationsService } from './platform-organizations.service.j
 	providers: [
 		PlatformOrganizationsService,
 		PlatformOrganizationMutationsService,
-		{ provide: PlatformOrganizationAudit, useClass: UnavailableOrganizationAudit },
+		{ provide: PlatformOrganizationAudit, useClass: DurableOrganizationAudit },
 	],
 })
 export class PlatformOrganizationsModule {}
