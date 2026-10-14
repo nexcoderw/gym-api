@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
 import { OrganizationStatus, Prisma, PrismaService } from '@nexcoderw/gym-db';
 
 import type { CreateOrganizationDto } from './dto/create-organization.dto.js';
@@ -15,6 +15,7 @@ import {
 } from './platform-organization-errors.js';
 import {
 	lifecycleStatus,
+	ORGANIZATION_LIFECYCLE_TIMESTAMP,
 	type OrganizationLifecycleAction,
 } from './platform-organization-lifecycle.js';
 import { ORGANIZATION_SELECT, organizationResponse } from './platform-organization-mapping.js';
@@ -46,6 +47,8 @@ export class PlatformOrganizationMutationsService {
 					previousStatus: null,
 					resultingStatus: row.status,
 					changedFields: ['name', 'slug', 'status'],
+					previousName: null,
+					resultingName: row.name,
 				});
 				return organizationResponse(row);
 			}, ORGANIZATION_TRANSACTION_OPTIONS);
@@ -88,6 +91,12 @@ export class PlatformOrganizationMutationsService {
 					});
 					if (previous === null) throw organizationNotFound();
 					if (previous.updatedAt.getTime() !== expected.getTime()) throw staleOrganization();
+					if ('name' in command && previous.status === OrganizationStatus.ARCHIVED) {
+						throw new ConflictException({
+							code: 'ORGANIZATION_TRANSITION_CONFLICT',
+							message: 'Archived organizations cannot be modified',
+						});
+					}
 					const now = new Date();
 					// API-managed writes advance monotonically even when two requests share a clock millisecond.
 					const updatedAt = new Date(Math.max(now.getTime(), previous.updatedAt.getTime() + 1));
@@ -101,9 +110,7 @@ export class PlatformOrganizationMutationsService {
 							: {
 									status,
 									updatedAt,
-									...(command.action === 'activation'
-										? { activatedAt: now }
-										: { suspendedAt: now }),
+									[ORGANIZATION_LIFECYCLE_TIMESTAMP[command.action]]: now,
 								};
 					const result = await transaction.organization.updateMany({
 						where: { id, updatedAt: expected, status: previous.status },
@@ -125,7 +132,9 @@ export class PlatformOrganizationMutationsService {
 						changedFields:
 							'name' in command
 								? ['name']
-								: ['status', command.action === 'activation' ? 'activatedAt' : 'suspendedAt'],
+								: ['status', ORGANIZATION_LIFECYCLE_TIMESTAMP[command.action]],
+						previousName: 'name' in command ? previous.name : null,
+						resultingName: 'name' in command ? row.name : null,
 					});
 					return organizationResponse(row);
 				},
