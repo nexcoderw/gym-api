@@ -139,10 +139,7 @@ describe('owner onboarding service contracts (adapter fake, not PostgreSQL)', ()
 
 	it('bounds and scopes list pagination while retaining deterministic ordering', async () => {
 		const second = { ...ownerInvitationFixture(), id: '77777777-7777-4777-8777-777777777777' };
-		database.invitationFindMany.mockResolvedValue([
-			ownerInvitationFixture(),
-			second,
-		]);
+		database.invitationFindMany.mockResolvedValue([ownerInvitationFixture(), second]);
 		const result = await service.list(ORGANIZATION_ID, {
 			limit: 1,
 			status: OrganizationOwnerInvitationStatus.PENDING_DELIVERY,
@@ -202,17 +199,17 @@ describe('owner onboarding service contracts (adapter fake, not PostgreSQL)', ()
 		);
 	});
 
-	it.each([
-		OrganizationOwnerInvitationStatus.ACCEPTED,
-		OrganizationOwnerInvitationStatus.REVOKED,
-	])('returns conflict when revoking terminal state %s', async (status) => {
-		database.invitationFindFirst.mockResolvedValue(ownerInvitationFixture(status));
-		await expect(
-			service.revoke(context, ORGANIZATION_ID, OWNER_INVITATION_ID),
-		).rejects.toMatchObject({ status: 409 });
-		expect(database.invitationUpdateMany).not.toHaveBeenCalled();
-		expect(record).not.toHaveBeenCalled();
-	});
+	it.each([OrganizationOwnerInvitationStatus.ACCEPTED, OrganizationOwnerInvitationStatus.REVOKED])(
+		'returns conflict when revoking terminal state %s',
+		async (status) => {
+			database.invitationFindFirst.mockResolvedValue(ownerInvitationFixture(status));
+			await expect(
+				service.revoke(context, ORGANIZATION_ID, OWNER_INVITATION_ID),
+			).rejects.toMatchObject({ status: 409 });
+			expect(database.invitationUpdateMany).not.toHaveBeenCalled();
+			expect(record).not.toHaveBeenCalled();
+		},
+	);
 
 	it('fails closed for cross-organization identifiers, concurrent updates and audit failure', async () => {
 		database.invitationFindFirst.mockResolvedValueOnce(null);
@@ -232,7 +229,9 @@ describe('owner onboarding service contracts (adapter fake, not PostgreSQL)', ()
 
 	it('does not start a write when durable audit persistence is unavailable', async () => {
 		const unavailable = new UnavailableOwnerInvitationAudit();
-		assertAvailable.mockImplementation(() => unavailable.assertAvailable());
+		assertAvailable.mockImplementation(() => {
+			unavailable.assertAvailable();
+		});
 		await expect(
 			service.create(context, ORGANIZATION_ID, {
 				displayName: 'Aline Uwase',
