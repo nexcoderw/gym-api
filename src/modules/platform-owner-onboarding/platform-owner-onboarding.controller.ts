@@ -1,0 +1,139 @@
+import {
+	Body,
+	Controller,
+	Get,
+	Header,
+	HttpCode,
+	HttpStatus,
+	Param,
+	ParseUUIDPipe,
+	Post,
+	Query,
+	Req,
+	UnauthorizedException,
+	UseGuards,
+} from '@nestjs/common';
+import {
+	ApiBadRequestResponse,
+	ApiConflictResponse,
+	ApiCookieAuth,
+	ApiCreatedResponse,
+	ApiForbiddenResponse,
+	ApiHeader,
+	ApiNotFoundResponse,
+	ApiOkResponse,
+	ApiOperation,
+	ApiParam,
+	ApiServiceUnavailableResponse,
+	ApiTags,
+	ApiTooManyRequestsResponse,
+	ApiUnauthorizedResponse,
+} from '@nestjs/swagger';
+
+import { ApiErrorResponseDto } from '../../common/dto/api-error-response.dto.js';
+import { RequirePlatformCsrf } from '../platform-auth/platform-csrf.decorator.js';
+import { PlatformOriginCsrfGuard } from '../platform-auth/platform-origin-csrf.guard.js';
+import { PlatformPermissionGuard } from '../platform-auth/platform-permission.guard.js';
+import { RequirePlatformPermissions } from '../platform-auth/platform-permissions.decorator.js';
+import type { PlatformRequest } from '../platform-auth/platform-request.js';
+import { PlatformSessionGuard } from '../platform-auth/platform-session.guard.js';
+import { CreateOwnerInvitationDto } from './dto/create-owner-invitation.dto.js';
+import { ListOwnerInvitationsQueryDto } from './dto/list-owner-invitations-query.dto.js';
+import { OwnerInvitationListResponseDto } from './dto/owner-invitation-list-response.dto.js';
+import { OwnerInvitationResponseDto } from './dto/owner-invitation-response.dto.js';
+import type { OwnerInvitationMutationContext } from './platform-owner-invitation-audit.js';
+import { PlatformOwnerOnboardingService } from './platform-owner-onboarding.service.js';
+import { OWNER_INVITATION_PERMISSION } from './platform-owner-onboarding.constants.js';
+
+@ApiTags('Platform owner onboarding')
+@ApiCookieAuth('platform-session')
+@ApiBadRequestResponse({ type: ApiErrorResponseDto })
+@ApiUnauthorizedResponse({ type: ApiErrorResponseDto })
+@ApiForbiddenResponse({ type: ApiErrorResponseDto })
+@ApiTooManyRequestsResponse({ type: ApiErrorResponseDto })
+@ApiServiceUnavailableResponse({
+	type: ApiErrorResponseDto,
+	description: 'Invitation persistence or durable ownership auditing is unavailable.',
+})
+@UseGuards(PlatformSessionGuard, PlatformPermissionGuard)
+@Controller('platform/organizations/:organizationId/owner-invitations')
+export class PlatformOwnerOnboardingController {
+	constructor(private readonly onboarding: PlatformOwnerOnboardingService) {}
+
+	@Post()
+	@Header('Cache-Control', 'no-store')
+	@RequirePlatformPermissions(OWNER_INVITATION_PERMISSION.invite)
+	@UseGuards(PlatformOriginCsrfGuard)
+	@RequirePlatformCsrf()
+	@ApiParam({ name: 'organizationId', format: 'uuid' })
+	@ApiHeader({ name: 'x-platform-csrf-token', required: true })
+	@ApiOperation({
+		summary: 'Create a pending owner invitation',
+		description:
+			'Requires platform.organizations.owners.invite, exact admin Origin and CSRF. Creates PENDING_DELIVERY plus durable ownership audit atomically. It sends no email, returns no token and grants no identity, membership, OWNER role or tenant access.',
+	})
+	@ApiCreatedResponse({
+		type: OwnerInvitationResponseDto,
+		description: 'Pending-delivery invitation and audit event committed atomically.',
+	})
+	@ApiNotFoundResponse({ type: ApiErrorResponseDto })
+	@ApiConflictResponse({ type: ApiErrorResponseDto })
+	create(
+		@Param('organizationId', new ParseUUIDPipe()) organizationId: string,
+		@Body() input: CreateOwnerInvitationDto,
+		@Req() request: PlatformRequest,
+	): Promise<OwnerInvitationResponseDto> {
+		return this.onboarding.create(this.context(request), organizationId, input);
+	}
+
+	@Get()
+	@Header('Cache-Control', 'no-store')
+	@RequirePlatformPermissions(OWNER_INVITATION_PERMISSION.read)
+	@ApiParam({ name: 'organizationId', format: 'uuid' })
+	@ApiOperation({
+		summary: 'List one organization’s owner invitations',
+		description:
+			'Requires platform.organizations.owners.read. Organization-scoped only; default 20, maximum 50, optional allowlisted status, ordered by createdAt descending then UUID ascending. Responses never expose tokens or internal audit metadata.',
+	})
+	@ApiOkResponse({ type: OwnerInvitationListResponseDto })
+	@ApiNotFoundResponse({ type: ApiErrorResponseDto })
+	list(
+		@Param('organizationId', new ParseUUIDPipe()) organizationId: string,
+		@Query() query: ListOwnerInvitationsQueryDto,
+	): Promise<OwnerInvitationListResponseDto> {
+		return this.onboarding.list(organizationId, query);
+	}
+
+	@Post(':invitationId/revocation')
+	@HttpCode(HttpStatus.OK)
+	@Header('Cache-Control', 'no-store')
+	@RequirePlatformPermissions(OWNER_INVITATION_PERMISSION.revoke)
+	@UseGuards(PlatformOriginCsrfGuard)
+	@RequirePlatformCsrf()
+	@ApiParam({ name: 'organizationId', format: 'uuid' })
+	@ApiParam({ name: 'invitationId', format: 'uuid' })
+	@ApiHeader({ name: 'x-platform-csrf-token', required: true })
+	@ApiOperation({
+		summary: 'Revoke an outstanding owner invitation',
+		description:
+			'Requires platform.organizations.owners.revoke-invitation, exact admin Origin and CSRF. PENDING_DELIVERY or SENT becomes REVOKED with token material cleared and a durable audit in one transaction. Repeated or accepted revocation returns 409. No user, membership or OWNER assignment is changed.',
+	})
+	@ApiOkResponse({ type: OwnerInvitationResponseDto })
+	@ApiNotFoundResponse({ type: ApiErrorResponseDto })
+	@ApiConflictResponse({ type: ApiErrorResponseDto })
+	revoke(
+		@Param('organizationId', new ParseUUIDPipe()) organizationId: string,
+		@Param('invitationId', new ParseUUIDPipe()) invitationId: string,
+		@Req() request: PlatformRequest,
+	): Promise<OwnerInvitationResponseDto> {
+		return this.onboarding.revoke(this.context(request), organizationId, invitationId);
+	}
+
+	private context(request: PlatformRequest): OwnerInvitationMutationContext {
+		if (request.platformPrincipal === undefined) throw new UnauthorizedException();
+		return {
+			actorPlatformStaffId: request.platformPrincipal.platformStaffId,
+			requestId: request.requestId,
+		};
+	}
+}
