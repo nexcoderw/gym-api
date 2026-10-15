@@ -192,7 +192,8 @@ Errors use this shape:
 An active staff member with a live database assignment to the system role `platform.owner`
 (`isSystem=true`) is the platform superadmin. After all session eligibility checks, Nest grants this
 principal every permission declared in `platform-permission.constants.ts`. This currently includes
-dashboard read and all six organization permissions, including archival. Existing owners receive these effective
+dashboard read, all six organization-management permissions and all three owner-invitation
+permissions. Existing owners receive these effective
 permissions on their next successful session check; no SQL grants, owner reinitialization or
 frontend role bypass is needed. New platform capabilities must register their permission in the
 same catalog before an endpoint requires it; all system owners then receive it automatically.
@@ -608,5 +609,60 @@ remain regression checks. No commands or live tests were executed by the agent.
 
 Production also needs an approved reproducible package strategy (immutable publication or pinned
 sibling builds), deployment topology/rate-limit review and authorization/audit retention review.
+
+## Step 17: secure organization-owner invitations
+
+Owner invitation administration is a platform control-plane workflow under one organization. It
+creates an offer to begin future onboarding; it does not send email, generate or return a token,
+accept an invitation, create a user or membership, assign the OWNER role, or grant tenant access.
+
+| Method/path under `/api/v1/platform/organizations/:organizationId/owner-invitations` | Permission                                                | Behavior |
+| ----------------------------------------------------------------------------------- | --------------------------------------------------------- | -------- |
+| `POST /`                                                                            | `platform.organizations.owners.invite`                    | Creates `PENDING_DELIVERY` plus its durable audit atomically |
+| `GET /`                                                                             | `platform.organizations.owners.read`                      | Lists one organization’s invitations with bounded cursor pagination |
+| `POST /:invitationId/revocation`                                                     | `platform.organizations.owners.revoke-invitation`         | Revokes only `PENDING_DELIVERY` or `SENT`, clears token material and audits atomically |
+
+All routes require a live platform session and their exact permission. Mutations additionally
+require the configured admin Origin and matching CSRF cookie/header. Eligible system owners inherit
+the permissions from the central backend catalog; ordinary staff need explicit database role links.
+Organization and invitation UUIDs are always part of the persistence predicate, so a valid UUID from
+another organization returns 404 instead of crossing the tenant boundary.
+
+Create accepts only `displayName` and `email`. The API trims meaningful display names, normalizes
+email to lowercase, and relies on the database for the final citext and integrity contract. Only
+`PENDING` and `ACTIVE` organizations accept invitations. The database partial unique index permits
+at most one outstanding invitation for an organization/email pair across `PENDING_DELIVERY` and
+`SENT`; a concurrent duplicate maps to 409. A successful response contains only the invitation ID,
+organization ID, display name, email, status and lifecycle timestamps. It never exposes token
+digests, actors, audit internals, relations or future persistence fields.
+
+List defaults to 20 and caps at 50. It accepts an optional allowlisted invitation status and UUID
+cursor, orders by `createdAt DESC, id ASC`, and returns `{ items, nextCursor }`. Cursor lookup and the
+page query use the same organization and status filter in a bounded repeatable-read transaction.
+Keep the same filter while following a cursor; stale, foreign or filter-mismatched cursors return 400.
+All responses use `Cache-Control: no-store`.
+
+Revocation is a serializable conditional update from the previously read status. Repeated revocation,
+accepted invitations and concurrent state changes return 409. Successful revocation sets `REVOKED`,
+records `revokedAt`, clears `tokenDigest`, and appends `INVITATION_REVOKED` through the same transaction
+client. Creation similarly appends `INVITATION_CREATED`. If durable audit insertion is unavailable,
+the transaction fails closed with 503 and no successful mutation is confirmed.
+
+There is no invitation idempotency key or automatic mutation retry. After a timeout or ambiguous
+network outcome, reconcile through the organization-scoped list before deciding whether to submit a
+new invitation. PostgreSQL’s partial unique index remains the final concurrent-duplicate authority.
+
+Future delivery and acceptance work requires a verified public acceptance origin, a high-entropy
+single-use token with only its digest stored, controlled expiry, safe resend/token rotation, explicit
+delivery outcome auditing, and independent recipient identity verification. External email requests
+must not run inside the database transaction. Platform MFA OTPs must never be reused as invitation
+codes, and no URL should be generated until a reviewed acceptance route actually exists.
+
+Before enabling these routes, a human must review and deploy the forward DB hardening migration,
+regenerate/build the sibling database package, and apply only the table/column grants documented in
+the DB README. Never edit applied migration history, use `db push`, grant broad schema ownership, or
+turn a 503 into an automatic retry. The adapter-fake API suites verify policy and HTTP boundaries but
+do not prove PostgreSQL constraints, trigger behavior, rollback or actual grants; those require the
+database package’s opt-in live integration workflow against the marked disposable test database.
 No registry artifact/version is invented. No frontend, branch, owner membership, subscription,
 payment, tenant login, domain provisioning or operator provisioning CLI is included.
