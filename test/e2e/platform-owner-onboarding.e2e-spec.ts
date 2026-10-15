@@ -56,9 +56,9 @@ describe('owner onboarding HTTP security (real guards, fake persistence)', () =>
 	});
 	beforeEach(() => {
 		jest.clearAllMocks();
-		database.sessionFindUnique.mockReset().mockResolvedValue(
-			organizationSessionFixture(Object.values(OWNER_INVITATION_PERMISSION)),
-		);
+		database.sessionFindUnique
+			.mockReset()
+			.mockResolvedValue(organizationSessionFixture(Object.values(OWNER_INVITATION_PERMISSION)));
 		database.findUnique.mockReset().mockResolvedValue(organizationFixture());
 		database.invitationFindFirst.mockReset().mockResolvedValue(ownerInvitationFixture());
 		database.invitationFindMany.mockReset().mockResolvedValue([ownerInvitationFixture()]);
@@ -162,7 +162,9 @@ describe('owner onboarding HTTP security (real guards, fake persistence)', () =>
 	it('enforces exact Origin, CSRF, UUIDs and an allowlisted request body', async () => {
 		await create().set('Origin', 'https://attacker.example.invalid').expect(403);
 		await create().set('x-platform-csrf-token', 'c'.repeat(43)).expect(403);
-		await create().send({ ...CREATE_BODY, role: 'OWNER' }).expect(400);
+		await create()
+			.send({ ...CREATE_BODY, role: 'OWNER' })
+			.expect(400);
 		await create().send({ displayName: ' ', email: 'invalid' }).expect(400);
 		await request(app().getHttpServer())
 			.post('/api/v1/platform/organizations/bad/owner-invitations')
@@ -187,7 +189,10 @@ describe('owner onboarding HTTP security (real guards, fake persistence)', () =>
 			take: 21,
 		});
 		for (const suffix of ['?limit=51', '?status=unknown', '?cursor=bad', '?include=user']) {
-			await request(app().getHttpServer()).get(`${ROOT}${suffix}`).set('Cookie', COOKIE).expect(400);
+			await request(app().getHttpServer())
+				.get(`${ROOT}${suffix}`)
+				.set('Cookie', COOKIE)
+				.expect(400);
 		}
 	});
 
@@ -207,13 +212,22 @@ describe('owner onboarding HTTP security (real guards, fake persistence)', () =>
 			.mockResolvedValueOnce(ownerInvitationFixture())
 			.mockResolvedValueOnce(revoked);
 		const response = await revoke().expect(200).expect('Cache-Control', 'no-store');
-		expect(response.body).toMatchObject({ status: 'REVOKED', revokedAt: expect.any(String) });
-		expect(database.ownershipAuditCreate).toHaveBeenCalledWith({
-			data: expect.objectContaining({
+		const body: unknown = response.body;
+		expect(body).toMatchObject({ status: 'REVOKED' });
+		if (typeof body !== 'object' || body === null || !('revokedAt' in body)) {
+			throw new Error('Expected a revokedAt response field');
+		}
+		expect(typeof body.revokedAt).toBe('string');
+		const auditCall: unknown = database.ownershipAuditCreate.mock.calls[0]?.[0];
+		expect(auditCall).toMatchObject({
+			data: {
 				action: 'INVITATION_REVOKED',
 				organizationId: ORGANIZATION_ID,
 				ownerInvitationId: OWNER_INVITATION_ID,
-			}),
+				actorPlatformStaffId: OWNER_INVITATION_ACTOR_ID,
+				previousInvitationStatus: OrganizationOwnerInvitationStatus.PENDING_DELIVERY,
+				resultingInvitationStatus: OrganizationOwnerInvitationStatus.REVOKED,
+			},
 			select: { id: true },
 		});
 	});
