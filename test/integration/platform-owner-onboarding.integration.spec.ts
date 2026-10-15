@@ -31,9 +31,7 @@ describe('owner onboarding module integration (adapter fake; no live PostgreSQL)
 		expect(module.get(PrismaService)).toBe(database.prisma);
 		expect(module.get(PlatformOwnerOnboardingController)).toBeDefined();
 		expect(module.get(PlatformOwnerOnboardingService)).toBeDefined();
-		expect(module.get(PlatformOwnerInvitationAudit)).toBeInstanceOf(
-			DurableOwnerInvitationAudit,
-		);
+		expect(module.get(PlatformOwnerInvitationAudit)).toBeInstanceOf(DurableOwnerInvitationAudit);
 	});
 
 	it('creates a pending invitation and an allowlisted audit record through one transaction', async () => {
@@ -52,15 +50,17 @@ describe('owner onboarding module integration (adapter fake; no live PostgreSQL)
 			status: 'PENDING_DELIVERY',
 		});
 		expect(database.runTransaction).toHaveBeenCalledTimes(1);
-		expect(database.ownershipAuditCreate).toHaveBeenCalledWith({
-			data: expect.objectContaining({
+		const auditCall: unknown = database.ownershipAuditCreate.mock.calls[0]?.[0];
+		expect(auditCall).toMatchObject({
+			data: {
 				organizationId: ORGANIZATION_ID,
 				ownerInvitationId: OWNER_INVITATION_ID,
 				actorPlatformStaffId: OWNER_INVITATION_ACTOR_ID,
 				action: 'INVITATION_CREATED',
 				previousInvitationStatus: null,
 				resultingInvitationStatus: 'PENDING_DELIVERY',
-			}),
+				requestId: 'fictional-owner-invitation-request',
+			},
 			select: { id: true },
 		});
 	});
