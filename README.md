@@ -616,11 +616,11 @@ Owner invitation administration is a platform control-plane workflow under one o
 creates an offer to begin future onboarding; it does not send email, generate or return a token,
 accept an invitation, create a user or membership, assign the OWNER role, or grant tenant access.
 
-| Method/path under `/api/v1/platform/organizations/:organizationId/owner-invitations` | Permission                                                | Behavior |
-| ----------------------------------------------------------------------------------- | --------------------------------------------------------- | -------- |
-| `POST /`                                                                            | `platform.organizations.owners.invite`                    | Creates `PENDING_DELIVERY` plus its durable audit atomically |
-| `GET /`                                                                             | `platform.organizations.owners.read`                      | Lists one organization’s invitations with bounded cursor pagination |
-| `POST /:invitationId/revocation`                                                     | `platform.organizations.owners.revoke-invitation`         | Revokes only `PENDING_DELIVERY` or `SENT`, clears token material and audits atomically |
+| Method/path under `/api/v1/platform/organizations/:organizationId/owner-invitations` | Permission                                        | Behavior                                                                               |
+| ------------------------------------------------------------------------------------ | ------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `POST /`                                                                             | `platform.organizations.owners.invite`            | Creates `PENDING_DELIVERY` plus its durable audit atomically                           |
+| `GET /`                                                                              | `platform.organizations.owners.read`              | Lists one organization’s invitations with bounded cursor pagination                    |
+| `POST /:invitationId/revocation`                                                     | `platform.organizations.owners.revoke-invitation` | Revokes only `PENDING_DELIVERY` or `SENT`, clears token material and audits atomically |
 
 All routes require a live platform session and their exact permission. Mutations additionally
 require the configured admin Origin and matching CSRF cookie/header. Eligible system owners inherit
