@@ -4,6 +4,7 @@ import {
 	isPlatformSuperadmin,
 } from '../../src/modules/platform-auth/platform-permission-policy.js';
 import { ORGANIZATION_PERMISSION } from '../../src/modules/platform-organizations/platform-organizations.constants.js';
+import { OWNER_INVITATION_PERMISSION } from '../../src/modules/platform-owner-onboarding/platform-owner-onboarding.constants.js';
 
 function role(key: string, isSystem: boolean, permissions: string[] = []) {
 	return {
@@ -21,6 +22,9 @@ describe('platform superadmin permission policy', () => {
 			Object.values(PLATFORM_PERMISSION),
 		);
 		for (const permission of Object.values(ORGANIZATION_PERMISSION)) {
+			expect(Object.values(PLATFORM_PERMISSION)).toContain(permission);
+		}
+		for (const permission of Object.values(OWNER_INVITATION_PERMISSION)) {
 			expect(Object.values(PLATFORM_PERMISSION)).toContain(permission);
 		}
 	});
