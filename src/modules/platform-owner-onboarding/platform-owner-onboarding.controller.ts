@@ -70,7 +70,7 @@ export class PlatformOwnerOnboardingController {
 	@ApiOperation({
 		summary: 'Create a pending owner invitation',
 		description:
-			'Requires platform.organizations.owners.invite, exact admin Origin and CSRF. Creates PENDING_DELIVERY plus durable ownership audit atomically. It sends no email, returns no token and grants no identity, membership, OWNER role or tenant access.',
+			'Requires platform.organizations.owners.invite, exact admin Origin and CSRF. Creates PENDING_DELIVERY plus durable ownership audit atomically. It sends no email, returns no token and grants no identity, membership, OWNER role or tenant access. Persistence or audit failure returns 503 and rolls back the mutation.',
 	})
 	@ApiCreatedResponse({
 		type: OwnerInvitationResponseDto,
@@ -116,7 +116,7 @@ export class PlatformOwnerOnboardingController {
 	@ApiOperation({
 		summary: 'Revoke an outstanding owner invitation',
 		description:
-			'Requires platform.organizations.owners.revoke-invitation, exact admin Origin and CSRF. PENDING_DELIVERY or SENT becomes REVOKED with token material cleared and a durable audit in one transaction. Repeated or accepted revocation returns 409. No user, membership or OWNER assignment is changed.',
+			'Requires platform.organizations.owners.revoke-invitation, exact admin Origin and CSRF. PENDING_DELIVERY or SENT becomes REVOKED with token material cleared and a durable audit in one transaction. Repeated or accepted revocation returns 409. No user, membership or OWNER assignment is changed. Persistence or audit failure returns 503 and rolls back the mutation.',
 	})
 	@ApiOkResponse({ type: OwnerInvitationResponseDto })
 	@ApiNotFoundResponse({ type: ApiErrorResponseDto })
