@@ -1,0 +1,86 @@
+import { Test, type TestingModule } from '@nestjs/testing';
+import { PrismaService } from '@nexcoderw/gym-db';
+
+import { AppModule } from '../../src/app.module.js';
+import {
+	DurableOwnerInvitationAudit,
+	PlatformOwnerInvitationAudit,
+} from '../../src/modules/platform-owner-onboarding/platform-owner-invitation-audit.js';
+import { PlatformOwnerOnboardingController } from '../../src/modules/platform-owner-onboarding/platform-owner-onboarding.controller.js';
+import { PlatformOwnerOnboardingService } from '../../src/modules/platform-owner-onboarding/platform-owner-onboarding.service.js';
+import {
+	createPlatformOwnerOnboardingDatabaseFixture,
+	OWNER_INVITATION_ACTOR_ID,
+	OWNER_INVITATION_ID,
+} from '../fixtures/platform-owner-onboarding-database.fixture.js';
+import { ORGANIZATION_ID } from '../fixtures/platform-organizations-database.fixture.js';
+
+describe('owner onboarding module integration (adapter fake; no live PostgreSQL)', () => {
+	let module: TestingModule;
+	const database = createPlatformOwnerOnboardingDatabaseFixture();
+
+	beforeAll(async () => {
+		module = await Test.createTestingModule({ imports: [AppModule] })
+			.overrideProvider(PrismaService)
+			.useValue(database.prisma)
+			.compile();
+	});
+	afterAll(async () => module.close());
+
+	it('registers the controller, service and durable audit against the shared database provider', () => {
+		expect(module.get(PrismaService)).toBe(database.prisma);
+		expect(module.get(PlatformOwnerOnboardingController)).toBeDefined();
+		expect(module.get(PlatformOwnerOnboardingService)).toBeDefined();
+		expect(module.get(PlatformOwnerInvitationAudit)).toBeInstanceOf(
+			DurableOwnerInvitationAudit,
+		);
+	});
+
+	it('creates a pending invitation and an allowlisted audit record through one transaction', async () => {
+		await expect(
+			module.get(PlatformOwnerOnboardingService).create(
+				{
+					actorPlatformStaffId: OWNER_INVITATION_ACTOR_ID,
+					requestId: 'fictional-owner-invitation-request',
+				},
+				ORGANIZATION_ID,
+				{ displayName: 'Aline Uwase', email: 'aline@example.com' },
+			),
+		).resolves.toMatchObject({
+			id: OWNER_INVITATION_ID,
+			organizationId: ORGANIZATION_ID,
+			status: 'PENDING_DELIVERY',
+		});
+		expect(database.runTransaction).toHaveBeenCalledTimes(1);
+		expect(database.ownershipAuditCreate).toHaveBeenCalledWith({
+			data: expect.objectContaining({
+				organizationId: ORGANIZATION_ID,
+				ownerInvitationId: OWNER_INVITATION_ID,
+				actorPlatformStaffId: OWNER_INVITATION_ACTOR_ID,
+				action: 'INVITATION_CREATED',
+				previousInvitationStatus: null,
+				resultingInvitationStatus: 'PENDING_DELIVERY',
+			}),
+			select: { id: true },
+		});
+	});
+
+	it('fails the mutation boundary when durable audit insertion fails', async () => {
+		const cause = { code: 'P2039', message: 'private provider detail' };
+		database.ownershipAuditCreate.mockRejectedValueOnce(cause);
+		await expect(
+			module.get(PlatformOwnerOnboardingService).create(
+				{
+					actorPlatformStaffId: OWNER_INVITATION_ACTOR_ID,
+					requestId: 'fictional-owner-invitation-request',
+				},
+				ORGANIZATION_ID,
+				{ displayName: 'Aline Uwase', email: 'aline@example.com' },
+			),
+		).rejects.toMatchObject({
+			status: 503,
+			cause,
+			response: { code: 'OWNER_INVITATION_AUDIT_UNAVAILABLE' },
+		});
+	});
+});
