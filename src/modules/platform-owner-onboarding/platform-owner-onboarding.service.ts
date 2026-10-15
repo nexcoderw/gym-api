@@ -1,9 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import {
-	OrganizationOwnerInvitationStatus,
-	Prisma,
-	PrismaService,
-} from '@nexcoderw/gym-db';
+import { OrganizationOwnerInvitationStatus, Prisma, PrismaService } from '@nexcoderw/gym-db';
 
 import type { CreateOwnerInvitationDto } from './dto/create-owner-invitation.dto.js';
 import type { ListOwnerInvitationsQueryDto } from './dto/list-owner-invitations-query.dto.js';
@@ -130,9 +126,7 @@ export class PlatformOwnerOnboardingService {
 						where,
 						orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
 						take: query.limit + 1,
-						...(query.cursor === undefined
-							? {}
-							: { cursor: { id: query.cursor }, skip: 1 }),
+						...(query.cursor === undefined ? {} : { cursor: { id: query.cursor }, skip: 1 }),
 						select: OWNER_INVITATION_SELECT,
 					});
 					const page = rows.slice(0, query.limit);
