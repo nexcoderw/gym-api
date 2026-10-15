@@ -13,6 +13,7 @@ import { HealthModule } from './modules/health/health.module.js';
 import { PlatformAuthModule } from './modules/platform-auth/platform-auth.module.js';
 import { PlatformDashboardModule } from './modules/platform-dashboard/platform-dashboard.module.js';
 import { PlatformOrganizationsModule } from './modules/platform-organizations/platform-organizations.module.js';
+import { PlatformOwnerOnboardingModule } from './modules/platform-owner-onboarding/platform-owner-onboarding.module.js';
 
 @Module({
 	imports: [
@@ -39,6 +40,7 @@ import { PlatformOrganizationsModule } from './modules/platform-organizations/pl
 		PlatformAuthModule,
 		PlatformDashboardModule,
 		PlatformOrganizationsModule,
+		PlatformOwnerOnboardingModule,
 	],
 	providers: [
 		{ provide: APP_GUARD, useClass: ThrottlerGuard },
