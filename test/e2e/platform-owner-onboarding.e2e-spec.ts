@@ -21,6 +21,7 @@ import {
 import { OWNER_INVITATION_PERMISSION } from '../../src/modules/platform-owner-onboarding/platform-owner-onboarding.constants.js';
 import {
 	createPlatformOwnerOnboardingDatabaseFixture,
+	OWNER_INVITATION_ACTOR_ID,
 	OWNER_INVITATION_ID,
 	ownerInvitationFixture,
 } from '../fixtures/platform-owner-onboarding-database.fixture.js';
