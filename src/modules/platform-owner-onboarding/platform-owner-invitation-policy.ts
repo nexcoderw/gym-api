@@ -1,8 +1,5 @@
 import { ConflictException, NotFoundException } from '@nestjs/common';
-import {
-	OrganizationOwnerInvitationStatus,
-	OrganizationStatus,
-} from '@nexcoderw/gym-db';
+import { OrganizationOwnerInvitationStatus, OrganizationStatus } from '@nexcoderw/gym-db';
 
 export function assertOrganizationCanReceiveOwnerInvitation(status: OrganizationStatus): void {
 	if (status === OrganizationStatus.PENDING || status === OrganizationStatus.ACTIVE) return;
