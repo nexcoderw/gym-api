@@ -9,8 +9,7 @@ export const PLATFORM_PERMISSION = Object.freeze({
 	organizationsArchive: 'platform.organizations.archive',
 	organizationOwnersInvite: 'platform.organizations.owners.invite',
 	organizationOwnersRead: 'platform.organizations.owners.read',
-	organizationOwnersRevokeInvitation:
-		'platform.organizations.owners.revoke-invitation',
+	organizationOwnersRevokeInvitation: 'platform.organizations.owners.revoke-invitation',
 });
 
 /** Trusted system-role key, never an email address, display name or request header. */
