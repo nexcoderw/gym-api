@@ -511,8 +511,9 @@ enum value and extending the metadata CHECK; never edit applied history. Follow 
 section in the DB README, including existing audit prerequisites and targeted gym_app privileges.
 Regenerate and build the sibling DB package before API typechecking/building. No GitHub Packages
 lookup is required. No migration, grant, generated client, build or live write was run by the agent.
-The backend endpoint is ready for a separately reviewed admin archive action; this change does not
-add an archive button or permanent deletion UI.
+The backend endpoint is consumed by the separately reviewed admin archival action. The UI must
+re-read the current record before confirmation, submit its exact expectedUpdatedAt, and never retry
+an ambiguous mutation automatically. No permanent deletion endpoint or UI exists.
 
 The first-owner persisted bootstrap allowlist remains dashboard.read only, while eligible system
 owners now automatically receive all declared platform permissions through the live policy above.
@@ -546,7 +547,7 @@ npm run prisma:format
 npm run prisma:validate
 npm run migration:status
 npx prisma migrate status --config prisma.test.config.ts
-npm run migration:create -- --name enforce_organization_integrity
+npm run migration:create -- --name enforce_organization_integrity_permissions
 ```
 
 Stop and review the new unapplied forward SQL, using the database README's exact name/slug/reserved
