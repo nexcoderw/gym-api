@@ -90,7 +90,11 @@ interface OrganizationSessionFixture {
 			passwordCredential: { passwordChangedAt: Date };
 		};
 		roles: {
-			platformRole: { key: string; permissions: { platformPermission: { key: string } }[] };
+			platformRole: {
+				key: string;
+				isSystem: boolean;
+				permissions: { platformPermission: { key: string } }[];
+			};
 		}[];
 	};
 }
@@ -121,6 +125,7 @@ export function organizationSessionFixture(
 				{
 					platformRole: {
 						key: 'platform.owner',
+						isSystem: false,
 						permissions: permissions.map((key) => ({ platformPermission: { key } })),
 					},
 				},
