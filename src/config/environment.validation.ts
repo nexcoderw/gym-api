@@ -3,6 +3,7 @@ import {
 	type EnvironmentVariables,
 	type NodeEnvironment,
 } from './environment.types.js';
+import { parseOwnerInvitationDeliveryEnvironment } from './owner-invitation-delivery.environment.js';
 
 const DEFAULT_PORT = 3000;
 const DEFAULT_RATE_LIMIT_TTL_MS = 60_000;
@@ -318,10 +319,18 @@ export function validateEnvironment(input: Record<string, unknown>): Environment
 		'PLATFORM_AUTH_EMAIL_OTP_ENABLED',
 		false,
 	);
-	const resendApiKey = emailOtpEnabled
+	const invitationDelivery = parseOwnerInvitationDeliveryEnvironment(input, nodeEnvironment === 'production');
+	if (invitationDelivery !== null) {
+		const invitationSecrets = [invitationDelivery.hmacSecret, ...Object.values(invitationDelivery.encryptionKeys)];
+		if (invitationSecrets.includes(tokenPepper) || Object.values(totpKeyring).some((key) => invitationSecrets.includes(key))) {
+			throw new Error('Owner invitation keys must not reuse platform authentication or TOTP keys.');
+		}
+	}
+	const resendRequired = emailOtpEnabled || invitationDelivery !== null;
+	const resendApiKey = resendRequired
 		? requireString(input.RESEND_API_KEY, 'RESEND_API_KEY')
 		: null;
-	const resendFromEmail = emailOtpEnabled
+	const resendFromEmail = resendRequired
 		? requireString(input.RESEND_FROM_EMAIL, 'RESEND_FROM_EMAIL')
 		: null;
 	if (resendApiKey !== null && !/^re_[A-Za-z0-9_-]{1,256}$/u.test(resendApiKey)) {
@@ -335,6 +344,9 @@ export function validateEnvironment(input: Record<string, unknown>): Environment
 			))
 	) {
 		throw new Error('RESEND_FROM_EMAIL must be a bare email address on a verified sender domain.');
+	}
+	if (invitationDelivery !== null && resendFromEmail !== null && !resendFromEmail.endsWith('@notify.gym.rw')) {
+		throw new Error('Owner invitation delivery requires a verified sender on notify.gym.rw.');
 	}
 
 	return Object.freeze({
@@ -410,6 +422,7 @@ export function validateEnvironment(input: Record<string, unknown>): Environment
 		),
 		PLATFORM_AUTH_SINGLE_INSTANCE: singleInstance,
 		PLATFORM_AUTH_EMAIL_OTP_ENABLED: emailOtpEnabled,
+		OWNER_INVITATION_DELIVERY: invitationDelivery,
 		RESEND_API_KEY: resendApiKey,
 		RESEND_FROM_EMAIL: resendFromEmail,
 		PLATFORM_TOTP_KEYRING: totpKeyring,
