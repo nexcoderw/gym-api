@@ -1,11 +1,12 @@
 import {
-	PreconditionFailedException,
-	UnauthorizedException,
 	Injectable,
 	Logger,
+	PreconditionFailedException,
+	ServiceUnavailableException,
+	UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PlatformStaffStatus, PrismaService, UserStatus } from '@nexcoderw/gym-db';
+import { PlatformStaffStatus, Prisma, PrismaService, UserStatus } from '@nexcoderw/gym-db';
 
 import type { EnvironmentVariables } from '../../config/environment.types.js';
 import type { PlatformMfaChallengeResponseDto } from './dto/platform-auth-response.dto.js';
@@ -41,29 +42,12 @@ export class PlatformLoginService {
 		now = new Date(),
 	): Promise<PlatformMfaChallengeResponseDto> {
 		this.attempts.assertAllowed(ipAddress, input.email, now.getTime());
-		const identity = await this.prisma.user.findUnique({
-			where: { email: input.email },
-			select: {
-				id: true,
-				status: true,
-				emailVerifiedAt: true,
-				passwordCredential: { select: { passwordHash: true } },
-				platformStaff: {
-					select: {
-						id: true,
-						status: true,
-						totpCredential: {
-							select: { verifiedAt: true, disabledAt: true },
-						},
-						recoveryCodes: {
-							where: { usedAt: null },
-							select: { id: true },
-							take: 1,
-						},
-					},
-				},
-			},
-		});
+		let identity: Awaited<ReturnType<typeof this.readIdentity>>;
+		try {
+			identity = await this.readIdentity(input.email);
+		} catch (error: unknown) {
+			throw this.persistenceFailure(error);
+		}
 
 		const passwordHash = identity?.passwordCredential?.passwordHash ?? this.passwords.dummyHash;
 		const passwordValid = await this.passwords.verify(passwordHash, input.password);
@@ -94,24 +78,31 @@ export class PlatformLoginService {
 		const challengeToken = this.tokens.createToken();
 		const csrfToken = this.tokens.createToken();
 		const expiresAt = new Date(now.getTime() + this.challengeLifetimeMilliseconds);
-		await this.prisma.$transaction(async (transaction) => {
-			await transaction.platformMfaChallenge.updateMany({
-				where: {
-					platformStaffId: platformStaff.id,
-					consumedAt: null,
-					expiresAt: { gt: now },
-				},
-				data: { consumedAt: now },
-			});
-			await transaction.platformMfaChallenge.create({
-				data: {
-					platformStaffId: platformStaff.id,
-					tokenDigest: this.tokens.digest(challengeToken),
-					expiresAt,
-					maxAttempts: this.maximumAttempts,
-				},
-			});
-		});
+		try {
+			await this.prisma.$transaction(
+				[
+					this.prisma.platformMfaChallenge.updateMany({
+						where: {
+							platformStaffId: platformStaff.id,
+							consumedAt: null,
+							expiresAt: { gt: now },
+						},
+						data: { consumedAt: now },
+					}),
+					this.prisma.platformMfaChallenge.create({
+						data: {
+							platformStaffId: platformStaff.id,
+							tokenDigest: this.tokens.digest(challengeToken),
+							expiresAt,
+							maxAttempts: this.maximumAttempts,
+						},
+					}),
+				],
+				{ isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+			);
+		} catch (error: unknown) {
+			throw this.persistenceFailure(error);
+		}
 		this.attempts.clearAccount(input.email);
 		this.logger.log(`platform_mfa_challenge_created staffId=${platformStaff.id}`);
 
@@ -125,5 +116,41 @@ export class PlatformLoginService {
 				...(recoveryAvailable ? (['recovery_code'] as const) : []),
 			],
 		};
+	}
+
+	private readIdentity(email: string) {
+		return this.prisma.user.findUnique({
+			where: { email },
+			select: {
+				id: true,
+				status: true,
+				emailVerifiedAt: true,
+				passwordCredential: { select: { passwordHash: true } },
+				platformStaff: {
+					select: {
+						id: true,
+						status: true,
+						totpCredential: {
+							select: { verifiedAt: true, disabledAt: true },
+						},
+						recoveryCodes: {
+							where: { usedAt: null },
+							select: { id: true },
+							take: 1,
+						},
+					},
+				},
+			},
+		});
+	}
+
+	private persistenceFailure(error: unknown): Error {
+		return new ServiceUnavailableException(
+			{
+				code: 'PLATFORM_LOGIN_UNAVAILABLE',
+				message: 'Sign-in is temporarily unavailable. Try again.',
+			},
+			{ cause: error },
+		);
 	}
 }
