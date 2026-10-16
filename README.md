@@ -213,8 +213,8 @@ full organization permission never bypasses a failed durable audit insert.
 
 Email verification is an opt-in, weaker fallback than authenticator MFA. Set
 `PLATFORM_AUTH_EMAIL_OTP_ENABLED=true`, `RESEND_API_KEY` (a sending-only key), and
-`RESEND_FROM_EMAIL` (a bare address on your Resend-verified domain) in the API's ignored `.env.local`
-only after reviewing that tradeoff. No Resend credential belongs in the admin frontend.
+`RESEND_FROM_EMAIL` (the bare, Resend-verified sender shared by every API email) in the API's ignored
+`.env.local` only after reviewing that tradeoff. No Resend credential belongs in either frontend.
 `POST /api/v1/platform/auth/mfa/email` requires the live password challenge, trusted Origin and
 CSRF proof. It never accepts a recipient or issues cookies. A fixed HTTPS adapter sends one email;
 there is no SDK dependency or automatic delivery retry. Codes expire within five minutes or at
@@ -690,7 +690,8 @@ Enable only after all of these are independently verified:
   revocations, role ownership/inheritance and compatible generated/built sibling `gym-db` package.
 - A real owner-facing acceptance page and fragment-token handling reviewed by security. Configuring
   an origin or entering a review identifier is an operator attestation, not proof a page exists.
-- A verified `notify.gym.rw` sender, managed Resend key, separate random 256-bit invitation HMAC and
+- A Resend-verified `RESEND_FROM_EMAIL` sender shared by MFA and invitations, a managed Resend key,
+  separate random 256-bit invitation HMAC and
   encryption secrets, controlled expiry/retention, provider idempotency tests and worker monitoring.
 - Successful isolated database, unit, module and real-guard HTTP checks, followed by an approved
   fictional-recipient end-to-end provider test. None was run by the agent.
