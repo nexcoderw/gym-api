@@ -16,15 +16,19 @@ export class OwnerInvitationTokenService {
 	}
 
 	isValidFormat(token: string): boolean {
-		return /^[A-Za-z0-9_-]{43}$/u.test(token) &&
-			Buffer.from(token, 'base64url').toString('base64url') === token;
+		return (
+			/^[A-Za-z0-9_-]{43}$/u.test(token) &&
+			Buffer.from(token, 'base64url').toString('base64url') === token
+		);
 	}
 
 	digest(token: string): string {
 		const settings = this.config.get('OWNER_INVITATION_DELIVERY', { infer: true });
-		if (settings === null || !this.isValidFormat(token)) throw new Error('Invitation token unavailable.');
+		if (settings === null || !this.isValidFormat(token))
+			throw new Error('Invitation token unavailable.');
 		return createHmac('sha256', Buffer.from(settings.hmacSecret, 'base64'))
-			.update(JSON.stringify([OWNER_INVITATION_TOKEN_PURPOSE, token])).digest('hex');
+			.update(JSON.stringify([OWNER_INVITATION_TOKEN_PURPOSE, token]))
+			.digest('hex');
 	}
 
 	matches(token: string, digest: string): boolean {
