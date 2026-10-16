@@ -13,7 +13,7 @@ describe('Resend owner invitation adapter (fake transport only)', () => {
 		token: new OwnerInvitationTokenService(config).generate(),
 		organizationName: '<Soho & Gym>',
 		recipient: 'owner@example.com',
-		sender: 'invitations@notify.gym.rw',
+		sender: 'onboarding@resend.dev',
 		acceptanceOrigin: 'https://owners.example.invalid',
 		acceptancePath: '/invitations/accept',
 	};
@@ -42,6 +42,8 @@ describe('Resend owner invitation adapter (fake transport only)', () => {
 		expect(call?.[1]).toMatchObject({ redirect: 'error', headers: { 'Idempotency-Key': key } });
 		const body = call?.[1]?.body;
 		if (typeof body !== 'string') throw new Error('Missing provider request.');
+		const payload: unknown = JSON.parse(body);
+		expect(payload).toMatchObject({ from: 'onboarding@resend.dev' });
 		expect(body).toContain('#token=');
 		expect(body).toContain('&lt;Soho &amp; Gym&gt;');
 		expect(body).not.toContain('?token=');
