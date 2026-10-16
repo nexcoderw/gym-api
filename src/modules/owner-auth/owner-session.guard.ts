@@ -1,0 +1,26 @@
+import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
+
+import { OWNER_AUTH_ERROR } from './owner-auth.constants.js';
+import { OwnerCookieService } from './owner-cookie.service.js';
+import type { OwnerRequest } from './owner-request.js';
+import { OwnerSessionService } from './owner-session.service.js';
+import { OwnerTokenService } from './owner-token.service.js';
+
+@Injectable()
+export class OwnerSessionGuard implements CanActivate {
+	constructor(
+		private readonly cookies: OwnerCookieService,
+		private readonly sessions: OwnerSessionService,
+		private readonly tokens: OwnerTokenService,
+	) {}
+
+	async canActivate(context: ExecutionContext): Promise<boolean> {
+		const request = context.switchToHttp().getRequest<OwnerRequest>();
+		const token = this.cookies.readSession(request);
+		if (token === undefined || !this.tokens.isValid(token)) {
+			throw new UnauthorizedException(OWNER_AUTH_ERROR.invalidSession);
+		}
+		request.ownerPrincipal = await this.sessions.authenticate(token);
+		return true;
+	}
+}
