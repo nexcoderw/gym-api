@@ -14,6 +14,7 @@ export const OWNER_INVITATION_SELECT = Object.freeze({
 	expiresAt: true,
 	acceptedAt: true,
 	revokedAt: true,
+	delivery: { select: { status: true } },
 } satisfies Prisma.OrganizationOwnerInvitationSelect);
 
 type SafeOwnerInvitation = Pick<
@@ -29,7 +30,7 @@ type SafeOwnerInvitation = Pick<
 	| 'expiresAt'
 	| 'acceptedAt'
 	| 'revokedAt'
->;
+> & { readonly delivery: { readonly status: OwnerInvitationResponseDto['deliveryStatus'] } | null };
 
 /** Explicit allowlist prevents token digests, actors and future persistence fields reaching HTTP. */
 export function ownerInvitationResponse(row: SafeOwnerInvitation): OwnerInvitationResponseDto {
@@ -39,6 +40,7 @@ export function ownerInvitationResponse(row: SafeOwnerInvitation): OwnerInvitati
 		displayName: row.invitedDisplayName,
 		email: row.invitedEmail,
 		status: row.status,
+		deliveryStatus: row.delivery?.status ?? null,
 		createdAt: row.createdAt.toISOString(),
 		updatedAt: row.updatedAt.toISOString(),
 		sentAt: row.sentAt?.toISOString() ?? null,
