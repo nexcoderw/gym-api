@@ -1,3 +1,5 @@
+import type { OwnerInvitationDeliveryEnvironment } from './owner-invitation-delivery.environment.js';
+
 export const NODE_ENVIRONMENTS = ['development', 'test', 'production'] as const;
 
 export type NodeEnvironment = (typeof NODE_ENVIRONMENTS)[number];
@@ -26,6 +28,7 @@ export interface EnvironmentVariables {
 	readonly PLATFORM_AUTH_LOGIN_ATTEMPT_LIMIT: number;
 	readonly PLATFORM_AUTH_SINGLE_INSTANCE: boolean;
 	readonly PLATFORM_AUTH_EMAIL_OTP_ENABLED: boolean;
+	readonly OWNER_INVITATION_DELIVERY: OwnerInvitationDeliveryEnvironment | null;
 	readonly RESEND_API_KEY: string | null;
 	readonly RESEND_FROM_EMAIL: string | null;
 	readonly PLATFORM_TOTP_KEYRING: Readonly<Record<string, string>>;
