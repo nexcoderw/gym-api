@@ -15,7 +15,7 @@ describe('Resend owner invitation adapter (fake transport only)', () => {
 		recipient: 'owner@example.com',
 		sender: 'invitations@notify.gym.rw',
 		acceptanceOrigin: 'https://owners.example.invalid',
-		acceptancePath: '/owner-invitations/accept',
+		acceptancePath: '/invitations/accept',
 	};
 	const key = 'owner-invitation-delivery:11111111-1111-4111-8111-111111111111';
 	const messageId = '22222222-2222-4222-8222-222222222222';
