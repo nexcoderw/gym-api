@@ -785,10 +785,12 @@ they also recheck organization, invitation, token expiry and lease ownership. A 
 is not enough to submit another provider request.
 
 The CLI uses a dedicated Nest module, not the HTTP AppModule. Neither the worker nor its Resend
-adapter is registered in the HTTP container. The CLI reads managed process environment
-only, never the API `.env.local`, and does not construct authentication providers or require platform
-session/TOTP secrets. Set NODE_ENV explicitly. Provision its own restricted database credentials and invitation/provider keys;
-the normal API and worker must not share a privileged connection or generic environment export.
+adapter is registered in the HTTP container. The managed worker reads injected process environment
+only and does not construct authentication providers or require platform session/TOTP secrets. Its
+explicit local-development npm wrapper is the sole exception: it preloads the ignored `.env.local`
+and supplies a fixed local identity. Set `NODE_ENV` explicitly for managed execution. Provision a
+restricted worker database role and invitation/provider keys; deployed API and worker processes must
+not share a privileged connection or generic environment export.
 
 Provider acceptance finalization conditionally changes PENDING_DELIVERY to SENT with matching digest,
 expiry and sentAt, then CONFIRMED with provider ID and erased token envelope in the same transaction.
@@ -879,12 +881,22 @@ deployment is a separate managed-credential approval, never this local command c
 Do not enable delivery merely because migrations passed; the acceptance page, provider, keys,
 monitoring and security prerequisites still apply.
 
-**Do not run this worker now.** Once every release prerequisite is approved, supply managed environment
-secrets and a separate restricted worker database role, and start explicitly:
+For reviewed local development only, after every delivery prerequisite is configured in the ignored
+`.env.local`, build and start the worker with the explicit local command. It loads `.env.local` and
+supplies a fixed development-only worker identity:
 
 ```bash
 cd /Users/dvniels/Desktop/projects/gym/api/api
-OWNER_INVITATION_WORKER_ID=invitation-worker-01 npm run worker:owner-invitations
+npm run build
+npm run worker:owner-invitations
+```
+
+Do not use that local command in a deployment. Once every release prerequisite is approved, inject
+managed environment secrets and a separate restricted worker database role, then start explicitly:
+
+```bash
+cd /Users/dvniels/Desktop/projects/gym/api/api
+OWNER_INVITATION_WORKER_ID=invitation-worker-01 npm run worker:owner-invitations:managed
 ```
 
 The identifier must be stable and unique among live workers. Do not put keys, tokens or database URLs
