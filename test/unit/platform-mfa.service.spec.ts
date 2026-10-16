@@ -1,7 +1,7 @@
 import { jest } from '@jest/globals';
 import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
-import { PlatformStaffStatus, PrismaService, UserStatus } from '@nexcoderw/gym-db';
+import { PlatformStaffStatus, Prisma, PrismaService, UserStatus } from '@nexcoderw/gym-db';
 
 import type { EnvironmentVariables } from '../../src/config/environment.types.js';
 import { validateEnvironment } from '../../src/config/environment.validation.js';
@@ -25,7 +25,9 @@ describe('PlatformMfaService', () => {
 		platformAdminSession: { create: sessionCreate },
 	};
 	type TransactionOperation = (client: typeof transaction) => Promise<unknown>;
-	const runTransaction = jest.fn((operation: TransactionOperation) => operation(transaction));
+	const runTransaction = jest
+		.fn<(operation: TransactionOperation, options?: unknown) => Promise<unknown>>()
+		.mockImplementation((operation) => operation(transaction));
 	const verifyTotp = jest.fn<() => { readonly timeStep: bigint } | null>();
 	let service: PlatformMfaService;
 
@@ -98,6 +100,50 @@ describe('PlatformMfaService', () => {
 		expect(totpUpdateMany).toHaveBeenCalledTimes(1);
 		expect(challengeUpdateMany).toHaveBeenCalledTimes(1);
 		expect(sessionCreate).toHaveBeenCalledTimes(1);
+		expect(runTransaction).toHaveBeenCalledWith(expect.any(Function), {
+			isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+			maxWait: 10_000,
+			timeout: 10_000,
+		});
+	});
+
+	it.each(['P2028', 'P2034', 'P2039'])(
+		'returns a safe unavailable error for transaction failure %s without retrying',
+		async (code) => {
+			runTransaction.mockRejectedValueOnce({ code });
+
+			await expect(
+				service.verify({
+					challengeToken: 'challenge-token-with-more-than-32-characters',
+					method: 'totp',
+					totpCode: '123456',
+				}),
+			).rejects.toMatchObject({
+				status: 503,
+				response: {
+					code: 'PLATFORM_MFA_UNAVAILABLE',
+					message: 'MFA verification is temporarily unavailable. Start sign-in again.',
+				},
+			});
+			expect(runTransaction).toHaveBeenCalledTimes(1);
+			expect(sessionCreate).not.toHaveBeenCalled();
+		},
+	);
+
+	it('returns the same safe unavailable error when the challenge read cannot connect', async () => {
+		challengeFindUnique.mockRejectedValueOnce({ code: 'P1001' });
+
+		await expect(
+			service.verify({
+				challengeToken: 'challenge-token-with-more-than-32-characters',
+				method: 'totp',
+				totpCode: '123456',
+			}),
+		).rejects.toMatchObject({
+			status: 503,
+			response: { code: 'PLATFORM_MFA_UNAVAILABLE' },
+		});
+		expect(runTransaction).not.toHaveBeenCalled();
 	});
 
 	it('requires successful MFA even when a system owner has no per-permission grants', async () => {
