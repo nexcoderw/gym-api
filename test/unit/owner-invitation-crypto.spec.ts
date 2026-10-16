@@ -23,6 +23,7 @@ describe('owner invitation configuration and cryptography', () => {
 		};
 		const worker = validateOwnerInvitationWorkerEnvironment(input);
 		expect(worker.DATABASE_POOL_MAX).toBeLessThanOrEqual(16);
+		expect(worker.RESEND_FROM_EMAIL).toBe('onboarding@resend.dev');
 		expect(worker).not.toHaveProperty('PLATFORM_AUTH_TOKEN_PEPPER');
 		expect(worker).not.toHaveProperty('PLATFORM_TOTP_KEYRING');
 		expect(() =>
@@ -125,7 +126,7 @@ describe('owner invitation configuration and cryptography', () => {
 			token: new OwnerInvitationTokenService(config).generate(),
 			organizationName: 'Soho Gym',
 			recipient: 'owner@example.com',
-			sender: 'invitations@notify.gym.rw',
+			sender: 'onboarding@resend.dev',
 			acceptanceOrigin: 'https://owners.example.invalid',
 			acceptancePath: '/invitations/accept',
 		};
