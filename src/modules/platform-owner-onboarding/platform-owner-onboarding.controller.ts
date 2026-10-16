@@ -79,7 +79,7 @@ export class PlatformOwnerOnboardingController {
 	@ApiOperation({
 		summary: 'Reserve audited owner-invitation email delivery',
 		description:
-			'Requires platform.organizations.owners.send-invitation, a live MFA platform session, exact administrator Origin and CSRF. Accepts no recipient, destination or token. A 202 reserves or reports the existing reservation; it does not confirm email receipt. Delivery remains unavailable until all release gates are approved. UNCERTAIN requires operator review, never blind resend.',
+			'Requires platform.organizations.owners.send-invitation, a live MFA platform session, exact administrator Origin and CSRF. Accepts no recipient, destination or token. A 202 reserves or reports the existing reservation; it does not confirm email receipt. A 503 means delivery prerequisites, persistence or durable auditing are unavailable and no success is confirmed. Delivery remains unavailable until all release gates are approved. UNCERTAIN requires operator review, never blind resend.',
 	})
 	@ApiAcceptedResponse({ type: OwnerInvitationDeliveryResponseDto })
 	@ApiNotFoundResponse({ type: ApiErrorResponseDto })
