@@ -28,6 +28,7 @@ import {
 import {
 	createInvitationDeliveryDatabaseFixture,
 	invitationDeliveryConfig,
+	invitationDeliveryInput,
 } from '../fixtures/owner-invitation-delivery.fixture.js';
 import {
 	OWNER_INVITATION_ACTOR_ID,
@@ -40,9 +41,9 @@ const context = {
 	requestId: 'fictional-delivery-request',
 };
 
-async function setup() {
+async function setup(input = invitationDeliveryInput()) {
 	const database = createInvitationDeliveryDatabaseFixture();
-	const config = invitationDeliveryConfig();
+	const config = invitationDeliveryConfig(input);
 	const send = jest
 		.fn<ResendOwnerInvitationEmailService['send']>()
 		.mockResolvedValue({ kind: 'accepted', messageId: '77777777-7777-4777-8777-777777777777' });
@@ -80,15 +81,14 @@ describe('audited invitation delivery and worker policy', () => {
 			);
 			expect(fixture.deliveryCreate).toHaveBeenCalledTimes(1);
 			expect(fixture.ownershipAuditCreate).toHaveBeenCalledTimes(1);
-			expect(fixture.ownershipAuditCreate).toHaveBeenCalledWith(
-				expect.objectContaining({
-					data: expect.objectContaining({
-						action: 'INVITATION_DELIVERY_QUEUED',
-						previousInvitationStatus: 'PENDING_DELIVERY',
-						resultingInvitationStatus: 'PENDING_DELIVERY',
-					}),
-				}),
-			);
+			const auditCall: unknown = fixture.ownershipAuditCreate.mock.calls[0]?.[0];
+			expect(auditCall).toMatchObject({
+				data: {
+					action: 'INVITATION_DELIVERY_QUEUED',
+					previousInvitationStatus: 'PENDING_DELIVERY',
+					resultingInvitationStatus: 'PENDING_DELIVERY',
+				},
+			});
 			expect(fixture.state.delivery?.tokenDigest).toBe(digest);
 			expect(Object.keys(first).sort()).toEqual(['message', 'status']);
 			expect(fixture.send).not.toHaveBeenCalled();
@@ -99,6 +99,10 @@ describe('audited invitation delivery and worker policy', () => {
 
 	it('rolls back on audit failure and fails closed before writes for a missing repair or disabled gate', async () => {
 		const fixture = await setup();
+		const disabled = await setup({
+			...invitationDeliveryInput(),
+			OWNER_INVITATION_DELIVERY_ENABLED: 'false',
+		});
 		try {
 			fixture.ownershipAuditCreate.mockRejectedValueOnce(new Error('private database error'));
 			await expect(
@@ -109,13 +113,14 @@ describe('audited invitation delivery and worker policy', () => {
 			await expect(
 				fixture.service.queue(context, ORGANIZATION_ID, OWNER_INVITATION_ID),
 			).rejects.toBeInstanceOf(ServiceUnavailableException);
-			fixture.config.set('OWNER_INVITATION_DELIVERY', null);
 			await expect(
-				fixture.service.queue(context, ORGANIZATION_ID, OWNER_INVITATION_ID),
+				disabled.service.queue(context, ORGANIZATION_ID, OWNER_INVITATION_ID),
 			).rejects.toBeInstanceOf(ServiceUnavailableException);
 			expect(fixture.deliveryCreate).toHaveBeenCalledTimes(1);
+			expect(disabled.deliveryCreate).not.toHaveBeenCalled();
 		} finally {
 			await fixture.module.close();
+			await disabled.module.close();
 		}
 	});
 
@@ -284,11 +289,11 @@ describe('audited invitation delivery and worker policy', () => {
 	});
 
 	it('closes a known rejection at the attempt limit without retaining a retryable token', async () => {
-		const fixture = await setup();
+		const fixture = await setup({
+			...invitationDeliveryInput(),
+			OWNER_INVITATION_DELIVERY_MAX_ATTEMPTS: '1',
+		});
 		try {
-			const settings = fixture.config.get('OWNER_INVITATION_DELIVERY', { infer: true });
-			if (settings === null) throw new Error('Missing fixture configuration.');
-			fixture.config.set('OWNER_INVITATION_DELIVERY', { ...settings, maxAttempts: 1 });
 			fixture.send.mockResolvedValue({
 				kind: 'failed',
 				code: 'PROVIDER_RATE_LIMITED',
