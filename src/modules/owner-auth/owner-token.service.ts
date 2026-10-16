@@ -13,14 +13,13 @@ export class OwnerTokenService {
 	private readonly enrollmentPepper: Buffer;
 
 	constructor(config: ConfigService<EnvironmentVariables, true>) {
-		this.sessionPepper = Buffer.from(
-			config.get('OWNER_AUTH_TOKEN_PEPPER', { infer: true }),
-			'base64',
-		);
-		this.enrollmentPepper = Buffer.from(
-			config.get('OWNER_ENROLLMENT_TOKEN_PEPPER', { infer: true }),
-			'base64',
-		);
+		const sessionPepper = config.get('OWNER_AUTH_TOKEN_PEPPER', { infer: true });
+		const enrollmentPepper = config.get('OWNER_ENROLLMENT_TOKEN_PEPPER', { infer: true });
+		if (typeof sessionPepper !== 'string' || typeof enrollmentPepper !== 'string') {
+			throw new Error('Owner authentication token peppers must be validated strings.');
+		}
+		this.sessionPepper = Buffer.from(sessionPepper, 'base64');
+		this.enrollmentPepper = Buffer.from(enrollmentPepper, 'base64');
 	}
 
 	create(): string {
