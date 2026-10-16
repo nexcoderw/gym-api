@@ -29,10 +29,12 @@ export class ResendOwnerInvitationEmailService {
 	): Promise<InvitationProviderOutcome> {
 		const settings = this.config.get('OWNER_INVITATION_DELIVERY', { infer: true });
 		const key = this.config.get('RESEND_API_KEY', { infer: true });
+		const sender = this.config.get('RESEND_FROM_EMAIL', { infer: true });
 		if (
 			settings === null ||
 			key === null ||
-			snapshot.sender !== this.config.get('RESEND_FROM_EMAIL', { infer: true }) ||
+			sender === null ||
+			snapshot.sender !== sender ||
 			snapshot.acceptanceOrigin !== settings.acceptanceOrigin ||
 			snapshot.acceptancePath !== settings.acceptancePath ||
 			!/^owner-invitation-delivery:[0-9a-f-]{36}$/u.test(idempotencyKey)
@@ -53,7 +55,7 @@ export class ResendOwnerInvitationEmailService {
 					'Idempotency-Key': idempotencyKey,
 				},
 				body: JSON.stringify({
-					from: snapshot.sender,
+					from: sender,
 					to: [snapshot.recipient],
 					subject: "You're invited to manage a gym on NEXCODE Gym",
 					text,
