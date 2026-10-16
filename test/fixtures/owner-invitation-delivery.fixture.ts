@@ -31,7 +31,7 @@ export function invitationDeliveryInput(): Record<string, unknown> {
 		OWNER_INVITATION_DELIVERY_DATABASE_APPROVED: 'true',
 		OWNER_INVITATION_ACCEPTANCE_REVIEW_ID: 'fictional-test-review',
 		OWNER_INVITATION_ACCEPTANCE_ORIGIN: 'https://owners.example.invalid',
-		OWNER_INVITATION_ACCEPTANCE_PATH: '/owner-invitations/accept',
+		OWNER_INVITATION_ACCEPTANCE_PATH: '/invitations/accept',
 		OWNER_INVITATION_TOKEN_HMAC_SECRET: randomBytes(32).toString('base64'),
 		OWNER_INVITATION_ENCRYPTION_KEYRING: `test-key=${randomBytes(32).toString('base64')}`,
 		OWNER_INVITATION_ENCRYPTION_ACTIVE_KEY_ID: 'test-key',
