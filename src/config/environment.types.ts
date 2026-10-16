@@ -28,6 +28,15 @@ export interface EnvironmentVariables {
 	readonly PLATFORM_AUTH_LOGIN_ATTEMPT_LIMIT: number;
 	readonly PLATFORM_AUTH_SINGLE_INSTANCE: boolean;
 	readonly PLATFORM_AUTH_EMAIL_OTP_ENABLED: boolean;
+	readonly ORGANIZATION_PORTAL_ORIGIN: string;
+	readonly OWNER_AUTH_COOKIE_SECURE: boolean;
+	readonly OWNER_AUTH_TOKEN_PEPPER: string;
+	readonly OWNER_ENROLLMENT_TOKEN_PEPPER: string;
+	readonly OWNER_AUTH_SESSION_TTL_SECONDS: number;
+	readonly OWNER_AUTH_IDLE_TTL_SECONDS: number;
+	readonly OWNER_ENROLLMENT_CHALLENGE_TTL_SECONDS: number;
+	readonly OWNER_AUTH_LOGIN_ATTEMPT_WINDOW_MS: number;
+	readonly OWNER_AUTH_LOGIN_ATTEMPT_LIMIT: number;
 	readonly OWNER_INVITATION_DELIVERY: OwnerInvitationDeliveryEnvironment | null;
 	readonly RESEND_API_KEY: string | null;
 	readonly RESEND_FROM_EMAIL: string | null;
