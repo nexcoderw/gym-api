@@ -11,7 +11,7 @@ export interface OwnerInvitationMutationContext {
 }
 
 export interface OwnerInvitationAuditEvent extends OwnerInvitationMutationContext {
-	readonly action: 'created' | 'revoked';
+	readonly action: 'created' | 'revoked' | 'queued';
 	readonly organizationId: string;
 	readonly invitationId: string;
 	readonly occurredAt: Date;
@@ -44,10 +44,11 @@ export class DurableOwnerInvitationAudit extends PlatformOwnerInvitationAudit {
 					ownerInvitationId: event.invitationId,
 					actorPlatformStaffId: event.actorPlatformStaffId,
 					requestId: event.requestId,
-					action:
-						event.action === 'created'
-							? OrganizationOwnershipAuditAction.INVITATION_CREATED
-							: OrganizationOwnershipAuditAction.INVITATION_REVOKED,
+					action: {
+						created: OrganizationOwnershipAuditAction.INVITATION_CREATED,
+						revoked: OrganizationOwnershipAuditAction.INVITATION_REVOKED,
+						queued: OrganizationOwnershipAuditAction.INVITATION_DELIVERY_QUEUED,
+					}[event.action],
 					previousInvitationStatus: event.previousStatus,
 					resultingInvitationStatus: event.resultingStatus,
 					occurredAt: event.occurredAt,
