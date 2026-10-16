@@ -107,10 +107,7 @@ describe('PlatformLoginService', () => {
 		userFindUnique.mockRejectedValueOnce(new Error('redacted adapter failure'));
 
 		await expect(
-			service.login(
-				{ email: 'admin@example.com', password: 'fictional password' },
-				'192.0.2.10',
-			),
+			service.login({ email: 'admin@example.com', password: 'fictional password' }, '192.0.2.10'),
 		).rejects.toMatchObject({
 			status: 503,
 			response: { code: 'PLATFORM_LOGIN_UNAVAILABLE' },
@@ -140,10 +137,7 @@ describe('PlatformLoginService', () => {
 			runTransaction.mockRejectedValueOnce({ code });
 
 			await expect(
-				service.login(
-					{ email: 'admin@example.com', password: 'fictional password' },
-					'192.0.2.10',
-				),
+				service.login({ email: 'admin@example.com', password: 'fictional password' }, '192.0.2.10'),
 			).rejects.toMatchObject({
 				status: 503,
 				response: {
@@ -159,10 +153,7 @@ describe('PlatformLoginService', () => {
 		userFindUnique.mockRejectedValueOnce({ code: 'P1001' });
 
 		await expect(
-			service.login(
-				{ email: 'admin@example.com', password: 'fictional password' },
-				'192.0.2.10',
-			),
+			service.login({ email: 'admin@example.com', password: 'fictional password' }, '192.0.2.10'),
 		).rejects.toMatchObject({
 			status: 503,
 			response: { code: 'PLATFORM_LOGIN_UNAVAILABLE' },
