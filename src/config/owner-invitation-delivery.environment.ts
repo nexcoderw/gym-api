@@ -40,16 +40,24 @@ export function parseOwnerInvitationDeliveryEnvironment(
 	}
 	const local = ['localhost', '127.0.0.1', '[::1]'].includes(origin.hostname);
 	if (
-		origin.origin !== acceptanceOrigin || acceptanceOrigin.length > 253 || origin.hostname.includes('*') ||
-		origin.username !== '' || origin.password !== '' ||
+		origin.origin !== acceptanceOrigin ||
+		acceptanceOrigin.length > 253 ||
+		origin.hostname.includes('*') ||
+		origin.username !== '' ||
+		origin.password !== '' ||
 		(origin.protocol !== 'https:' && !(local && !production && origin.protocol === 'http:')) ||
-		(production && (local || origin.hostname.endsWith('.invalid') || origin.hostname.endsWith('.test')))
+		(production &&
+			(local || origin.hostname.endsWith('.invalid') || origin.hostname.endsWith('.test')))
 	) {
-		throw new Error('Owner acceptance requires an approved exact HTTPS origin (localhost in development only).');
+		throw new Error(
+			'Owner acceptance requires an approved exact HTTPS origin (localhost in development only).',
+		);
 	}
 	const acceptancePath = required(input, 'OWNER_INVITATION_ACCEPTANCE_PATH');
 	if (!/^\/[a-z0-9-]+(?:\/[a-z0-9-]+)*$/u.test(acceptancePath) || acceptancePath.length > 120) {
-		throw new Error('OWNER_INVITATION_ACCEPTANCE_PATH must be a fixed path without a query or fragment.');
+		throw new Error(
+			'OWNER_INVITATION_ACCEPTANCE_PATH must be a fixed path without a query or fragment.',
+		);
 	}
 	const hmacSecret = key(required(input, 'OWNER_INVITATION_TOKEN_HMAC_SECRET'));
 	const entries = required(input, 'OWNER_INVITATION_ENCRYPTION_KEYRING').split(',');
@@ -76,8 +84,12 @@ export function parseOwnerInvitationDeliveryEnvironment(
 		throw new Error('Development invitation encryption keys are forbidden in production.');
 	}
 	return Object.freeze({
-		acceptanceOrigin, acceptancePath, acceptanceReviewId, hmacSecret,
-		encryptionKeys: Object.freeze(Object.fromEntries(keys)), activeKeyId,
+		acceptanceOrigin,
+		acceptancePath,
+		acceptanceReviewId,
+		hmacSecret,
+		encryptionKeys: Object.freeze(Object.fromEntries(keys)),
+		activeKeyId,
 		expirySeconds: integer(input, 'OWNER_INVITATION_EXPIRY_SECONDS', 86_400, 300, 604_800),
 		leaseSeconds: integer(input, 'OWNER_INVITATION_DELIVERY_LEASE_SECONDS', 60, 30, 120),
 		maxAttempts: integer(input, 'OWNER_INVITATION_DELIVERY_MAX_ATTEMPTS', 3, 1, 10),
@@ -96,17 +108,24 @@ function required(input: Record<string, unknown>, name: string): string {
 function key(value: string): string {
 	const bytes = Buffer.from(value, 'base64');
 	if (bytes.length !== 32 || bytes.toString('base64') !== value || new Set(bytes).size < 16) {
-		throw new Error('Owner invitation keys must be independently generated 256-bit base64 secrets.');
+		throw new Error(
+			'Owner invitation keys must be independently generated 256-bit base64 secrets.',
+		);
 	}
 	return value;
 }
 
 function integer(
-	input: Record<string, unknown>, name: string, fallback: number, minimum: number, maximum: number,
+	input: Record<string, unknown>,
+	name: string,
+	fallback: number,
+	minimum: number,
+	maximum: number,
 ): number {
 	const value = input[name];
 	if (value === undefined || value === '') return fallback;
-	if (typeof value !== 'string' || !/^\d+$/u.test(value)) throw new Error(`${name} must be an integer.`);
+	if (typeof value !== 'string' || !/^\d+$/u.test(value))
+		throw new Error(`${name} must be an integer.`);
 	const parsed = Number(value);
 	if (!Number.isSafeInteger(parsed) || parsed < minimum || parsed > maximum) {
 		throw new Error(`${name} is outside its supported range.`);
