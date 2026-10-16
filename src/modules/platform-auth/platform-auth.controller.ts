@@ -165,6 +165,10 @@ export class PlatformAuthController {
 		description: 'The caller exceeded the request limit.',
 		type: ApiErrorResponseDto,
 	})
+	@ApiServiceUnavailableResponse({
+		description: 'MFA persistence could not be confirmed.',
+		type: ApiErrorResponseDto,
+	})
 	async verifyMfa(
 		@Body() input: PlatformMfaVerifyDto,
 		@Res({ passthrough: true }) response: Response,
