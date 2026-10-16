@@ -19,11 +19,13 @@ import {
 	LOCAL_PLATFORM_CSRF_COOKIE,
 	LOCAL_PLATFORM_SESSION_COOKIE,
 } from '../../src/modules/platform-auth/platform-auth.constants.js';
+import { PLATFORM_PERMISSION } from '../../src/modules/platform-auth/platform-permission.constants.js';
 import { OwnerInvitationTokenService } from '../../src/modules/platform-owner-onboarding/owner-invitation-token.service.js';
 import { OWNER_INVITATION_PERMISSION } from '../../src/modules/platform-owner-onboarding/platform-owner-onboarding.constants.js';
 import {
 	createInvitationDeliveryDatabaseFixture,
 	invitationDeliveryConfig,
+	invitationDeliveryInput,
 } from '../fixtures/owner-invitation-delivery.fixture.js';
 import { OWNER_INVITATION_ID } from '../fixtures/platform-owner-onboarding-database.fixture.js';
 import {
@@ -39,14 +41,10 @@ const COOKIE = `${LOCAL_PLATFORM_SESSION_COOKIE}=${'a'.repeat(43)}; ${LOCAL_PLAT
 describe('owner invitation delivery HTTP (real guards, DTOs, services; fake adapters)', () => {
 	let app: NestExpressApplication;
 	let database: ReturnType<typeof createInvitationDeliveryDatabaseFixture>;
-	let config: ReturnType<typeof invitationDeliveryConfig>;
 	let tokens: OwnerInvitationTokenService;
-	beforeEach(async () => {
-		database = createInvitationDeliveryDatabaseFixture();
-		database.sessionFindUnique.mockResolvedValue(
-			organizationSessionFixture([OWNER_INVITATION_PERMISSION.send]),
-		);
-		config = invitationDeliveryConfig();
+
+	async function initialize(input = invitationDeliveryInput()): Promise<void> {
+		const config = invitationDeliveryConfig(input);
 		const module = await Test.createTestingModule({ imports: [AppModule] })
 			.overrideProvider(PrismaService)
 			.useValue(database.prisma)
@@ -60,6 +58,14 @@ describe('owner invitation delivery HTTP (real guards, DTOs, services; fake adap
 		configureApplication(app, { CORS_ORIGINS: ['http://localhost:4000'], SWAGGER_ENABLED: false });
 		tokens = module.get(OwnerInvitationTokenService);
 		await app.init();
+	}
+
+	beforeEach(async () => {
+		database = createInvitationDeliveryDatabaseFixture();
+		database.sessionFindUnique.mockResolvedValue(
+			organizationSessionFixture([OWNER_INVITATION_PERMISSION.send]),
+		);
+		await initialize();
 	});
 	afterEach(async () => {
 		await app.close();
@@ -81,7 +87,9 @@ describe('owner invitation delivery HTTP (real guards, DTOs, services; fake adap
 		'denies %s authentication/authorization before reservation',
 		async (condition) => {
 			const session = organizationSessionFixture(
-				condition === 'permission' ? [] : [OWNER_INVITATION_PERMISSION.send],
+				condition === 'permission'
+					? [PLATFORM_PERMISSION.dashboardRead]
+					: [OWNER_INVITATION_PERMISSION.send],
 			);
 			if (condition === 'expired') session.expiresAt = new Date(0);
 			if (condition === 'revoked') session.revokedAt = new Date();
@@ -131,10 +139,14 @@ describe('owner invitation delivery HTTP (real guards, DTOs, services; fake adap
 	});
 
 	it('fails closed when disabled, missing the repair, or unable to audit', async () => {
-		const settings = config.get('OWNER_INVITATION_DELIVERY', { infer: true });
-		config.set('OWNER_INVITATION_DELIVERY', null);
+		await app.close();
+		await initialize({
+			...invitationDeliveryInput(),
+			OWNER_INVITATION_DELIVERY_ENABLED: 'false',
+		});
 		await queue().expect(503);
-		config.set('OWNER_INVITATION_DELIVERY', settings);
+		await app.close();
+		await initialize();
 		database.state.ready = false;
 		await queue().expect(503);
 		database.state.ready = true;
