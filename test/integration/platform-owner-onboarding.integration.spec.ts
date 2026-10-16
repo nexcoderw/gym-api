@@ -41,10 +41,21 @@ describe('owner onboarding module integration (adapter fake; no live PostgreSQL)
 
 	it('keeps the worker outside the HTTP container and refuses unapproved delivery', async () => {
 		const callsBefore = database.runTransaction.mock.calls.length;
-		await expect(module.get(OwnerInvitationDeliveryService).queue(
-			{ actorPlatformStaffId: OWNER_INVITATION_ACTOR_ID, requestId: 'fictional-disabled-delivery' },
-			ORGANIZATION_ID, OWNER_INVITATION_ID,
-		)).rejects.toMatchObject({ status: 503, response: { code: 'OWNER_INVITATION_DELIVERY_UNAVAILABLE' } });
+		await expect(
+			module
+				.get(OwnerInvitationDeliveryService)
+				.queue(
+					{
+						actorPlatformStaffId: OWNER_INVITATION_ACTOR_ID,
+						requestId: 'fictional-disabled-delivery',
+					},
+					ORGANIZATION_ID,
+					OWNER_INVITATION_ID,
+				),
+		).rejects.toMatchObject({
+			status: 503,
+			response: { code: 'OWNER_INVITATION_DELIVERY_UNAVAILABLE' },
+		});
 		expect(database.runTransaction).toHaveBeenCalledTimes(callsBefore);
 	});
 
