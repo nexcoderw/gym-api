@@ -889,3 +889,24 @@ OWNER_INVITATION_WORKER_ID=invitation-worker-01 npm run worker:owner-invitations
 The identifier must be stable and unique among live workers. Do not put keys, tokens or database URLs
 in that command. Review process grace periods, provider tests, quotas, IP rate limiting, monitoring,
 retention, acceptance-page referrer/analytics behavior and incident procedures before production.
+
+## Owner enrollment and organization portal
+
+Step 22 adds a separate global-User owner boundary. It never reuses the platform session cookie,
+token pepper, CSRF token or authorization guard. Owner login requires an active verified non-platform
+User with a live active membership carrying the exact organization-scoped `owner` role. Every session
+read revalidates password-change time, idle/absolute expiry, membership, role and organization state.
+
+The invitation flow creates a short-lived purpose-scoped enrollment proof. Existing recipients must
+authenticate; new recipients create their own Argon2id password after invitation mailbox proof.
+Acceptance validates identity binding again and atomically consumes invitation/proof, activates only a
+safe pending membership, assigns the system owner role and inserts recipient audit evidence. A pending
+gym may finish enrollment but remains operationally restricted. Suspended and archived gyms receive
+no portal operations.
+
+Local portal configuration uses `ORGANIZATION_PORTAL_ORIGIN=http://localhost:4001`, non-Secure local
+owner cookies, and independent canonical base64 32-byte owner session/enrollment peppers. Production
+requires HTTPS, Secure host-only cookies and independent managed secrets. Deploy and grant the reviewed
+owner-session migration in `gym_dev` before starting this API; see the database README. Delivery must
+remain disabled until the Resend sender, fixed portal acceptance origin, worker, monitoring and real
+portal deployment are reviewed together.
