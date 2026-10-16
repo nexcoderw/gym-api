@@ -50,11 +50,9 @@ export function validateOwnerInvitationWorkerEnvironment(
 	if (
 		!/^re_[A-Za-z0-9_-]{1,256}$/u.test(apiKey) ||
 		sender.length > 254 ||
-		!/^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@notify\.gym\.rw$/u.test(sender)
+		!/^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$/u.test(sender)
 	) {
-		throw new Error(
-			'The invitation worker requires a verified notify.gym.rw sender and Resend key.',
-		);
+		throw new Error('The invitation worker requires a valid Resend key and bare sender address.');
 	}
 	return Object.freeze({
 		NODE_ENV: environment,
