@@ -17,13 +17,20 @@ const safeCodes = new Set([
 
 /** Nest bootstrap exceptions can include driver details; log only reviewed worker metadata. */
 function operationalEvent(value: unknown): boolean {
-	if (typeof value !== 'object' || value === null || !('code' in value) ||
-		typeof value.code !== 'string' || !safeCodes.has(value.code)) return false;
+	if (
+		typeof value !== 'object' ||
+		value === null ||
+		!('code' in value) ||
+		typeof value.code !== 'string' ||
+		!safeCodes.has(value.code)
+	)
+		return false;
 	const event: Record<string, string> = { code: value.code };
 	for (const name of ['workerId', 'deliveryId', 'organizationId']) {
 		if (name in value) {
 			const property: unknown = Reflect.get(value, name);
-			if (typeof property === 'string' && /^[A-Za-z0-9._:-]{1,120}$/u.test(property)) event[name] = property;
+			if (typeof property === 'string' && /^[A-Za-z0-9._:-]{1,120}$/u.test(property))
+				event[name] = property;
 		}
 	}
 	process.stderr.write(`${JSON.stringify(event)}\n`);
@@ -31,10 +38,15 @@ function operationalEvent(value: unknown): boolean {
 }
 
 const operationalLogger: LoggerService = {
-	log(value: unknown): void { operationalEvent(value); },
-	warn(value: unknown): void { operationalEvent(value); },
+	log(value: unknown): void {
+		operationalEvent(value);
+	},
+	warn(value: unknown): void {
+		operationalEvent(value);
+	},
 	error(value: unknown): void {
-		if (!operationalEvent(value)) process.stderr.write('{"code":"OWNER_INVITATION_WORKER_RUNTIME_ERROR"}\n');
+		if (!operationalEvent(value))
+			process.stderr.write('{"code":"OWNER_INVITATION_WORKER_RUNTIME_ERROR"}\n');
 	},
 };
 
@@ -43,9 +55,14 @@ async function main(): Promise<void> {
 	if (workerId === undefined || !/^[A-Za-z0-9._:-]{1,120}$/u.test(workerId)) {
 		throw new Error('Missing stable worker identity.');
 	}
-	const application = await NestFactory.createApplicationContext(OwnerInvitationDeliveryWorkerModule, { logger: operationalLogger, abortOnError: false });
+	const application = await NestFactory.createApplicationContext(
+		OwnerInvitationDeliveryWorkerModule,
+		{ logger: operationalLogger, abortOnError: false },
+	);
 	const shutdown = new AbortController();
-	const stop = (): void => { shutdown.abort(); };
+	const stop = (): void => {
+		shutdown.abort();
+	};
 	process.once('SIGINT', stop);
 	process.once('SIGTERM', stop);
 	try {
@@ -70,6 +87,9 @@ async function main(): Promise<void> {
 }
 
 void main().catch(() => {
-	new Logger('OwnerInvitationDeliveryWorker').error({ code: 'OWNER_INVITATION_WORKER_STOPPED', message: 'Review protected configuration and database prerequisites before restarting.' });
+	new Logger('OwnerInvitationDeliveryWorker').error({
+		code: 'OWNER_INVITATION_WORKER_STOPPED',
+		message: 'Review protected configuration and database prerequisites before restarting.',
+	});
 	process.exitCode = 1;
 });
