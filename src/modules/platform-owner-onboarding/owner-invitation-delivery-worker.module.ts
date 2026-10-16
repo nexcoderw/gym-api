@@ -2,7 +2,10 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { DatabaseModule } from '@nexcoderw/gym-db';
 
-import { validateOwnerInvitationWorkerEnvironment, type OwnerInvitationWorkerEnvironment } from '../../config/owner-invitation-worker.environment.js';
+import {
+	validateOwnerInvitationWorkerEnvironment,
+	type OwnerInvitationWorkerEnvironment,
+} from '../../config/owner-invitation-worker.environment.js';
 import { ResendOwnerInvitationEmailService } from '../../infrastructure/email/resend-owner-invitation-email.service.js';
 import { OwnerInvitationDeliveryGate } from './owner-invitation-delivery.policy.js';
 import { OwnerInvitationDeliveryWorkerService } from './owner-invitation-delivery-worker.service.js';
@@ -13,7 +16,9 @@ import { OwnerInvitationTokenService } from './owner-invitation-token.service.js
 @Module({
 	imports: [
 		ConfigModule.forRoot({
-			isGlobal: true, ignoreEnvFile: true, cache: true,
+			isGlobal: true,
+			ignoreEnvFile: true,
+			cache: true,
 			validate: validateOwnerInvitationWorkerEnvironment,
 		}),
 		DatabaseModule.forRootAsync({
@@ -21,11 +26,18 @@ import { OwnerInvitationTokenService } from './owner-invitation-token.service.js
 			useFactory: (config: ConfigService<OwnerInvitationWorkerEnvironment, true>) => ({
 				databaseUrl: config.get('DATABASE_URL', { infer: true }),
 				poolMax: config.get('DATABASE_POOL_MAX', { infer: true }),
-				connectionTimeoutMilliseconds: config.get('DATABASE_CONNECTION_TIMEOUT_MS', { infer: true }),
+				connectionTimeoutMilliseconds: config.get('DATABASE_CONNECTION_TIMEOUT_MS', {
+					infer: true,
+				}),
 			}),
 		}),
 	],
-	providers: [OwnerInvitationDeliveryGate, OwnerInvitationDeliveryWorkerService,
-		OwnerInvitationTokenService, OwnerInvitationTokenEnvelopeService, ResendOwnerInvitationEmailService],
+	providers: [
+		OwnerInvitationDeliveryGate,
+		OwnerInvitationDeliveryWorkerService,
+		OwnerInvitationTokenService,
+		OwnerInvitationTokenEnvelopeService,
+		ResendOwnerInvitationEmailService,
+	],
 })
 export class OwnerInvitationDeliveryWorkerModule {}
