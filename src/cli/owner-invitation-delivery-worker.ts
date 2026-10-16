@@ -74,8 +74,9 @@ async function main(): Promise<void> {
 			await worker.runOnce(workerId);
 			try {
 				await delay(1000, undefined, { signal: shutdown.signal });
-			} catch {
-				if (!shutdown.signal.aborted) throw new Error('Worker scheduling failed.');
+			} catch (error: unknown) {
+				if (error instanceof Error && error.name === 'AbortError') continue;
+				throw new Error('Worker scheduling failed.', { cause: error });
 			}
 		}
 	} finally {
