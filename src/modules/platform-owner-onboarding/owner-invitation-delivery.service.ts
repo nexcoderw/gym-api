@@ -7,16 +7,25 @@ import {
 	PrismaService,
 } from '@nexcoderw/gym-db';
 
-import type { OwnerInvitationDeliveryResponseDto, OwnerInvitationPreviewResponseDto } from './dto/owner-invitation-delivery.dto.js';
+import type {
+	OwnerInvitationDeliveryResponseDto,
+	OwnerInvitationPreviewResponseDto,
+} from './dto/owner-invitation-delivery.dto.js';
 import {
-	INVITATION_DELIVERY_TRANSACTION, invitationDeliveryFailure, lockInvitationParents,
+	INVITATION_DELIVERY_TRANSACTION,
+	invitationDeliveryFailure,
+	lockInvitationParents,
 	OwnerInvitationDeliveryGate,
 } from './owner-invitation-delivery.policy.js';
 import { OwnerInvitationTokenEnvelopeService } from './owner-invitation-token-envelope.service.js';
 import { OwnerInvitationTokenService } from './owner-invitation-token.service.js';
-import { PlatformOwnerInvitationAudit, type OwnerInvitationMutationContext } from './platform-owner-invitation-audit.js';
 import {
-	assertOrganizationCanReceiveOwnerInvitation, ownerInvitationNotFound,
+	PlatformOwnerInvitationAudit,
+	type OwnerInvitationMutationContext,
+} from './platform-owner-invitation-audit.js';
+import {
+	assertOrganizationCanReceiveOwnerInvitation,
+	ownerInvitationNotFound,
 	ownerInvitationOrganizationNotFound,
 } from './platform-owner-invitation-policy.js';
 
@@ -31,7 +40,9 @@ export class OwnerInvitationDeliveryService {
 	) {}
 
 	async queue(
-		context: OwnerInvitationMutationContext, organizationId: string, invitationId: string,
+		context: OwnerInvitationMutationContext,
+		organizationId: string,
+		invitationId: string,
 	): Promise<OwnerInvitationDeliveryResponseDto> {
 		const settings = this.gate.settings();
 		await this.gate.assertDatabase();
@@ -40,19 +51,25 @@ export class OwnerInvitationDeliveryService {
 			return await this.prisma.$transaction(async (transaction) => {
 				const now = await lockInvitationParents(transaction, organizationId, invitationId);
 				const organization = await transaction.organization.findUnique({
-					where: { id: organizationId }, select: { name: true, status: true },
+					where: { id: organizationId },
+					select: { name: true, status: true },
 				});
 				if (organization === null) throw ownerInvitationOrganizationNotFound();
 				assertOrganizationCanReceiveOwnerInvitation(organization.status);
 				const invitation = await transaction.organizationOwnerInvitation.findFirst({
-					where: { organizationId, id: invitationId }, select: { status: true, invitedEmail: true },
+					where: { organizationId, id: invitationId },
+					select: { status: true, invitedEmail: true },
 				});
 				if (invitation === null) throw ownerInvitationNotFound();
-				if (invitation.status === InvitationStatus.REVOKED || invitation.status === InvitationStatus.ACCEPTED) {
+				if (
+					invitation.status === InvitationStatus.REVOKED ||
+					invitation.status === InvitationStatus.ACCEPTED
+				) {
 					throw deliveryConflict();
 				}
 				const existing = await transaction.organizationOwnerInvitationDelivery.findFirst({
-					where: { organizationId, ownerInvitationId: invitationId }, select: { status: true },
+					where: { organizationId, ownerInvitationId: invitationId },
+					select: { status: true },
 				});
 				if (existing !== null) return deliveryResponse(existing.status);
 				if (invitation.status !== InvitationStatus.PENDING_DELIVERY) throw deliveryConflict();
@@ -60,21 +77,34 @@ export class OwnerInvitationDeliveryService {
 				const token = this.tokens.generate();
 				await transaction.organizationOwnerInvitationDelivery.create({
 					data: {
-						...identity, requestedByPlatformStaffId: context.actorPlatformStaffId,
-						status: DeliveryStatus.QUEUED, attemptCount: 0, maxAttempts: settings.maxAttempts,
-						nextAttemptAt: now, createdAt: now, updatedAt: now,
+						...identity,
+						requestedByPlatformStaffId: context.actorPlatformStaffId,
+						status: DeliveryStatus.QUEUED,
+						attemptCount: 0,
+						maxAttempts: settings.maxAttempts,
+						nextAttemptAt: now,
+						createdAt: now,
+						updatedAt: now,
 						providerIdempotencyKey: `owner-invitation-delivery:${identity.id}`,
 						tokenDigest: this.tokens.digest(token),
 						tokenExpiresAt: new Date(now.getTime() + settings.expirySeconds * 1000),
 						...this.envelopes.encrypt(identity, {
-							token, recipient: invitation.invitedEmail, organizationName: organization.name,
-							sender: this.gate.sender(), acceptanceOrigin: settings.acceptanceOrigin,
+							token,
+							recipient: invitation.invitedEmail,
+							organizationName: organization.name,
+							sender: this.gate.sender(),
+							acceptanceOrigin: settings.acceptanceOrigin,
 							acceptancePath: settings.acceptancePath,
 						}),
-					}, select: { id: true },
+					},
+					select: { id: true },
 				});
 				await this.audit.record(transaction, {
-					...context, action: 'queued', organizationId, invitationId, occurredAt: now,
+					...context,
+					action: 'queued',
+					organizationId,
+					invitationId,
+					occurredAt: now,
 					previousStatus: InvitationStatus.PENDING_DELIVERY,
 					resultingStatus: InvitationStatus.PENDING_DELIVERY,
 				});
@@ -123,9 +153,15 @@ export function deliveryResponse(status: string): OwnerInvitationDeliveryRespons
 }
 
 function deliveryConflict(): ConflictException {
-	return new ConflictException({ code: 'OWNER_INVITATION_DELIVERY_CONFLICT', message: 'This invitation cannot be queued in its current state.' });
+	return new ConflictException({
+		code: 'OWNER_INVITATION_DELIVERY_CONFLICT',
+		message: 'This invitation cannot be queued in its current state.',
+	});
 }
 
 function invalidToken(): UnauthorizedException {
-	return new UnauthorizedException({ code: 'OWNER_INVITATION_INVALID', message: 'This invitation is invalid or unavailable.' });
+	return new UnauthorizedException({
+		code: 'OWNER_INVITATION_INVALID',
+		message: 'This invitation is invalid or unavailable.',
+	});
 }
