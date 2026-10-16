@@ -419,14 +419,6 @@ export function validateEnvironment(input: Record<string, unknown>): Environment
 	) {
 		throw new Error('RESEND_FROM_EMAIL must be a bare email address on a verified sender domain.');
 	}
-	if (
-		invitationDelivery !== null &&
-		resendFromEmail !== null &&
-		!resendFromEmail.endsWith('@notify.gym.rw')
-	) {
-		throw new Error('Owner invitation delivery requires a verified sender on notify.gym.rw.');
-	}
-
 	return Object.freeze({
 		NODE_ENV: nodeEnvironment,
 		HOST: typeof host === 'string' ? host : '127.0.0.1',
