@@ -8,10 +8,13 @@ import type { OwnerInvitationDeliveryEnvironment } from '../../config/owner-invi
 export const INVITATION_DELIVERY_TRANSACTION = Object.freeze({ maxWait: 5_000, timeout: 10_000 });
 
 export function invitationDeliveryUnavailable(cause?: unknown): ServiceUnavailableException {
-	return new ServiceUnavailableException({
-		code: 'OWNER_INVITATION_DELIVERY_UNAVAILABLE',
-		message: 'Invitation delivery is unavailable. No delivery success has been confirmed.',
-	}, { cause });
+	return new ServiceUnavailableException(
+		{
+			code: 'OWNER_INVITATION_DELIVERY_UNAVAILABLE',
+			message: 'Invitation delivery is unavailable. No delivery success has been confirmed.',
+		},
+		{ cause },
+	);
 }
 
 export function invitationDeliveryFailure(error: unknown): HttpException {
@@ -97,7 +100,9 @@ export class OwnerInvitationDeliveryGate {
 
 /** Shared lock order with the reviewed trigger: organization, invitation, then delivery. */
 export async function lockInvitationParents(
-	transaction: Prisma.TransactionClient, organizationId: string, invitationId: string,
+	transaction: Prisma.TransactionClient,
+	organizationId: string,
+	invitationId: string,
 	deliveryId?: string,
 ): Promise<Date> {
 	await transaction.$queryRaw`SELECT id FROM public.organizations WHERE id = ${organizationId}::uuid FOR SHARE`;
@@ -109,6 +114,7 @@ export async function lockInvitationParents(
 	}
 	const rows = await transaction.$queryRaw<{ now: Date }[]>`SELECT clock_timestamp() AS now`;
 	const now = rows[0]?.now;
-	if (!(now instanceof Date) || !Number.isFinite(now.getTime())) throw invitationDeliveryUnavailable();
+	if (!(now instanceof Date) || !Number.isFinite(now.getTime()))
+		throw invitationDeliveryUnavailable();
 	return now;
 }
