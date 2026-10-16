@@ -34,12 +34,16 @@ export interface InvitationTokenEnvelope {
 export class OwnerInvitationTokenEnvelopeService {
 	constructor(private readonly config: ConfigService<EnvironmentVariables, true>) {}
 
-	encrypt(identity: InvitationEnvelopeIdentity, snapshot: InvitationEmailSnapshot): InvitationTokenEnvelope {
+	encrypt(
+		identity: InvitationEnvelopeIdentity,
+		snapshot: InvitationEmailSnapshot,
+	): InvitationTokenEnvelope {
 		const settings = this.settings();
 		const secret = settings.encryptionKeys[settings.activeKeyId];
 		if (secret === undefined) throw new Error('Invitation encryption unavailable.');
 		const plaintext = Buffer.from(JSON.stringify(snapshot));
-		if (plaintext.length < 32 || plaintext.length > 4096) throw new Error('Invitation envelope bounds exceeded.');
+		if (plaintext.length < 32 || plaintext.length > 4096)
+			throw new Error('Invitation envelope bounds exceeded.');
 		const iv = randomBytes(12);
 		const cipher = createCipheriv('aes-256-gcm', Buffer.from(secret, 'base64'), iv);
 		cipher.setAAD(associatedData(identity));
@@ -57,20 +61,34 @@ export class OwnerInvitationTokenEnvelopeService {
 	}
 
 	/** Only the explicitly started delivery worker consumes plaintext envelopes. */
-	decrypt(identity: InvitationEnvelopeIdentity, envelope: InvitationTokenEnvelope): InvitationEmailSnapshot {
+	decrypt(
+		identity: InvitationEnvelopeIdentity,
+		envelope: InvitationTokenEnvelope,
+	): InvitationEmailSnapshot {
 		try {
 			const secret = this.settings().encryptionKeys[envelope.tokenEncryptionKeyId];
-			if (secret === undefined || envelope.tokenEncryptionVersion !== 1 ||
-				envelope.tokenInitializationVector.length !== 12 || envelope.tokenAuthenticationTag.length !== 16 ||
-				envelope.tokenCiphertext.length < 32 || envelope.tokenCiphertext.length > 4096) {
+			if (
+				secret === undefined ||
+				envelope.tokenEncryptionVersion !== 1 ||
+				envelope.tokenInitializationVector.length !== 12 ||
+				envelope.tokenAuthenticationTag.length !== 16 ||
+				envelope.tokenCiphertext.length < 32 ||
+				envelope.tokenCiphertext.length > 4096
+			) {
 				throw new Error('Invalid envelope.');
 			}
-			const decipher = createDecipheriv('aes-256-gcm', Buffer.from(secret, 'base64'), envelope.tokenInitializationVector);
+			const decipher = createDecipheriv(
+				'aes-256-gcm',
+				Buffer.from(secret, 'base64'),
+				envelope.tokenInitializationVector,
+			);
 			decipher.setAAD(associatedData(identity));
 			decipher.setAuthTag(envelope.tokenAuthenticationTag);
-			const value: unknown = JSON.parse(Buffer.concat([
-				decipher.update(envelope.tokenCiphertext), decipher.final(),
-			]).toString('utf8'));
+			const value: unknown = JSON.parse(
+				Buffer.concat([decipher.update(envelope.tokenCiphertext), decipher.final()]).toString(
+					'utf8',
+				),
+			);
 			if (!isSnapshot(value)) throw new Error('Invalid snapshot.');
 			return value;
 		} catch {
@@ -86,17 +104,38 @@ export class OwnerInvitationTokenEnvelopeService {
 }
 
 function associatedData(identity: InvitationEnvelopeIdentity): Buffer {
-	return Buffer.from(JSON.stringify([
-		OWNER_INVITATION_TOKEN_PURPOSE, 1, identity.id, identity.organizationId, identity.ownerInvitationId,
-	]));
+	return Buffer.from(
+		JSON.stringify([
+			OWNER_INVITATION_TOKEN_PURPOSE,
+			1,
+			identity.id,
+			identity.organizationId,
+			identity.ownerInvitationId,
+		]),
+	);
 }
 
 function isSnapshot(value: unknown): value is InvitationEmailSnapshot {
-	return typeof value === 'object' && value !== null &&
-		'token' in value && typeof value.token === 'string' && /^[A-Za-z0-9_-]{43}$/u.test(value.token) &&
-		'organizationName' in value && typeof value.organizationName === 'string' && value.organizationName.length <= 160 &&
-		'recipient' in value && typeof value.recipient === 'string' && value.recipient.length <= 254 &&
-		'sender' in value && typeof value.sender === 'string' && value.sender.length <= 254 &&
-		'acceptanceOrigin' in value && typeof value.acceptanceOrigin === 'string' && value.acceptanceOrigin.length <= 253 &&
-		'acceptancePath' in value && typeof value.acceptancePath === 'string' && value.acceptancePath.length <= 120;
+	return (
+		typeof value === 'object' &&
+		value !== null &&
+		'token' in value &&
+		typeof value.token === 'string' &&
+		/^[A-Za-z0-9_-]{43}$/u.test(value.token) &&
+		'organizationName' in value &&
+		typeof value.organizationName === 'string' &&
+		value.organizationName.length <= 160 &&
+		'recipient' in value &&
+		typeof value.recipient === 'string' &&
+		value.recipient.length <= 254 &&
+		'sender' in value &&
+		typeof value.sender === 'string' &&
+		value.sender.length <= 254 &&
+		'acceptanceOrigin' in value &&
+		typeof value.acceptanceOrigin === 'string' &&
+		value.acceptanceOrigin.length <= 253 &&
+		'acceptancePath' in value &&
+		typeof value.acceptancePath === 'string' &&
+		value.acceptancePath.length <= 120
+	);
 }
