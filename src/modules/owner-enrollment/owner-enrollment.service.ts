@@ -81,8 +81,7 @@ export class OwnerEnrollmentService {
 					},
 				});
 				if (
-					invitation === null ||
-					invitation.status !== OrganizationOwnerInvitationStatus.SENT ||
+					invitation?.status !== OrganizationOwnerInvitationStatus.SENT ||
 					invitation.expiresAt === null ||
 					invitation.expiresAt <= now ||
 					invitation.revokedAt !== null ||
