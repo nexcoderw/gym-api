@@ -4,25 +4,55 @@ import { parseOwnerInvitationDeliveryEnvironment } from '../../src/config/owner-
 import { validateOwnerInvitationWorkerEnvironment } from '../../src/config/owner-invitation-worker.environment.js';
 import { OwnerInvitationTokenEnvelopeService } from '../../src/modules/platform-owner-onboarding/owner-invitation-token-envelope.service.js';
 import { OwnerInvitationTokenService } from '../../src/modules/platform-owner-onboarding/owner-invitation-token.service.js';
-import { invitationDeliveryConfig, invitationDeliveryInput } from '../fixtures/owner-invitation-delivery.fixture.js';
+import {
+	invitationDeliveryConfig,
+	invitationDeliveryInput,
+} from '../fixtures/owner-invitation-delivery.fixture.js';
 
-const identity = { id: '11111111-1111-4111-8111-111111111111', organizationId: '22222222-2222-4222-8222-222222222222', ownerInvitationId: '33333333-3333-4333-8333-333333333333' };
+const identity = {
+	id: '11111111-1111-4111-8111-111111111111',
+	organizationId: '22222222-2222-4222-8222-222222222222',
+	ownerInvitationId: '33333333-3333-4333-8333-333333333333',
+};
 
 describe('owner invitation configuration and cryptography', () => {
 	it('validates a separately provisioned worker without HTTP session or TOTP secrets', () => {
-		const input = { ...invitationDeliveryInput(), DATABASE_URL: 'postgresql://gym_invitation_worker:fictional@localhost:5432/disposable_gym' };
+		const input = {
+			...invitationDeliveryInput(),
+			DATABASE_URL: 'postgresql://gym_invitation_worker:fictional@localhost:5432/disposable_gym',
+		};
 		const worker = validateOwnerInvitationWorkerEnvironment(input);
 		expect(worker.DATABASE_POOL_MAX).toBeLessThanOrEqual(16);
 		expect(worker).not.toHaveProperty('PLATFORM_AUTH_TOKEN_PEPPER');
 		expect(worker).not.toHaveProperty('PLATFORM_TOTP_KEYRING');
-		expect(() => validateOwnerInvitationWorkerEnvironment({ ...input, OWNER_INVITATION_DELIVERY_ENABLED: 'false' })).toThrow('approved');
-		expect(() => validateOwnerInvitationWorkerEnvironment({ ...input, DATABASE_URL: 'postgresql://neondb_owner:fictional@localhost:5432/disposable_gym' })).toThrow('restricted');
+		expect(() =>
+			validateOwnerInvitationWorkerEnvironment({
+				...input,
+				OWNER_INVITATION_DELIVERY_ENABLED: 'false',
+			}),
+		).toThrow('approved');
+		expect(() =>
+			validateOwnerInvitationWorkerEnvironment({
+				...input,
+				DATABASE_URL: 'postgresql://neondb_owner:fictional@localhost:5432/disposable_gym',
+			}),
+		).toThrow('restricted');
 	});
 	it('is off by default and requires database and independent destination approval', () => {
 		expect(parseOwnerInvitationDeliveryEnvironment({}, false)).toBeNull();
 		const input = invitationDeliveryInput();
-		expect(() => parseOwnerInvitationDeliveryEnvironment({ ...input, OWNER_INVITATION_DELIVERY_DATABASE_APPROVED: 'false' }, false)).toThrow('independent approval');
-		expect(() => parseOwnerInvitationDeliveryEnvironment({ ...input, OWNER_INVITATION_ACCEPTANCE_REVIEW_ID: '' }, false)).toThrow('REVIEW_ID');
+		expect(() =>
+			parseOwnerInvitationDeliveryEnvironment(
+				{ ...input, OWNER_INVITATION_DELIVERY_DATABASE_APPROVED: 'false' },
+				false,
+			),
+		).toThrow('independent approval');
+		expect(() =>
+			parseOwnerInvitationDeliveryEnvironment(
+				{ ...input, OWNER_INVITATION_ACCEPTANCE_REVIEW_ID: '' },
+				false,
+			),
+		).toThrow('REVIEW_ID');
 	});
 
 	it.each([
@@ -36,13 +66,31 @@ describe('owner invitation configuration and cryptography', () => {
 		{ OWNER_INVITATION_DELIVERY_LEASE_SECONDS: '9999' },
 		{ OWNER_INVITATION_DELIVERY_MAX_ATTEMPTS: '11' },
 	])('rejects unsafe enabled configuration %j', (overrides) => {
-		expect(() => parseOwnerInvitationDeliveryEnvironment({ ...invitationDeliveryInput(), ...overrides }, false)).toThrow();
+		expect(() =>
+			parseOwnerInvitationDeliveryEnvironment(
+				{ ...invitationDeliveryInput(), ...overrides },
+				false,
+			),
+		).toThrow();
 	});
 
 	it('rejects localhost production and reused secrets', () => {
 		const input = invitationDeliveryInput();
-		expect(() => parseOwnerInvitationDeliveryEnvironment({ ...input, OWNER_INVITATION_ACCEPTANCE_ORIGIN: 'http://localhost:4001' }, true)).toThrow('HTTPS');
-		expect(() => parseOwnerInvitationDeliveryEnvironment({ ...input, OWNER_INVITATION_ENCRYPTION_KEYRING: `key=${String(input.OWNER_INVITATION_TOKEN_HMAC_SECRET)}` }, false)).toThrow('separate');
+		expect(() =>
+			parseOwnerInvitationDeliveryEnvironment(
+				{ ...input, OWNER_INVITATION_ACCEPTANCE_ORIGIN: 'http://localhost:4001' },
+				true,
+			),
+		).toThrow('HTTPS');
+		expect(() =>
+			parseOwnerInvitationDeliveryEnvironment(
+				{
+					...input,
+					OWNER_INVITATION_ENCRYPTION_KEYRING: `key=${String(input.OWNER_INVITATION_TOKEN_HMAC_SECRET)}`,
+				},
+				false,
+			),
+		).toThrow('separate');
 	});
 
 	it('generates canonical opaque tokens and purpose-separated keyed digests', () => {
@@ -58,7 +106,11 @@ describe('owner invitation configuration and cryptography', () => {
 			expect(tokens.matches(tokens.generate(), digest)).toBe(false);
 			const settings = config.get('OWNER_INVITATION_DELIVERY', { infer: true });
 			if (settings === null) throw new Error('Missing fixture configuration.');
-			expect(digest).not.toBe(createHmac('sha256', Buffer.from(settings.hmacSecret, 'base64')).update(JSON.stringify(['platform-session', token])).digest('hex'));
+			expect(digest).not.toBe(
+				createHmac('sha256', Buffer.from(settings.hmacSecret, 'base64'))
+					.update(JSON.stringify(['platform-session', token]))
+					.digest('hex'),
+			);
 		}
 		for (const value of ['', 'x'.repeat(44), '../secret', 'a'.repeat(43)]) {
 			expect(tokens.isValidFormat(value)).toBe(false);
@@ -68,7 +120,14 @@ describe('owner invitation configuration and cryptography', () => {
 	it('authenticates ciphertext, identity, version, key and tag; supports old-key rotation', () => {
 		const config = invitationDeliveryConfig();
 		const envelopes = new OwnerInvitationTokenEnvelopeService(config);
-		const snapshot = { token: new OwnerInvitationTokenService(config).generate(), organizationName: 'Soho Gym', recipient: 'owner@example.com', sender: 'invitations@notify.gym.rw', acceptanceOrigin: 'https://owners.example.invalid', acceptancePath: '/owner-invitations/accept' };
+		const snapshot = {
+			token: new OwnerInvitationTokenService(config).generate(),
+			organizationName: 'Soho Gym',
+			recipient: 'owner@example.com',
+			sender: 'invitations@notify.gym.rw',
+			acceptanceOrigin: 'https://owners.example.invalid',
+			acceptancePath: '/owner-invitations/accept',
+		};
 		const envelope = envelopes.encrypt(identity, snapshot);
 		const another = envelopes.encrypt(identity, snapshot);
 		expect(envelope.tokenInitializationVector).not.toEqual(another.tokenInitializationVector);
@@ -81,15 +140,23 @@ describe('owner invitation configuration and cryptography', () => {
 			{ ...envelope, tokenCiphertext: new Uint8Array(envelope.tokenCiphertext.length) },
 			{ ...envelope, tokenEncryptionKeyId: 'missing' },
 			{ ...envelope, tokenEncryptionVersion: 2 },
-		]) expect(() => envelopes.decrypt(identity, changed)).toThrow('could not be opened');
+		])
+			expect(() => envelopes.decrypt(identity, changed)).toThrow('could not be opened');
 		for (const field of ['id', 'organizationId', 'ownerInvitationId']) {
 			expect(() => envelopes.decrypt({ ...identity, [field]: 'different' }, envelope)).toThrow();
 		}
 		const old = config.get('OWNER_INVITATION_DELIVERY', { infer: true });
 		if (old === null) throw new Error('Missing fixture configuration.');
-		config.set('OWNER_INVITATION_DELIVERY', { ...old, activeKeyId: 'next', encryptionKeys: { ...old.encryptionKeys, next: randomBytes(32).toString('base64') } });
+		config.set('OWNER_INVITATION_DELIVERY', {
+			...old,
+			activeKeyId: 'next',
+			encryptionKeys: { ...old.encryptionKeys, next: randomBytes(32).toString('base64') },
+		});
 		expect(envelopes.decrypt(identity, envelope)).toEqual(snapshot);
-		config.set('OWNER_INVITATION_DELIVERY', { ...old, encryptionKeys: { [old.activeKeyId]: randomBytes(32).toString('base64') } });
+		config.set('OWNER_INVITATION_DELIVERY', {
+			...old,
+			encryptionKeys: { [old.activeKeyId]: randomBytes(32).toString('base64') },
+		});
 		expect(() => envelopes.decrypt(identity, envelope)).toThrow();
 	});
 });
