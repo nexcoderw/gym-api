@@ -319,10 +319,19 @@ export function validateEnvironment(input: Record<string, unknown>): Environment
 		'PLATFORM_AUTH_EMAIL_OTP_ENABLED',
 		false,
 	);
-	const invitationDelivery = parseOwnerInvitationDeliveryEnvironment(input, nodeEnvironment === 'production');
+	const invitationDelivery = parseOwnerInvitationDeliveryEnvironment(
+		input,
+		nodeEnvironment === 'production',
+	);
 	if (invitationDelivery !== null) {
-		const invitationSecrets = [invitationDelivery.hmacSecret, ...Object.values(invitationDelivery.encryptionKeys)];
-		if (invitationSecrets.includes(tokenPepper) || Object.values(totpKeyring).some((key) => invitationSecrets.includes(key))) {
+		const invitationSecrets = [
+			invitationDelivery.hmacSecret,
+			...Object.values(invitationDelivery.encryptionKeys),
+		];
+		if (
+			invitationSecrets.includes(tokenPepper) ||
+			Object.values(totpKeyring).some((key) => invitationSecrets.includes(key))
+		) {
 			throw new Error('Owner invitation keys must not reuse platform authentication or TOTP keys.');
 		}
 	}
@@ -345,7 +354,11 @@ export function validateEnvironment(input: Record<string, unknown>): Environment
 	) {
 		throw new Error('RESEND_FROM_EMAIL must be a bare email address on a verified sender domain.');
 	}
-	if (invitationDelivery !== null && resendFromEmail !== null && !resendFromEmail.endsWith('@notify.gym.rw')) {
+	if (
+		invitationDelivery !== null &&
+		resendFromEmail !== null &&
+		!resendFromEmail.endsWith('@notify.gym.rw')
+	) {
 		throw new Error('Owner invitation delivery requires a verified sender on notify.gym.rw.');
 	}
 
