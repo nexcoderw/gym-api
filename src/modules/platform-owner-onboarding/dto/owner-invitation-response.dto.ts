@@ -1,5 +1,8 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { OrganizationOwnerInvitationStatus } from '@nexcoderw/gym-db';
+import {
+	OrganizationOwnerInvitationDeliveryStatus,
+	OrganizationOwnerInvitationStatus,
+} from '@nexcoderw/gym-db';
 
 export class OwnerInvitationResponseDto {
 	@ApiProperty({ format: 'uuid' })
@@ -16,6 +19,9 @@ export class OwnerInvitationResponseDto {
 
 	@ApiProperty({ enum: OrganizationOwnerInvitationStatus })
 	status!: OrganizationOwnerInvitationStatus;
+
+	@ApiProperty({ enum: OrganizationOwnerInvitationDeliveryStatus, nullable: true })
+	deliveryStatus!: OrganizationOwnerInvitationDeliveryStatus | null;
 
 	@ApiProperty({ format: 'date-time' })
 	createdAt!: string;
