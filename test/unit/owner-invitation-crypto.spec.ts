@@ -127,7 +127,7 @@ describe('owner invitation configuration and cryptography', () => {
 			recipient: 'owner@example.com',
 			sender: 'invitations@notify.gym.rw',
 			acceptanceOrigin: 'https://owners.example.invalid',
-			acceptancePath: '/owner-invitations/accept',
+			acceptancePath: '/invitations/accept',
 		};
 		const envelope = envelopes.encrypt(identity, snapshot);
 		const another = envelopes.encrypt(identity, snapshot);
