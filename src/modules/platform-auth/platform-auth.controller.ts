@@ -89,6 +89,10 @@ export class PlatformAuthController {
 		description: 'Authentication attempts are rate limited.',
 		type: ApiErrorResponseDto,
 	})
+	@ApiServiceUnavailableResponse({
+		description: 'Login persistence could not be confirmed.',
+		type: ApiErrorResponseDto,
+	})
 	async login(
 		@Body() input: PlatformLoginDto,
 		@Req() request: PlatformRequest,
