@@ -192,7 +192,7 @@ Errors use this shape:
 An active staff member with a live database assignment to the system role `platform.owner`
 (`isSystem=true`) is the platform superadmin. After all session eligibility checks, Nest grants this
 principal every permission declared in `platform-permission.constants.ts`. This currently includes
-dashboard read, all six organization-management permissions and all three owner-invitation
+dashboard read, all six organization-management permissions and all four owner-invitation
 permissions. Existing owners receive these effective
 permissions on their next successful session check; no SQL grants, owner reinitialization or
 frontend role bypass is needed. New platform capabilities must register their permission in the
@@ -652,9 +652,8 @@ There is no invitation idempotency key or automatic mutation retry. After a time
 network outcome, reconcile through the organization-scoped list before deciding whether to submit a
 new invitation. PostgreSQL’s partial unique index remains the final concurrent-duplicate authority.
 
-Future delivery and acceptance work requires a verified public acceptance origin, a high-entropy
-single-use token with only its digest stored, controlled expiry, safe resend/token rotation, explicit
-delivery outcome auditing, and independent recipient identity verification. External email requests
+Delivery source is described in Step 21 below and remains release-gated. Acceptance still requires
+independent recipient identity verification. External email requests
 must not run inside the database transaction. Platform MFA OTPs must never be reused as invitation
 codes, and no URL should be generated until a reviewed acceptance route actually exists.
 
@@ -666,3 +665,227 @@ do not prove PostgreSQL constraints, trigger behavior, rollback or actual grants
 database package’s opt-in live integration workflow against the marked disposable test database.
 No registry artifact/version is invented. No frontend, branch, owner membership, subscription,
 payment, tenant login, domain provisioning or operator provisioning CLI is included.
+
+## Step 21: release-gated owner invitation delivery
+
+**Source implemented; database deployment, human verification and production operation are not
+confirmed. Delivery is disabled by default. No worker starts with the HTTP API.** No owner account,
+password, enrollment proof, membership, role, tenant session or acceptance endpoint is created.
+The admin application is unchanged; its delivery control must remain disabled.
+
+### Release prerequisites and configuration
+
+The last authorized migration-status inspection found
+`20261015235222_owner_enrollment_acceptance_foundation` pending on `gym_dev`. Do not run create-only
+generation while that earlier migration can apply unexpectedly. Its independent Step 19 SQL review
+is not part of enabling this feature. Preserve both applied delivery and committed enrollment SQL.
+The DB README contains the forward repair proposal and PostgreSQL coverage, **not an approved or
+deployed repair migration**. Have the human reconcile history and review a newly generated forward
+draft before disposable deployment. Never reset, use `db push`, edit applied history or ship an empty
+repair. The final repair must use the reviewed **4096-byte** encrypted-payload bound.
+
+Enable only after all of these are independently verified:
+
+- The forward delivery repair, six validated CHECKs, enabled guards, queue audit metadata, PUBLIC
+  revocations, role ownership/inheritance and compatible generated/built sibling `gym-db` package.
+- A real owner-facing acceptance page and fragment-token handling reviewed by security. Configuring
+  an origin or entering a review identifier is an operator attestation, not proof a page exists.
+- A verified `notify.gym.rw` sender, managed Resend key, separate random 256-bit invitation HMAC and
+  encryption secrets, controlled expiry/retention, provider idempotency tests and worker monitoring.
+- Successful isolated database, unit, module and real-guard HTTP checks, followed by an approved
+  fictional-recipient end-to-end provider test. None was run by the agent.
+
+The `.env.*.example` files list all settings with delivery OFF and approval false. Enabling requires
+`OWNER_INVITATION_DELIVERY_ENABLED=true`, `OWNER_INVITATION_DELIVERY_DATABASE_APPROVED=true`, a completed
+`OWNER_INVITATION_ACCEPTANCE_REVIEW_ID`, exact `OWNER_INVITATION_ACCEPTANCE_ORIGIN` and fixed
+`OWNER_INVITATION_ACCEPTANCE_PATH`. These attestations must never be copied blindly into production.
+Production requires HTTPS, rejects localhost/development key IDs, and has no bypass. No wildcard,
+credentials, query, fragment, client-selected destination or Host-derived link is accepted.
+
+Use `OWNER_INVITATION_TOKEN_HMAC_SECRET` for a separately managed canonical base64 32-byte key.
+`OWNER_INVITATION_ENCRYPTION_KEYRING` is up to four comma-separated `key-id=base64-key` entries;
+`OWNER_INVITATION_ENCRYPTION_ACTIVE_KEY_ID` must exist. These secrets must not reuse one another or
+platform token/TOTP keys. There are no invitation development-key defaults. Manage secrets outside
+Git; do not paste their values into shell history, chat, screenshots or diagnostics.
+
+Expiry is 300–604800 seconds (default 86400); leases 30–120 seconds (default 60); attempts 1–10
+(default 3); worker concurrency 1–4 (default 1). Enabled startup requires validated shared
+`RESEND_API_KEY` and a bare `RESEND_FROM_EMAIL` on the controlled verified sender domain. The MFA
+`sendOtp()` adapter is not reused. Runtime database preflight separately rejects missing checks,
+guards, queue-audit metadata, the older ciphertext bound and PUBLIC table/column/type/function grants.
+
+### Administrative reservation and public preview
+
+`POST /api/v1/platform/organizations/:organizationId/owner-invitations/:invitationId/delivery`
+requires a live MFA platform session, exact `platform.organizations.owners.send-invitation`, exact
+administrator Origin and valid CSRF. Trusted system owners inherit the registered permission;
+ordinary staff need its persisted role link. Both IDs are UUIDs. Body absent or `{}` only: recipient,
+URL, sender and token overrides are rejected. Disabled delivery returns safe 503 before mutation.
+
+The service locks organization then invitation, proves the association and PENDING/ACTIVE organization
+state, and inserts one QUEUED reservation plus `INVITATION_DELIVERY_QUEUED` in one short transaction.
+Invitation status remains PENDING_DELIVERY. Audit failure rolls back the reservation. Repeated calls
+return its existing safe status without generating a token or audit again. Revoked/accepted invitations
+conflict. One organization/invitation uniqueness constraint is the final duplicate authority.
+
+A 202 response contains only `status` and `message`. QUEUED means reserved, PROCESSING means claimed,
+CONFIRMED means provider acceptance plus database finalization (not inbox receipt), FAILED means known
+failure and UNCERTAIN requires operator review. It never returns a token, digest, envelope, recipient,
+provider identifier or internal failure. A failed/uncertain reservation is not overwritten by requeueing.
+
+`POST /api/v1/owner-invitations/preview` accepts only `{ "token": "<opaque token>" }`, is public and
+limited to 10 requests/minute per trusted request IP. It uses `Cache-Control: no-store`, sets no
+session cookies and returns only `{ "valid": true, "organizationName": "Soho Gym" }`. Database time,
+SENT status, expiry, null revocation/acceptance timestamps and an eligible organization are checked.
+Invalid digests, expired/revoked/accepted invitations and suspended/archived organizations share the
+same generic invalid response. Malformed/extra fields are rejected by validation. Account existence,
+email, identity, OWNER permissions and enrollment proofs are never returned or mutated. Configure
+trusted edge IP handling and distributed public throttling before multi-instance operation.
+
+### Token envelope and transport
+
+Tokens are 32 cryptographically random bytes in canonical base64url (43 characters), not UUIDs,
+sessions or MFA codes. HMAC-SHA256 covers JSON `["gym-owner-invitation-v1", token]` with the distinct
+invitation key. Invitations store the digest only when finalization commits SENT.
+
+Temporary delivery material uses AES-256-GCM with independent keys, random 12-byte IV and 16-byte tag.
+Associated data binds purpose, format version 1, delivery ID, organization ID and invitation ID. The
+4096-byte maximum encrypted JSON envelope freezes the token and minimal recipient/gym/sender/fixed
+destination snapshot so retries cannot change the provider payload after a gym rename. Only the
+explicit worker decrypts it. Missing keys, unknown versions, wrong identities/tags or corrupt data
+fail closed without plaintext errors. Do not remove old keys while any live envelope or approved
+backup still needs them. HMAC rotation invalidates old tokens; schedule rotation after the maximum
+issued lifetime or use an independently reviewed revocation/incident plan. Protect retained backups,
+erase recoverable live material at confirmed/terminal cleanup and retire keys only after backup
+retention review. JavaScript plaintext exists briefly in worker memory, never logs or persistence.
+
+The dedicated Resend adapter uses one fixed endpoint, subject and escaped template, a fragment token
+at the reviewed path, stable `owner-invitation-delivery:<reservation UUID>` key, 8-second deadline,
+redirect rejection, 4096-byte response bound and strict UUID provider-ID validation. Payload and
+expiry text are identical on retries. A sender/destination configuration change closes delivery as
+a known failure; it does not silently send a different payload. Provider 429 is a known retryable
+rejection; allowlisted permanent 4xx are terminal. Network/timeouts, 409, 5xx, malformed or lost
+responses are UNCERTAIN. No raw provider body or recipient is logged or returned.
+
+[Resend idempotency](https://resend.com/changelog/idempotency-keys) retains keys for 24 hours and
+requires the same payload. Automatic retries are limited to known rejections, the same reservation
+and encrypted payload, the attempt/expiry bounds, exponential backoff with jitter and a conservative
+23-hour window from reservation creation. There is no exactly-once guarantee across PostgreSQL and
+the provider. Unknown outcomes are never resubmitted automatically, even with a stable key.
+
+### Worker operation, privileges and recovery
+
+Only an explicitly started CLI processes reservations. It uses a stable unique
+`OWNER_INVITATION_WORKER_ID`, bounded candidates/concurrency and PostgreSQL row locks in organization,
+invitation, delivery order, with conditional status/attempt/lease-owner updates. There is no in-memory
+lock, startup worker or provider call inside a database transaction. Workers reauthorize the current
+requesting staff/user and current send permission at claim, before submission and finalization;
+they also recheck organization, invitation, token expiry and lease ownership. A short remaining lease
+is not enough to submit another provider request.
+
+The CLI uses a dedicated Nest module, not the HTTP AppModule. Neither the worker nor its Resend
+adapter is registered in the HTTP container. The CLI reads managed process environment
+only, never the API `.env.local`, and does not construct authentication providers or require platform
+session/TOTP secrets. Set NODE_ENV explicitly. Provision its own restricted database credentials and invitation/provider keys;
+the normal API and worker must not share a privileged connection or generic environment export.
+
+Provider acceptance finalization conditionally changes PENDING_DELIVERY to SENT with matching digest,
+expiry and sentAt, then CONFIRMED with provider ID and erased token envelope in the same transaction.
+If either conditional write fails, the transaction rolls back. Revocation remains the existing audited
+authority; a race may send an unusable external email, but cannot resurrect a revoked invitation or
+produce a valid preview after revocation. A provider-accepted email cannot be unsent.
+
+Expired PROCESSING leases become UNCERTAIN, not queued. Database failure after submission also attempts
+to record uncertainty; if persistence is unavailable the lease remains for recovery. SIGINT/SIGTERM
+stop new batches and settle bounded in-flight work; forced termination leaves leases for conservative
+recovery. The worker erases expired uncertain envelopes while retaining the non-secret uncertainty
+record. Known terminal failures erase secrets immediately; confirmed records are immutable.
+
+An unresolved per-record persistence operation stops the explicit CLI after the bounded batch rather
+than hot-looping a poison reservation. Protected operational logging allowlists only safe codes and
+record/worker IDs; it does not print arbitrary Nest/driver bootstrap exceptions.
+
+Operator recovery must correlate the protected reservation's provider key/message with provider-side
+evidence, exact payload and recipient, then review the unexpired invitation and organization again.
+No automated reconciliation/resend endpoint is supplied. Never generate a new token, requeue UNCERTAIN,
+or assume a timeout means failure. Use the DB README's independently reviewed transition/cleanup
+procedure. Unresolved outcomes stay UNCERTAIN, including after expiry/erasure. A disabled or failed
+worker must alert operations; logs contain safe operation codes and record IDs, never secrets.
+
+Review separate API/worker grants in the DB README. API queueing needs SELECT/INSERT on delivery plus
+append-only ownership audit access and parent locking privileges. Worker access is limited to scoped
+platform organization/invitation/delivery reads, current staff/user/RBAC reads and approved column
+UPDATEs. No DELETE, TRUNCATE, CREATE, table ownership, BYPASSRLS, unrestricted tenant role or password/
+session/MFA access is needed. Read-only/public preview must not gain mutating capabilities.
+
+### Human verification and startup
+
+First resolve the **pending enrollment migration** through a separate reviewed migration-ordering plan.
+Follow the DB README checkpoint, generate a forward repair only when no earlier migration can apply,
+stop to review its SQL and grants, then deploy to the independently marked disposable test database.
+Only after approval, from the database directory:
+
+```bash
+cd /Users/dvniels/Desktop/projects/gym/api/db
+npm run migration:test:deploy
+npm run prisma:generate
+npm run format
+npm run format:check
+npm run lint
+npm run typecheck
+npm run test:unit
+npm run test:integration
+npm run build
+```
+
+Apply separate disposable-test grants before integration tests; never copy fixture DELETE privileges
+to runtime roles. Review the local generated/built sibling package before API verification:
+
+```bash
+cd /Users/dvniels/Desktop/projects/gym/api/api
+npm run format
+npm run format:check
+npm run lint
+npm run typecheck
+npm run test:unit
+npm run test:integration
+npm run test:e2e
+npm run build
+```
+
+Authored coverage includes token/config/envelope tampering and rotation, fake provider transport,
+reservation deduplication/audit rollback, worker retries/leases/finalization/revocation, module worker
+isolation and HTTP with actual session/permission/Origin/CSRF/throttling guards. PostgreSQL locking,
+constraints, concurrency, ACLs and durable rollback remain the database package suite's responsibility;
+stateful API fakes are not evidence those PostgreSQL guarantees passed.
+
+Negative HTTP cases intentionally exercise 503 responses and can emit safe Nest error logs; assess
+the test assertions and final suite result, not those expected log lines alone.
+
+After the disposable suite passes, use a separately approved development deployment window, verify
+the migration credentials target `gym_dev` (not the test/shadow/production database), confirm every
+earlier migration was reviewed and the repair SQL is non-empty, then have the human run:
+
+```bash
+cd /Users/dvniels/Desktop/projects/gym/api/db
+npm run migration:status
+npm run migration:deploy
+npm run migration:status
+```
+
+Review development runtime grants and the exact database used by the API/worker again. Production
+deployment is a separate managed-credential approval, never this local command copied blindly.
+Do not enable delivery merely because migrations passed; the acceptance page, provider, keys,
+monitoring and security prerequisites still apply.
+
+**Do not run this worker now.** Once every release prerequisite is approved, supply managed environment
+secrets and a separate restricted worker database role, and start explicitly:
+
+```bash
+cd /Users/dvniels/Desktop/projects/gym/api/api
+OWNER_INVITATION_WORKER_ID=invitation-worker-01 npm run worker:owner-invitations
+```
+
+The identifier must be stable and unique among live workers. Do not put keys, tokens or database URLs
+in that command. Review process grace periods, provider tests, quotas, IP rate limiting, monitoring,
+retention, acceptance-page referrer/analytics behavior and incident procedures before production.
