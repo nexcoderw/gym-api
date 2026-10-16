@@ -319,6 +319,67 @@ export function validateEnvironment(input: Record<string, unknown>): Environment
 		'PLATFORM_AUTH_EMAIL_OTP_ENABLED',
 		false,
 	);
+	const organizationPortalOrigin = parseOrigin(
+		input.ORGANIZATION_PORTAL_ORIGIN,
+		'ORGANIZATION_PORTAL_ORIGIN',
+		nodeEnvironment === 'production' ? undefined : DEFAULT_MANAGER_ORIGIN,
+	);
+	if (!corsOrigins.includes(organizationPortalOrigin)) {
+		throw new Error('ORGANIZATION_PORTAL_ORIGIN must also be present in CORS_ORIGINS.');
+	}
+	if (nodeEnvironment === 'production' && !organizationPortalOrigin.startsWith('https://')) {
+		throw new Error('ORGANIZATION_PORTAL_ORIGIN must use HTTPS in production.');
+	}
+	const ownerCookieSecure = parseBoolean(
+		input.OWNER_AUTH_COOKIE_SECURE,
+		'OWNER_AUTH_COOKIE_SECURE',
+		nodeEnvironment === 'production',
+	);
+	if (nodeEnvironment === 'production' && !ownerCookieSecure) {
+		throw new Error('OWNER_AUTH_COOKIE_SECURE must be true in production.');
+	}
+	const ownerTokenPepper = parseBase64Key(
+		input.OWNER_AUTH_TOKEN_PEPPER,
+		'OWNER_AUTH_TOKEN_PEPPER',
+		nodeEnvironment === 'production' ? undefined : DEFAULT_LOCAL_KEY,
+	);
+	const ownerEnrollmentTokenPepper = parseBase64Key(
+		input.OWNER_ENROLLMENT_TOKEN_PEPPER,
+		'OWNER_ENROLLMENT_TOKEN_PEPPER',
+		nodeEnvironment === 'production' ? undefined : DEFAULT_LOCAL_KEY,
+	);
+	if (
+		nodeEnvironment === 'production' &&
+		(ownerTokenPepper === DEFAULT_LOCAL_KEY || ownerEnrollmentTokenPepper === DEFAULT_LOCAL_KEY)
+	) {
+		throw new Error('Owner authentication keys must not use the local development key.');
+	}
+	if (
+		nodeEnvironment === 'production' &&
+		(ownerTokenPepper === tokenPepper || ownerEnrollmentTokenPepper === tokenPepper)
+	) {
+		throw new Error('Owner authentication keys must not reuse the platform token pepper.');
+	}
+	if (ownerTokenPepper === ownerEnrollmentTokenPepper && nodeEnvironment === 'production') {
+		throw new Error('Owner session and enrollment tokens require independent keys.');
+	}
+	const ownerSessionTtlSeconds = parseInteger(
+		input.OWNER_AUTH_SESSION_TTL_SECONDS,
+		'OWNER_AUTH_SESSION_TTL_SECONDS',
+		28_800,
+		300,
+		2_592_000,
+	);
+	const ownerIdleTtlSeconds = parseInteger(
+		input.OWNER_AUTH_IDLE_TTL_SECONDS,
+		'OWNER_AUTH_IDLE_TTL_SECONDS',
+		1_800,
+		60,
+		86_400,
+	);
+	if (ownerIdleTtlSeconds > ownerSessionTtlSeconds) {
+		throw new Error('OWNER_AUTH_IDLE_TTL_SECONDS must not exceed the session lifetime.');
+	}
 	const invitationDelivery = parseOwnerInvitationDeliveryEnvironment(
 		input,
 		nodeEnvironment === 'production',
@@ -330,9 +391,13 @@ export function validateEnvironment(input: Record<string, unknown>): Environment
 		];
 		if (
 			invitationSecrets.includes(tokenPepper) ||
+			invitationSecrets.includes(ownerTokenPepper) ||
+			invitationSecrets.includes(ownerEnrollmentTokenPepper) ||
 			Object.values(totpKeyring).some((key) => invitationSecrets.includes(key))
 		) {
-			throw new Error('Owner invitation keys must not reuse platform authentication or TOTP keys.');
+			throw new Error(
+				'Owner invitation keys must not reuse authentication, enrollment, or TOTP keys.',
+			);
 		}
 	}
 	const resendRequired = emailOtpEnabled || invitationDelivery !== null;
@@ -435,6 +500,33 @@ export function validateEnvironment(input: Record<string, unknown>): Environment
 		),
 		PLATFORM_AUTH_SINGLE_INSTANCE: singleInstance,
 		PLATFORM_AUTH_EMAIL_OTP_ENABLED: emailOtpEnabled,
+		ORGANIZATION_PORTAL_ORIGIN: organizationPortalOrigin,
+		OWNER_AUTH_COOKIE_SECURE: ownerCookieSecure,
+		OWNER_AUTH_TOKEN_PEPPER: ownerTokenPepper,
+		OWNER_ENROLLMENT_TOKEN_PEPPER: ownerEnrollmentTokenPepper,
+		OWNER_AUTH_SESSION_TTL_SECONDS: ownerSessionTtlSeconds,
+		OWNER_AUTH_IDLE_TTL_SECONDS: ownerIdleTtlSeconds,
+		OWNER_ENROLLMENT_CHALLENGE_TTL_SECONDS: parseInteger(
+			input.OWNER_ENROLLMENT_CHALLENGE_TTL_SECONDS,
+			'OWNER_ENROLLMENT_CHALLENGE_TTL_SECONDS',
+			600,
+			60,
+			900,
+		),
+		OWNER_AUTH_LOGIN_ATTEMPT_WINDOW_MS: parseInteger(
+			input.OWNER_AUTH_LOGIN_ATTEMPT_WINDOW_MS,
+			'OWNER_AUTH_LOGIN_ATTEMPT_WINDOW_MS',
+			900_000,
+			60_000,
+			3_600_000,
+		),
+		OWNER_AUTH_LOGIN_ATTEMPT_LIMIT: parseInteger(
+			input.OWNER_AUTH_LOGIN_ATTEMPT_LIMIT,
+			'OWNER_AUTH_LOGIN_ATTEMPT_LIMIT',
+			5,
+			1,
+			20,
+		),
 		OWNER_INVITATION_DELIVERY: invitationDelivery,
 		RESEND_API_KEY: resendApiKey,
 		RESEND_FROM_EMAIL: resendFromEmail,
