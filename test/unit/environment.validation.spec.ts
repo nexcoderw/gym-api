@@ -26,6 +26,15 @@ describe('validateEnvironment', () => {
 			PLATFORM_AUTH_LOGIN_ATTEMPT_LIMIT: 5,
 			PLATFORM_AUTH_SINGLE_INSTANCE: true,
 			PLATFORM_AUTH_EMAIL_OTP_ENABLED: false,
+			ORGANIZATION_PORTAL_ORIGIN: 'http://localhost:4001',
+			OWNER_AUTH_COOKIE_SECURE: false,
+			OWNER_AUTH_TOKEN_PEPPER: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
+			OWNER_ENROLLMENT_TOKEN_PEPPER: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
+			OWNER_AUTH_SESSION_TTL_SECONDS: 28_800,
+			OWNER_AUTH_IDLE_TTL_SECONDS: 1_800,
+			OWNER_ENROLLMENT_CHALLENGE_TTL_SECONDS: 600,
+			OWNER_AUTH_LOGIN_ATTEMPT_WINDOW_MS: 900_000,
+			OWNER_AUTH_LOGIN_ATTEMPT_LIMIT: 5,
 			OWNER_INVITATION_DELIVERY: null,
 			RESEND_API_KEY: null,
 			RESEND_FROM_EMAIL: null,
@@ -92,7 +101,7 @@ describe('validateEnvironment', () => {
 	it('disables production Swagger by default', () => {
 		const configuration = validateEnvironment({
 			NODE_ENV: 'production',
-			CORS_ORIGINS: 'https://gym.rw,https://admin.gym.rw',
+			CORS_ORIGINS: 'https://gym.rw,https://admin.gym.rw,https://portal.gym.rw',
 			DATABASE_URL: 'postgresql://gym_app:password@database.example/nexcode_gym',
 			PLATFORM_ADMIN_ORIGIN: 'https://admin.gym.rw',
 			PLATFORM_AUTH_DUMMY_PASSWORD_HASH:
@@ -101,10 +110,17 @@ describe('validateEnvironment', () => {
 			PLATFORM_AUTH_SINGLE_INSTANCE: 'true',
 			PLATFORM_TOTP_KEYRING: 'production-v1=AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI=',
 			PLATFORM_TOTP_ACTIVE_KEY_ID: 'production-v1',
+			ORGANIZATION_PORTAL_ORIGIN: 'https://portal.gym.rw',
+			OWNER_AUTH_TOKEN_PEPPER: 'AwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwM=',
+			OWNER_ENROLLMENT_TOKEN_PEPPER: 'BAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQ=',
 		});
 
 		expect(configuration.SWAGGER_ENABLED).toBe(false);
-		expect(configuration.CORS_ORIGINS).toEqual(['https://gym.rw', 'https://admin.gym.rw']);
+		expect(configuration.CORS_ORIGINS).toEqual([
+			'https://gym.rw',
+			'https://admin.gym.rw',
+			'https://portal.gym.rw',
+		]);
 	});
 
 	it('requires an exact database fingerprint when owner bootstrap is enabled', () => {
@@ -125,7 +141,7 @@ describe('validateEnvironment', () => {
 		expect(() =>
 			validateEnvironment({
 				NODE_ENV: 'production',
-				CORS_ORIGINS: 'https://admin.gym.rw',
+				CORS_ORIGINS: 'https://admin.gym.rw,https://portal.gym.rw',
 				DATABASE_URL: 'postgresql://gym_app:password@database.example/nexcode_gym',
 				PLATFORM_ADMIN_ORIGIN: 'https://admin.gym.rw',
 				PLATFORM_AUTH_DUMMY_PASSWORD_HASH:
@@ -133,6 +149,7 @@ describe('validateEnvironment', () => {
 				PLATFORM_AUTH_TOKEN_PEPPER: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
 				PLATFORM_AUTH_SINGLE_INSTANCE: 'true',
 				PLATFORM_TOTP_KEYRING: 'production-v1=AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI=',
+				ORGANIZATION_PORTAL_ORIGIN: 'https://portal.gym.rw',
 			}),
 		).toThrow('PLATFORM_AUTH_TOKEN_PEPPER must not use the local development key.');
 	});
