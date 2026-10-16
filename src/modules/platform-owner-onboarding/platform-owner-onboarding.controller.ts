@@ -78,7 +78,8 @@ export class PlatformOwnerOnboardingController {
 	@ApiHeader({ name: 'x-platform-csrf-token', required: true })
 	@ApiOperation({
 		summary: 'Reserve audited owner-invitation email delivery',
-		description: 'Requires platform.organizations.owners.send-invitation, a live MFA platform session, exact administrator Origin and CSRF. Accepts no recipient, destination or token. A 202 reserves or reports the existing reservation; it does not confirm email receipt. Delivery remains unavailable until all release gates are approved. UNCERTAIN requires operator review, never blind resend.',
+		description:
+			'Requires platform.organizations.owners.send-invitation, a live MFA platform session, exact administrator Origin and CSRF. Accepts no recipient, destination or token. A 202 reserves or reports the existing reservation; it does not confirm email receipt. Delivery remains unavailable until all release gates are approved. UNCERTAIN requires operator review, never blind resend.',
 	})
 	@ApiAcceptedResponse({ type: OwnerInvitationDeliveryResponseDto })
 	@ApiNotFoundResponse({ type: ApiErrorResponseDto })
@@ -89,8 +90,17 @@ export class PlatformOwnerOnboardingController {
 		@Body() input: unknown,
 		@Req() request: PlatformRequest,
 	): Promise<OwnerInvitationDeliveryResponseDto> {
-		if (input !== undefined && (typeof input !== 'object' || input === null || Array.isArray(input) || Object.keys(input).length !== 0)) {
-			throw new BadRequestException({ code: 'VALIDATION_FAILED', message: 'Delivery accepts no request fields.' });
+		if (
+			input !== undefined &&
+			(typeof input !== 'object' ||
+				input === null ||
+				Array.isArray(input) ||
+				Object.keys(input).length !== 0)
+		) {
+			throw new BadRequestException({
+				code: 'VALIDATION_FAILED',
+				message: 'Delivery accepts no request fields.',
+			});
 		}
 		return this.delivery.queue(this.context(request), organizationId, invitationId);
 	}
