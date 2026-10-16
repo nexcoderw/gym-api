@@ -8,6 +8,9 @@ import {
 } from '../../src/modules/platform-owner-onboarding/platform-owner-invitation-audit.js';
 import { PlatformOwnerOnboardingController } from '../../src/modules/platform-owner-onboarding/platform-owner-onboarding.controller.js';
 import { PlatformOwnerOnboardingService } from '../../src/modules/platform-owner-onboarding/platform-owner-onboarding.service.js';
+import { OwnerInvitationDeliveryService } from '../../src/modules/platform-owner-onboarding/owner-invitation-delivery.service.js';
+import { OwnerInvitationDeliveryWorkerService } from '../../src/modules/platform-owner-onboarding/owner-invitation-delivery-worker.service.js';
+import { OwnerInvitationPreviewController } from '../../src/modules/platform-owner-onboarding/owner-invitation-preview.controller.js';
 import {
 	createPlatformOwnerOnboardingDatabaseFixture,
 	OWNER_INVITATION_ACTOR_ID,
@@ -32,6 +35,17 @@ describe('owner onboarding module integration (adapter fake; no live PostgreSQL)
 		expect(module.get(PlatformOwnerOnboardingController)).toBeDefined();
 		expect(module.get(PlatformOwnerOnboardingService)).toBeDefined();
 		expect(module.get(PlatformOwnerInvitationAudit)).toBeInstanceOf(DurableOwnerInvitationAudit);
+		expect(() => module.get(OwnerInvitationDeliveryWorkerService)).toThrow();
+		expect(module.get(OwnerInvitationPreviewController)).toBeDefined();
+	});
+
+	it('keeps the worker outside the HTTP container and refuses unapproved delivery', async () => {
+		const callsBefore = database.runTransaction.mock.calls.length;
+		await expect(module.get(OwnerInvitationDeliveryService).queue(
+			{ actorPlatformStaffId: OWNER_INVITATION_ACTOR_ID, requestId: 'fictional-disabled-delivery' },
+			ORGANIZATION_ID, OWNER_INVITATION_ID,
+		)).rejects.toMatchObject({ status: 503, response: { code: 'OWNER_INVITATION_DELIVERY_UNAVAILABLE' } });
+		expect(database.runTransaction).toHaveBeenCalledTimes(callsBefore);
 	});
 
 	it('creates a pending invitation and an allowlisted audit record through one transaction', async () => {
