@@ -36,7 +36,7 @@ export function invitationDeliveryInput(): Record<string, unknown> {
 		OWNER_INVITATION_ENCRYPTION_KEYRING: `test-key=${randomBytes(32).toString('base64')}`,
 		OWNER_INVITATION_ENCRYPTION_ACTIVE_KEY_ID: 'test-key',
 		RESEND_API_KEY: 're_fictional_never_sent',
-		RESEND_FROM_EMAIL: 'invitations@notify.gym.rw',
+		RESEND_FROM_EMAIL: 'onboarding@resend.dev',
 	};
 }
 
