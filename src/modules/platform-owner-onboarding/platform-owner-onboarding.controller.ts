@@ -1,5 +1,6 @@
 import {
 	Body,
+	BadRequestException,
 	Controller,
 	Get,
 	Header,
@@ -15,6 +16,7 @@ import {
 } from '@nestjs/common';
 import {
 	ApiBadRequestResponse,
+	ApiAcceptedResponse,
 	ApiConflictResponse,
 	ApiCookieAuth,
 	ApiCreatedResponse,
@@ -41,6 +43,8 @@ import { CreateOwnerInvitationDto } from './dto/create-owner-invitation.dto.js';
 import { ListOwnerInvitationsQueryDto } from './dto/list-owner-invitations-query.dto.js';
 import { OwnerInvitationListResponseDto } from './dto/owner-invitation-list-response.dto.js';
 import { OwnerInvitationResponseDto } from './dto/owner-invitation-response.dto.js';
+import { OwnerInvitationDeliveryResponseDto } from './dto/owner-invitation-delivery.dto.js';
+import { OwnerInvitationDeliveryService } from './owner-invitation-delivery.service.js';
 import type { OwnerInvitationMutationContext } from './platform-owner-invitation-audit.js';
 import { PlatformOwnerOnboardingService } from './platform-owner-onboarding.service.js';
 import { OWNER_INVITATION_PERMISSION } from './platform-owner-onboarding.constants.js';
@@ -58,7 +62,38 @@ import { OWNER_INVITATION_PERMISSION } from './platform-owner-onboarding.constan
 @UseGuards(PlatformSessionGuard, PlatformPermissionGuard)
 @Controller('platform/organizations/:organizationId/owner-invitations')
 export class PlatformOwnerOnboardingController {
-	constructor(private readonly onboarding: PlatformOwnerOnboardingService) {}
+	constructor(
+		private readonly onboarding: PlatformOwnerOnboardingService,
+		private readonly delivery: OwnerInvitationDeliveryService,
+	) {}
+
+	@Post(':invitationId/delivery')
+	@HttpCode(HttpStatus.ACCEPTED)
+	@Header('Cache-Control', 'no-store')
+	@RequirePlatformPermissions(OWNER_INVITATION_PERMISSION.send)
+	@UseGuards(PlatformOriginCsrfGuard)
+	@RequirePlatformCsrf()
+	@ApiParam({ name: 'organizationId', format: 'uuid' })
+	@ApiParam({ name: 'invitationId', format: 'uuid' })
+	@ApiHeader({ name: 'x-platform-csrf-token', required: true })
+	@ApiOperation({
+		summary: 'Reserve audited owner-invitation email delivery',
+		description: 'Requires platform.organizations.owners.send-invitation, a live MFA platform session, exact administrator Origin and CSRF. Accepts no recipient, destination or token. A 202 reserves or reports the existing reservation; it does not confirm email receipt. Delivery remains unavailable until all release gates are approved. UNCERTAIN requires operator review, never blind resend.',
+	})
+	@ApiAcceptedResponse({ type: OwnerInvitationDeliveryResponseDto })
+	@ApiNotFoundResponse({ type: ApiErrorResponseDto })
+	@ApiConflictResponse({ type: ApiErrorResponseDto })
+	queueDelivery(
+		@Param('organizationId', new ParseUUIDPipe()) organizationId: string,
+		@Param('invitationId', new ParseUUIDPipe()) invitationId: string,
+		@Body() input: unknown,
+		@Req() request: PlatformRequest,
+	): Promise<OwnerInvitationDeliveryResponseDto> {
+		if (input !== undefined && (typeof input !== 'object' || input === null || Array.isArray(input) || Object.keys(input).length !== 0)) {
+			throw new BadRequestException({ code: 'VALIDATION_FAILED', message: 'Delivery accepts no request fields.' });
+		}
+		return this.delivery.queue(this.context(request), organizationId, invitationId);
+	}
 
 	@Post()
 	@Header('Cache-Control', 'no-store')
