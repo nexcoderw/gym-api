@@ -39,6 +39,7 @@ import { PlatformTotpService } from './platform-totp.service.js';
 		PlatformSessionGuard,
 		PlatformSessionService,
 		PlatformOriginCsrfGuard,
+		PlatformPasswordService,
 		PlatformTokenService,
 	],
 })
