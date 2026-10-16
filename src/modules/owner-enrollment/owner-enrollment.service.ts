@@ -1,0 +1,320 @@
+import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import {
+	OrganizationOwnerEnrollmentPurpose,
+	OrganizationOwnerEnrollmentStatus,
+	OrganizationOwnerInvitationStatus,
+	OrganizationStatus,
+	OwnerSessionAssurance,
+	Prisma,
+	PrismaService,
+	UserStatus,
+} from '@nexcoderw/gym-db';
+
+import type { EnvironmentVariables } from '../../config/environment.types.js';
+import { PlatformPasswordService } from '../platform-auth/platform-password.service.js';
+import { acceptsBootstrapPassword } from '../platform-auth/platform-password-policy.js';
+import { OwnerSessionService } from '../owner-auth/owner-session.service.js';
+import { OwnerTokenService } from '../owner-auth/owner-token.service.js';
+import { OwnerInvitationTokenService } from '../platform-owner-onboarding/owner-invitation-token.service.js';
+import type {
+	RegisterInvitedOwnerDto,
+	VerifyExistingOwnerDto,
+} from './dto/owner-enrollment.dto.js';
+import type {
+	OwnerEnrollmentAuthenticatedResponseDto,
+	OwnerEnrollmentChallengeResponseDto,
+} from './dto/owner-enrollment-response.dto.js';
+import {
+	invalidOwnerEnrollment,
+	ownerEnrollmentConflict,
+	ownerEnrollmentFailure,
+} from './owner-enrollment-errors.js';
+
+const TRANSACTION_OPTIONS = Object.freeze({
+	isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+	maxWait: 10_000,
+	timeout: 15_000,
+});
+
+export interface VerifiedOwnerEnrollment extends OwnerEnrollmentAuthenticatedResponseDto {
+	readonly sessionToken: string;
+	readonly expiresAtDate: Date;
+}
+
+@Injectable()
+export class OwnerEnrollmentService {
+	private readonly challengeLifetimeMilliseconds: number;
+
+	constructor(
+		config: ConfigService<EnvironmentVariables, true>,
+		private readonly prisma: PrismaService,
+		private readonly invitationTokens: OwnerInvitationTokenService,
+		private readonly ownerTokens: OwnerTokenService,
+		private readonly passwords: PlatformPasswordService,
+		private readonly sessions: OwnerSessionService,
+	) {
+		this.challengeLifetimeMilliseconds =
+			config.get('OWNER_ENROLLMENT_CHALLENGE_TTL_SECONDS', { infer: true }) * 1000;
+	}
+
+	async start(
+		invitationToken: string,
+		now = new Date(),
+	): Promise<OwnerEnrollmentChallengeResponseDto> {
+		if (!this.invitationTokens.isValidFormat(invitationToken)) throw invalidOwnerEnrollment();
+		const challengeToken = this.ownerTokens.create();
+		const expiresAt = new Date(now.getTime() + this.challengeLifetimeMilliseconds);
+		try {
+			return await this.prisma.$transaction(async (transaction) => {
+				const invitation = await transaction.organizationOwnerInvitation.findUnique({
+					where: { tokenDigest: this.invitationTokens.digest(invitationToken) },
+					select: {
+						id: true,
+						organizationId: true,
+						invitedEmail: true,
+						status: true,
+						expiresAt: true,
+						revokedAt: true,
+						acceptedAt: true,
+						organization: { select: { name: true, status: true } },
+					},
+				});
+				if (
+					invitation === null ||
+					invitation.status !== OrganizationOwnerInvitationStatus.SENT ||
+					invitation.expiresAt === null ||
+					invitation.expiresAt <= now ||
+					invitation.revokedAt !== null ||
+					invitation.acceptedAt !== null ||
+					(invitation.organization.status !== OrganizationStatus.PENDING &&
+						invitation.organization.status !== OrganizationStatus.ACTIVE)
+				) {
+					throw invalidOwnerEnrollment();
+				}
+
+				const identity = await transaction.user.findUnique({
+					where: { email: invitation.invitedEmail },
+					select: { id: true },
+				});
+				await transaction.organizationOwnerEnrollmentChallenge.updateMany({
+					where: {
+						organizationId: invitation.organizationId,
+						ownerInvitationId: invitation.id,
+						status: {
+							in: [
+								OrganizationOwnerEnrollmentStatus.PENDING,
+								OrganizationOwnerEnrollmentStatus.VERIFIED,
+							],
+						},
+					},
+					data: {
+						status: OrganizationOwnerEnrollmentStatus.REVOKED,
+						tokenDigest: null,
+						revokedAt: now,
+						updatedAt: now,
+					},
+				});
+				const purpose =
+					identity === null
+						? OrganizationOwnerEnrollmentPurpose.NEW_USER_ENROLLMENT
+						: OrganizationOwnerEnrollmentPurpose.EXISTING_USER_AUTHENTICATION;
+				await transaction.organizationOwnerEnrollmentChallenge.create({
+					data: {
+						organizationId: invitation.organizationId,
+						ownerInvitationId: invitation.id,
+						userId: identity?.id,
+						purpose,
+						status: OrganizationOwnerEnrollmentStatus.PENDING,
+						tokenDigest: this.ownerTokens.enrollmentDigest(challengeToken),
+						createdAt: now,
+						updatedAt: now,
+						expiresAt,
+					},
+				});
+				return {
+					nextStep: identity === null ? ('register' as const) : ('sign_in' as const),
+					challengeToken,
+					expiresAt: expiresAt.toISOString(),
+					organizationName: invitation.organization.name,
+					organizationStatus: invitation.organization.status,
+				};
+			}, TRANSACTION_OPTIONS);
+		} catch (error: unknown) {
+			throw ownerEnrollmentFailure(error);
+		}
+	}
+
+	async verifyExisting(
+		input: VerifyExistingOwnerDto,
+		now = new Date(),
+	): Promise<VerifiedOwnerEnrollment> {
+		const challenge = await this.readChallenge(input.challengeToken, now);
+		if (
+			challenge.purpose !== OrganizationOwnerEnrollmentPurpose.EXISTING_USER_AUTHENTICATION ||
+			challenge.user === null
+		) {
+			throw invalidOwnerEnrollment();
+		}
+		const passwordHash =
+			challenge.user.passwordCredential?.passwordHash ?? this.passwords.dummyHash;
+		const valid = await this.passwords.verify(passwordHash, input.password);
+		if (
+			!valid ||
+			challenge.user.status !== UserStatus.ACTIVE ||
+			challenge.user.emailVerifiedAt === null ||
+			challenge.user.platformStaff !== null
+		) {
+			await this.recordFailure(challenge.id, now);
+			throw invalidOwnerEnrollment();
+		}
+		try {
+			if (challenge.status === OrganizationOwnerEnrollmentStatus.PENDING) {
+				const updated = await this.prisma.organizationOwnerEnrollmentChallenge.updateMany({
+					where: {
+						id: challenge.id,
+						status: OrganizationOwnerEnrollmentStatus.PENDING,
+						expiresAt: { gt: now },
+						failedAttempts: { lt: challenge.maxAttempts },
+					},
+					data: {
+						status: OrganizationOwnerEnrollmentStatus.VERIFIED,
+						mailboxVerifiedAt: now,
+						authenticatedAt: now,
+						verifiedAt: now,
+						updatedAt: now,
+					},
+				});
+				if (updated.count !== 1) throw invalidOwnerEnrollment();
+			}
+			return await this.createAuthenticatedResult(challenge.user.id, now);
+		} catch (error: unknown) {
+			throw ownerEnrollmentFailure(error);
+		}
+	}
+
+	async register(
+		input: RegisterInvitedOwnerDto,
+		now = new Date(),
+	): Promise<VerifiedOwnerEnrollment> {
+		const challenge = await this.readChallenge(input.challengeToken, now);
+		if (
+			challenge.purpose !== OrganizationOwnerEnrollmentPurpose.NEW_USER_ENROLLMENT ||
+			challenge.user !== null ||
+			challenge.status !== OrganizationOwnerEnrollmentStatus.PENDING
+		) {
+			throw invalidOwnerEnrollment();
+		}
+		const password = Buffer.from(input.password, 'utf8');
+		try {
+			if (!acceptsBootstrapPassword(password, challenge.ownerInvitation.invitedEmail)) {
+				throw ownerEnrollmentConflict(
+					'Choose a stronger password that does not contain the email.',
+				);
+			}
+			const passwordHash = await this.passwords.hash(password);
+			const userId = await this.prisma.$transaction(async (transaction) => {
+				const user = await transaction.user.create({
+					data: {
+						email: challenge.ownerInvitation.invitedEmail,
+						displayName: input.displayName,
+						status: UserStatus.ACTIVE,
+						emailVerifiedAt: now,
+						passwordCredential: {
+							create: { passwordHash, passwordChangedAt: now },
+						},
+					},
+					select: { id: true },
+				});
+				const verified = await transaction.organizationOwnerEnrollmentChallenge.updateMany({
+					where: {
+						id: challenge.id,
+						status: OrganizationOwnerEnrollmentStatus.PENDING,
+						userId: null,
+						expiresAt: { gt: now },
+					},
+					data: {
+						userId: user.id,
+						status: OrganizationOwnerEnrollmentStatus.VERIFIED,
+						mailboxVerifiedAt: now,
+						authenticatedAt: now,
+						verifiedAt: now,
+						updatedAt: now,
+					},
+				});
+				if (verified.count !== 1) throw invalidOwnerEnrollment();
+				return user.id;
+			}, TRANSACTION_OPTIONS);
+			return await this.createAuthenticatedResult(userId, now);
+		} catch (error: unknown) {
+			throw ownerEnrollmentFailure(error);
+		} finally {
+			password.fill(0);
+		}
+	}
+
+	private async readChallenge(token: string, now: Date) {
+		if (!this.ownerTokens.isValid(token)) throw invalidOwnerEnrollment();
+		try {
+			const challenge = await this.prisma.organizationOwnerEnrollmentChallenge.findUnique({
+				where: { tokenDigest: this.ownerTokens.enrollmentDigest(token) },
+				select: {
+					id: true,
+					purpose: true,
+					status: true,
+					expiresAt: true,
+					failedAttempts: true,
+					maxAttempts: true,
+					ownerInvitation: { select: { invitedEmail: true } },
+					user: {
+						select: {
+							id: true,
+							status: true,
+							emailVerifiedAt: true,
+							platformStaff: { select: { id: true } },
+							passwordCredential: { select: { passwordHash: true } },
+						},
+					},
+				},
+			});
+			if (
+				challenge === null ||
+				(challenge.status !== OrganizationOwnerEnrollmentStatus.PENDING &&
+					challenge.status !== OrganizationOwnerEnrollmentStatus.VERIFIED) ||
+				challenge.expiresAt <= now ||
+				challenge.failedAttempts >= challenge.maxAttempts
+			) {
+				throw invalidOwnerEnrollment();
+			}
+			return challenge;
+		} catch (error: unknown) {
+			throw ownerEnrollmentFailure(error);
+		}
+	}
+
+	private async recordFailure(challengeId: string, now: Date): Promise<void> {
+		await this.prisma.organizationOwnerEnrollmentChallenge.updateMany({
+			where: {
+				id: challengeId,
+				status: OrganizationOwnerEnrollmentStatus.PENDING,
+				expiresAt: { gt: now },
+				failedAttempts: { lt: 10 },
+			},
+			data: { failedAttempts: { increment: 1 }, updatedAt: now },
+		});
+	}
+
+	private async createAuthenticatedResult(
+		userId: string,
+		now: Date,
+	): Promise<VerifiedOwnerEnrollment> {
+		const session = await this.sessions.create(userId, OwnerSessionAssurance.AAL1, now);
+		return {
+			status: 'verified',
+			expiresAt: session.expiresAt.toISOString(),
+			expiresAtDate: session.expiresAt,
+			sessionToken: session.token,
+			csrfToken: '',
+		};
+	}
+}
