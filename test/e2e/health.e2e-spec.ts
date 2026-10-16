@@ -20,7 +20,7 @@ describe('API foundation (e2e)', () => {
 			application,
 			validateEnvironment({
 				NODE_ENV: 'test',
-				CORS_ORIGINS: 'http://localhost:4000',
+				CORS_ORIGINS: 'http://localhost:4000,http://localhost:4001',
 				SWAGGER_ENABLED: 'false',
 			}),
 		);
