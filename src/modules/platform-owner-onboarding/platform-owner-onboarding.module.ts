@@ -24,5 +24,6 @@ import { PlatformOwnerOnboardingService } from './platform-owner-onboarding.serv
 		OwnerInvitationTokenEnvelopeService,
 		{ provide: PlatformOwnerInvitationAudit, useClass: DurableOwnerInvitationAudit },
 	],
+	exports: [OwnerInvitationTokenService],
 })
 export class PlatformOwnerOnboardingModule {}
