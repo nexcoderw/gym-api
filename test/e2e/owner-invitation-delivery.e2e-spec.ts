@@ -219,7 +219,7 @@ describe('owner invitation delivery HTTP (real guards, DTOs, services; fake adap
 		expect(database.membershipRoleCreate).not.toHaveBeenCalled();
 	});
 
-	it('bounds public input, enforces the real throttler and exposes no acceptance route', async () => {
+	it('bounds public input, enforces throttling and documents reviewed enrollment routes', async () => {
 		await preview('x'.repeat(200)).expect(400);
 		await request(app.getHttpServer())
 			.post(PREVIEW)
@@ -234,6 +234,7 @@ describe('owner invitation delivery HTTP (real guards, DTOs, services; fake adap
 				'/api/v1/platform/organizations/{organizationId}/owner-invitations/{invitationId}/delivery'
 			]?.post,
 		).toBeDefined();
-		expect(Object.keys(paths).some((path) => path.includes('/acceptance'))).toBe(false);
+		expect(paths['/api/v1/owner-enrollment/challenges']?.post).toBeDefined();
+		expect(paths['/api/v1/owner-enrollment/acceptances']?.post).toBeDefined();
 	});
 });
