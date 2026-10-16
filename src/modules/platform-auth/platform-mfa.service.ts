@@ -1,8 +1,14 @@
-import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+import {
+	Injectable,
+	Logger,
+	ServiceUnavailableException,
+	UnauthorizedException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PlatformStaffStatus, Prisma, PrismaService, UserStatus } from '@nexcoderw/gym-db';
 
 import type { EnvironmentVariables } from '../../config/environment.types.js';
+import { databaseErrorCode } from '../../common/errors/database-error-code.js';
 import type { PlatformMfaVerifyDto } from './dto/platform-mfa-verify.dto.js';
 import { PLATFORM_AUTH_ERROR } from './platform-auth.constants.js';
 import { PlatformTokenService } from './platform-token.service.js';
@@ -23,12 +29,30 @@ class ConcurrentMfaConsumptionError extends Error {
 	override readonly name = 'ConcurrentMfaConsumptionError';
 }
 
+const MFA_TRANSACTION_MAX_WAIT_MS = 10_000;
+const MFA_TRANSACTION_TIMEOUT_MS = 10_000;
+const MFA_PERSISTENCE_ERROR_CODES = new Set([
+	'P1001',
+	'P1002',
+	'P1008',
+	'P1010',
+	'P1017',
+	'P2021',
+	'P2022',
+	'P2024',
+	'P2028',
+	'P2034',
+	'P2037',
+	'P2039',
+]);
+
 @Injectable()
 export class PlatformMfaService {
 	private readonly logger = new Logger(PlatformMfaService.name);
 	private readonly sessionLifetimeMilliseconds: number;
 	private readonly idleLifetimeMilliseconds: number;
 	private readonly emailOtpEnabled: boolean;
+	private readonly transactionMaxWaitMilliseconds: number;
 
 	constructor(
 		config: ConfigService<EnvironmentVariables, true>,
@@ -41,27 +65,21 @@ export class PlatformMfaService {
 		this.idleLifetimeMilliseconds =
 			config.get('PLATFORM_AUTH_IDLE_TTL_SECONDS', { infer: true }) * 1000;
 		this.emailOtpEnabled = config.get('PLATFORM_AUTH_EMAIL_OTP_ENABLED', { infer: true });
+		this.transactionMaxWaitMilliseconds = Math.min(
+			config.get('DATABASE_CONNECTION_TIMEOUT_MS', { infer: true }),
+			MFA_TRANSACTION_MAX_WAIT_MS,
+		);
 	}
 
 	async verify(input: PlatformMfaVerifyDto, now = new Date()): Promise<PlatformMfaSuccess> {
 		this.assertMethodInput(input);
 		const challengeDigest = this.tokens.digest(input.challengeToken);
-		const challenge = await this.prisma.platformMfaChallenge.findUnique({
-			where: { tokenDigest: challengeDigest },
-			select: {
-				id: true,
-				platformStaffId: true,
-				expiresAt: true,
-				consumedAt: true,
-				failedAttempts: true,
-				maxAttempts: true,
-				platformStaff: {
-					select: {
-						totpCredential: true,
-					},
-				},
-			},
-		});
+		let challenge: Awaited<ReturnType<typeof this.readChallenge>>;
+		try {
+			challenge = await this.readChallenge(challengeDigest);
+		} catch (error: unknown) {
+			throw this.persistenceFailure(error);
+		}
 		if (
 			challenge?.consumedAt !== null ||
 			challenge.expiresAt <= now ||
@@ -199,13 +217,17 @@ export class PlatformMfaService {
 					});
 					return { authenticated: true, expiresAt };
 				},
-				{ isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+				{
+					isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+					maxWait: this.transactionMaxWaitMilliseconds,
+					timeout: MFA_TRANSACTION_TIMEOUT_MS,
+				},
 			);
 		} catch (error: unknown) {
-			if (error instanceof ConcurrentMfaConsumptionError || isTransactionConflict(error)) {
+			if (error instanceof ConcurrentMfaConsumptionError) {
 				throw new UnauthorizedException(PLATFORM_AUTH_ERROR.invalidChallenge);
 			}
-			throw error;
+			throw this.persistenceFailure(error);
 		}
 
 		if (!outcome.authenticated) {
@@ -219,6 +241,35 @@ export class PlatformMfaService {
 			expiresAtDate: outcome.expiresAt,
 			sessionToken,
 		};
+	}
+
+	private readChallenge(challengeDigest: string) {
+		return this.prisma.platformMfaChallenge.findUnique({
+			where: { tokenDigest: challengeDigest },
+			select: {
+				id: true,
+				platformStaffId: true,
+				expiresAt: true,
+				consumedAt: true,
+				failedAttempts: true,
+				maxAttempts: true,
+				platformStaff: { select: { totpCredential: true } },
+			},
+		});
+	}
+
+	private persistenceFailure(error: unknown): Error {
+		const code = databaseErrorCode(error);
+		if (code !== undefined && MFA_PERSISTENCE_ERROR_CODES.has(code)) {
+			return new ServiceUnavailableException(
+				{
+					code: 'PLATFORM_MFA_UNAVAILABLE',
+					message: 'MFA verification is temporarily unavailable. Start sign-in again.',
+				},
+				{ cause: error },
+			);
+		}
+		return error instanceof Error ? error : new Error('Unexpected MFA persistence failure.');
 	}
 
 	private async consumeFactor(
@@ -325,8 +376,4 @@ export class PlatformMfaService {
 			throw new UnauthorizedException(PLATFORM_AUTH_ERROR.invalidChallenge);
 		}
 	}
-}
-
-function isTransactionConflict(error: unknown): boolean {
-	return typeof error === 'object' && error !== null && 'code' in error && error.code === 'P2034';
 }
