@@ -118,7 +118,8 @@ describe('owner invitation configuration and cryptography', () => {
 	});
 
 	it('authenticates ciphertext, identity, version, key and tag; supports old-key rotation', () => {
-		const config = invitationDeliveryConfig();
+		const input = invitationDeliveryInput();
+		const config = invitationDeliveryConfig(input);
 		const envelopes = new OwnerInvitationTokenEnvelopeService(config);
 		const snapshot = {
 			token: new OwnerInvitationTokenService(config).generate(),
@@ -145,18 +146,24 @@ describe('owner invitation configuration and cryptography', () => {
 		for (const field of ['id', 'organizationId', 'ownerInvitationId']) {
 			expect(() => envelopes.decrypt({ ...identity, [field]: 'different' }, envelope)).toThrow();
 		}
-		const old = config.get('OWNER_INVITATION_DELIVERY', { infer: true });
-		if (old === null) throw new Error('Missing fixture configuration.');
-		config.set('OWNER_INVITATION_DELIVERY', {
-			...old,
-			activeKeyId: 'next',
-			encryptionKeys: { ...old.encryptionKeys, next: randomBytes(32).toString('base64') },
-		});
-		expect(envelopes.decrypt(identity, envelope)).toEqual(snapshot);
-		config.set('OWNER_INVITATION_DELIVERY', {
-			...old,
-			encryptionKeys: { [old.activeKeyId]: randomBytes(32).toString('base64') },
-		});
-		expect(() => envelopes.decrypt(identity, envelope)).toThrow();
+		const originalKeyring = String(input.OWNER_INVITATION_ENCRYPTION_KEYRING);
+		const nextKey = randomBytes(32).toString('base64');
+		const rotated = new OwnerInvitationTokenEnvelopeService(
+			invitationDeliveryConfig({
+				...input,
+				OWNER_INVITATION_ENCRYPTION_KEYRING: `${originalKeyring},next=${nextKey}`,
+				OWNER_INVITATION_ENCRYPTION_ACTIVE_KEY_ID: 'next',
+			}),
+		);
+		expect(rotated.decrypt(identity, envelope)).toEqual(snapshot);
+		const replacementKey = randomBytes(32).toString('base64');
+		const retired = new OwnerInvitationTokenEnvelopeService(
+			invitationDeliveryConfig({
+				...input,
+				OWNER_INVITATION_ENCRYPTION_KEYRING: `replacement=${replacementKey}`,
+				OWNER_INVITATION_ENCRYPTION_ACTIVE_KEY_ID: 'replacement',
+			}),
+		);
+		expect(() => retired.decrypt(identity, envelope)).toThrow();
 	});
 });
