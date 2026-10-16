@@ -74,12 +74,10 @@ export class OwnerAcceptanceService {
 					},
 				});
 				if (
-					challenge === null ||
-					challenge.status !== OrganizationOwnerEnrollmentStatus.VERIFIED ||
+					challenge?.status !== OrganizationOwnerEnrollmentStatus.VERIFIED ||
 					challenge.expiresAt <= now ||
 					challenge.userId !== principal.userId ||
-					challenge.user === null ||
-					challenge.user.status !== UserStatus.ACTIVE ||
+					challenge.user?.status !== UserStatus.ACTIVE ||
 					challenge.user.emailVerifiedAt === null ||
 					challenge.user.email.toLowerCase() !== principal.email.toLowerCase() ||
 					challenge.ownerInvitation.invitedEmail.toLowerCase() !== principal.email.toLowerCase() ||
