@@ -23,13 +23,19 @@ export interface PlatformMfaSuccess {
 }
 
 type VerificationOutcome =
-	{ readonly authenticated: false } | { readonly authenticated: true; readonly expiresAt: Date };
+	| { readonly authenticated: false; readonly challengeId: string | null }
+	| {
+			readonly authenticated: true;
+			readonly challengeId: string;
+			readonly platformStaffId: string;
+			readonly expiresAt: Date;
+	  };
 
 class ConcurrentMfaConsumptionError extends Error {
 	override readonly name = 'ConcurrentMfaConsumptionError';
 }
 
-const MFA_TRANSACTION_MAX_WAIT_MS = 10_000;
+const MFA_TRANSACTION_MAX_WAIT_MS = 8_000;
 const MFA_TRANSACTION_TIMEOUT_MS = 10_000;
 const MFA_PERSISTENCE_ERROR_CODES = new Set([
 	'P1001',
@@ -74,37 +80,6 @@ export class PlatformMfaService {
 	async verify(input: PlatformMfaVerifyDto, now = new Date()): Promise<PlatformMfaSuccess> {
 		this.assertMethodInput(input);
 		const challengeDigest = this.tokens.digest(input.challengeToken);
-		let challenge: Awaited<ReturnType<typeof this.readChallenge>>;
-		try {
-			challenge = await this.readChallenge(challengeDigest);
-		} catch (error: unknown) {
-			throw this.persistenceFailure(error);
-		}
-		if (
-			challenge?.consumedAt !== null ||
-			challenge.expiresAt <= now ||
-			challenge.failedAttempts >= challenge.maxAttempts
-		) {
-			throw new UnauthorizedException(PLATFORM_AUTH_ERROR.invalidChallenge);
-		}
-
-		const acceptedTotp =
-			input.method === 'totp' &&
-			input.totpCode !== undefined &&
-			challenge.platformStaff.totpCredential !== null
-				? this.totp.verify(
-						{
-							platformStaffId: challenge.platformStaffId,
-							encryptedSecret: challenge.platformStaff.totpCredential.encryptedSecret,
-							initializationVector: challenge.platformStaff.totpCredential.initializationVector,
-							authenticationTag: challenge.platformStaff.totpCredential.authenticationTag,
-							encryptionKeyId: challenge.platformStaff.totpCredential.encryptionKeyId,
-							encryptionVersion: challenge.platformStaff.totpCredential.encryptionVersion,
-						},
-						input.totpCode,
-						now,
-					)
-				: null;
 		const sessionToken = this.tokens.createToken();
 		let outcome: VerificationOutcome;
 		try {
@@ -145,14 +120,24 @@ export class PlatformMfaService {
 										},
 									},
 									totpCredential: {
-										select: { id: true, verifiedAt: true, disabledAt: true },
+										select: {
+											id: true,
+											encryptedSecret: true,
+											initializationVector: true,
+											authenticationTag: true,
+											encryptionKeyId: true,
+											encryptionVersion: true,
+											verifiedAt: true,
+											disabledAt: true,
+										},
 									},
 								},
 							},
 						},
 					});
 					if (
-						current?.consumedAt !== null ||
+						current === null ||
+						current.consumedAt !== null ||
 						current.expiresAt <= now ||
 						current.failedAttempts >= current.maxAttempts ||
 						current.platformStaff.status !== PlatformStaffStatus.ACTIVE ||
@@ -165,8 +150,24 @@ export class PlatformMfaService {
 								({ platformRole }) => platformRole.permissions.length > 0,
 							))
 					) {
-						return { authenticated: false };
+						return { authenticated: false, challengeId: current?.id ?? null };
 					}
+					const credential = current.platformStaff.totpCredential;
+					const acceptedTotp =
+						input.method === 'totp' && input.totpCode !== undefined && credential !== null
+							? this.totp.verify(
+									{
+										platformStaffId: current.platformStaffId,
+										encryptedSecret: credential.encryptedSecret,
+										initializationVector: credential.initializationVector,
+										authenticationTag: credential.authenticationTag,
+										encryptionKeyId: credential.encryptionKeyId,
+										encryptionVersion: credential.encryptionVersion,
+									},
+									input.totpCode,
+									now,
+								)
+							: null;
 
 					const factorAccepted =
 						input.method === 'email_otp'
@@ -188,7 +189,7 @@ export class PlatformMfaService {
 							},
 							data: { failedAttempts: { increment: 1 } },
 						});
-						return { authenticated: false };
+						return { authenticated: false, challengeId: current.id };
 					}
 
 					const consumed = await transaction.platformMfaChallenge.updateMany({
@@ -215,10 +216,16 @@ export class PlatformMfaService {
 							mfaVerifiedAt: now,
 						},
 					});
-					return { authenticated: true, expiresAt };
+					return {
+						authenticated: true,
+						challengeId: current.id,
+						platformStaffId: current.platformStaffId,
+						expiresAt,
+					};
 				},
 				{
-					isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+					// Conditional consumes provide concurrency safety without serializable conflicts.
+					isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
 					maxWait: this.transactionMaxWaitMilliseconds,
 					timeout: MFA_TRANSACTION_TIMEOUT_MS,
 				},
@@ -231,31 +238,16 @@ export class PlatformMfaService {
 		}
 
 		if (!outcome.authenticated) {
-			this.logger.warn(`platform_mfa_rejected challengeId=${challenge.id}`);
+			this.logger.warn(`platform_mfa_rejected challengeId=${outcome.challengeId ?? 'unavailable'}`);
 			throw new UnauthorizedException(PLATFORM_AUTH_ERROR.invalidChallenge);
 		}
-		this.logger.log(`platform_session_created staffId=${challenge.platformStaffId}`);
+		this.logger.log(`platform_session_created staffId=${outcome.platformStaffId}`);
 		return {
 			status: 'authenticated',
 			expiresAt: outcome.expiresAt.toISOString(),
 			expiresAtDate: outcome.expiresAt,
 			sessionToken,
 		};
-	}
-
-	private readChallenge(challengeDigest: string) {
-		return this.prisma.platformMfaChallenge.findUnique({
-			where: { tokenDigest: challengeDigest },
-			select: {
-				id: true,
-				platformStaffId: true,
-				expiresAt: true,
-				consumedAt: true,
-				failedAttempts: true,
-				maxAttempts: true,
-				platformStaff: { select: { totpCredential: true } },
-			},
-		});
 	}
 
 	private persistenceFailure(error: unknown): Error {
