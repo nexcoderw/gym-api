@@ -1,7 +1,11 @@
 import { ArgumentsHost, Catch, HttpException, Logger, type ExceptionFilter } from '@nestjs/common';
 import type { Response } from 'express';
 
-import { databaseErrorCode, databaseSqlState } from '../errors/database-error-code.js';
+import {
+	databaseErrorCode,
+	databaseSqlState,
+	databaseTransactionFailure,
+} from '../errors/database-error-code.js';
 import type { RequestWithContext } from '../types/request-with-context.js';
 
 const STATUS_CODES: Readonly<Record<number, string>> = {
@@ -48,8 +52,9 @@ export class ApiExceptionFilter implements ExceptionFilter {
 			const cause = exception instanceof HttpException ? exception.cause : exception;
 			const databaseCode = databaseErrorCode(cause);
 			const sqlState = databaseSqlState(cause);
+			const transactionFailure = databaseTransactionFailure(cause);
 			this.logger.error(
-				`${request.method} ${request.path} failed requestId=${request.requestId} code=${code}${databaseCode ? ` databaseCode=${databaseCode}` : ''}${sqlState ? ` sqlState=${sqlState}` : ''}`,
+				`${request.method} ${request.path} failed requestId=${request.requestId} code=${code}${databaseCode ? ` databaseCode=${databaseCode}` : ''}${sqlState ? ` sqlState=${sqlState}` : ''}${transactionFailure ? ` transactionFailure=${transactionFailure}` : ''}`,
 			);
 		}
 
