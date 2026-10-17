@@ -7,6 +7,20 @@ import {
 describe('safe database diagnostics', () => {
 	it.each([
 		['Unable to start a transaction in the given time.', 'start_timeout'],
+		['A commit cannot be executed on an expired transaction.', 'execution_timeout'],
+		['Transaction already closed: A query cannot be executed.', 'already_closed'],
+		['Transaction not found. Transaction ID is invalid.', 'not_found'],
+	])('classifies installed JS-engine transaction messages', (detail, expected) => {
+		const error = Object.assign(new Error(`Transaction API error: ${detail}`), {
+			code: 'P2028',
+		});
+		expect(databaseTransactionFailure(error)).toBe(expected);
+		expect(
+			databaseTransactionFailure({ code: 'P2028', meta: { error: 'unrecognized' }, message: error.message }),
+		).toBe(expected);
+	});
+	it.each([
+		['Unable to start a transaction in the given time.', 'start_timeout'],
 		['A commit cannot be executed on an expired transaction. private details', 'execution_timeout'],
 		['Transaction already closed: private details', 'already_closed'],
 		['private SQL and credentials', 'unknown'],
