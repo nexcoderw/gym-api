@@ -59,7 +59,7 @@ import { OWNER_INVITATION_PERMISSION } from './platform-owner-onboarding.constan
 	type: ApiErrorResponseDto,
 	description: 'Invitation persistence or durable ownership auditing is unavailable.',
 })
-@UseGuards(PlatformSessionGuard, PlatformPermissionGuard)
+@UseGuards(PlatformOriginCsrfGuard, PlatformSessionGuard, PlatformPermissionGuard)
 @Controller('platform/organizations/:organizationId/owner-invitations')
 export class PlatformOwnerOnboardingController {
 	constructor(
@@ -71,7 +71,6 @@ export class PlatformOwnerOnboardingController {
 	@HttpCode(HttpStatus.ACCEPTED)
 	@Header('Cache-Control', 'no-store')
 	@RequirePlatformPermissions(OWNER_INVITATION_PERMISSION.send)
-	@UseGuards(PlatformOriginCsrfGuard)
 	@RequirePlatformCsrf()
 	@ApiParam({ name: 'organizationId', format: 'uuid' })
 	@ApiParam({ name: 'invitationId', format: 'uuid' })
@@ -108,7 +107,6 @@ export class PlatformOwnerOnboardingController {
 	@Post()
 	@Header('Cache-Control', 'no-store')
 	@RequirePlatformPermissions(OWNER_INVITATION_PERMISSION.invite)
-	@UseGuards(PlatformOriginCsrfGuard)
 	@RequirePlatformCsrf()
 	@ApiParam({ name: 'organizationId', format: 'uuid' })
 	@ApiHeader({ name: 'x-platform-csrf-token', required: true })
@@ -153,7 +151,6 @@ export class PlatformOwnerOnboardingController {
 	@HttpCode(HttpStatus.OK)
 	@Header('Cache-Control', 'no-store')
 	@RequirePlatformPermissions(OWNER_INVITATION_PERMISSION.revoke)
-	@UseGuards(PlatformOriginCsrfGuard)
 	@RequirePlatformCsrf()
 	@ApiParam({ name: 'organizationId', format: 'uuid' })
 	@ApiParam({ name: 'invitationId', format: 'uuid' })
