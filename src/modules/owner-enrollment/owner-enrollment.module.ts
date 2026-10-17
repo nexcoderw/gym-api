@@ -6,10 +6,11 @@ import { PlatformOwnerOnboardingModule } from '../platform-owner-onboarding/plat
 import { OwnerAcceptanceService } from './owner-acceptance.service.js';
 import { OwnerEnrollmentController } from './owner-enrollment.controller.js';
 import { OwnerEnrollmentService } from './owner-enrollment.service.js';
+import { OwnerEnrollmentSessionGuard } from './owner-enrollment-session.guard.js';
 
 @Module({
 	imports: [OwnerAuthModule, PlatformAuthModule, PlatformOwnerOnboardingModule],
 	controllers: [OwnerEnrollmentController],
-	providers: [OwnerAcceptanceService, OwnerEnrollmentService],
+	providers: [OwnerAcceptanceService, OwnerEnrollmentService, OwnerEnrollmentSessionGuard],
 })
 export class OwnerEnrollmentModule {}
