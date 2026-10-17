@@ -59,7 +59,7 @@ import { OWNER_INVITATION_PERMISSION } from './platform-owner-onboarding.constan
 	type: ApiErrorResponseDto,
 	description: 'Invitation persistence or durable ownership auditing is unavailable.',
 })
-@UseGuards(PlatformOriginCsrfGuard, PlatformSessionGuard, PlatformPermissionGuard)
+@UseGuards(PlatformSessionGuard, PlatformOriginCsrfGuard, PlatformPermissionGuard)
 @Controller('platform/organizations/:organizationId/owner-invitations')
 export class PlatformOwnerOnboardingController {
 	constructor(
