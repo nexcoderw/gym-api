@@ -9,10 +9,7 @@ import { configureSwagger } from './docs/swagger.js';
 
 type ApplicationConfiguration = Pick<EnvironmentVariables, 'CORS_ORIGINS' | 'SWAGGER_ENABLED'> &
 	Partial<
-		Pick<
-			EnvironmentVariables,
-			'ORGANIZATION_PORTAL_ORIGIN' | 'ORGANIZATION_PORTAL_BASE_DOMAIN'
-		>
+		Pick<EnvironmentVariables, 'ORGANIZATION_PORTAL_ORIGIN' | 'ORGANIZATION_PORTAL_BASE_DOMAIN'>
 	>;
 
 /** Applies transport-wide security and API conventions to production and test applications. */
@@ -30,7 +27,10 @@ export function configureApplication(
 	application.enableVersioning({ defaultVersion: API_VERSION, type: VersioningType.URI });
 	application.use(helmet());
 	application.enableCors({
-		origin(origin, callback) {
+		origin(
+			origin: string | undefined,
+			callback: (error: Error | null, allowed?: string | boolean) => void,
+		) {
 			callback(
 				null,
 				origin === undefined ||
