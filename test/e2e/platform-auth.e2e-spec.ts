@@ -206,6 +206,7 @@ describe('platform authentication HTTP API (e2e)', () => {
 	it('returns current server-resolved roles and permissions', async () => {
 		const response = await request(requireApplication(application).getHttpServer())
 			.get('/api/v1/platform/auth/session')
+			.set('Origin', ADMIN_ORIGIN)
 			.set('Cookie', `nexcode-platform-session=${SESSION_TOKEN}`)
 			.expect(200);
 		const body: unknown = response.body;
@@ -216,6 +217,7 @@ describe('platform authentication HTTP API (e2e)', () => {
 	it('rejects a missing session cookie', async () => {
 		await request(requireApplication(application).getHttpServer())
 			.get('/api/v1/platform/auth/session')
+			.set('Origin', ADMIN_ORIGIN)
 			.expect(401);
 	});
 
