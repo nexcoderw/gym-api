@@ -8,6 +8,21 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+/** Classify Prisma transaction failures without returning the underlying private message. */
+export function databaseTransactionFailure(error: unknown): string | undefined {
+	if (databaseErrorCode(error) !== 'P2028' || !isRecord(error) || !isRecord(error.meta)) {
+		return undefined;
+	}
+	const detail = error.meta.error;
+	if (typeof detail !== 'string') return 'unknown';
+	if (detail === 'Unable to start a transaction in the given time.') return 'start_timeout';
+	if (/^A (?:query|commit|rollback) cannot be executed on an expired transaction\./u.test(detail)) {
+		return 'execution_timeout';
+	}
+	if (detail.startsWith('Transaction already closed:')) return 'already_closed';
+	return 'unknown';
+}
+
 /** Extract only PostgreSQL's bounded SQLSTATE; never parse or log rendered provider messages. */
 export function databaseSqlState(error: unknown): string | undefined {
 	if (!isRecord(error) || !isRecord(error.meta)) return undefined;
