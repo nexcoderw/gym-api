@@ -1,5 +1,7 @@
+import type { OrganizationPortalOriginPolicy } from './organization-portal-origin.js';
+
 export interface OwnerInvitationDeliveryEnvironment {
-	readonly acceptanceOrigin: string;
+	readonly portalOriginPolicy: OrganizationPortalOriginPolicy;
 	readonly acceptancePath: string;
 	readonly acceptanceReviewId: string;
 	readonly hmacSecret: string;
@@ -15,6 +17,7 @@ export interface OwnerInvitationDeliveryEnvironment {
 export function parseOwnerInvitationDeliveryEnvironment(
 	input: Record<string, unknown>,
 	production: boolean,
+	portalOriginPolicy: OrganizationPortalOriginPolicy,
 ): OwnerInvitationDeliveryEnvironment | null {
 	const flag = input.OWNER_INVITATION_DELIVERY_ENABLED;
 	if (flag === undefined || flag === '' || flag === 'false' || flag === false) return null;
@@ -30,28 +33,6 @@ export function parseOwnerInvitationDeliveryEnvironment(
 	const acceptanceReviewId = required(input, 'OWNER_INVITATION_ACCEPTANCE_REVIEW_ID');
 	if (!/^[A-Za-z0-9._:-]{8,120}$/u.test(acceptanceReviewId)) {
 		throw new Error('OWNER_INVITATION_ACCEPTANCE_REVIEW_ID must identify a completed review.');
-	}
-	const acceptanceOrigin = required(input, 'OWNER_INVITATION_ACCEPTANCE_ORIGIN');
-	let origin: URL;
-	try {
-		origin = new URL(acceptanceOrigin);
-	} catch {
-		throw new Error('OWNER_INVITATION_ACCEPTANCE_ORIGIN must be an exact origin.');
-	}
-	const local = ['localhost', '127.0.0.1', '[::1]'].includes(origin.hostname);
-	if (
-		origin.origin !== acceptanceOrigin ||
-		acceptanceOrigin.length > 253 ||
-		origin.hostname.includes('*') ||
-		origin.username !== '' ||
-		origin.password !== '' ||
-		(origin.protocol !== 'https:' && !(local && !production && origin.protocol === 'http:')) ||
-		(production &&
-			(local || origin.hostname.endsWith('.invalid') || origin.hostname.endsWith('.test')))
-	) {
-		throw new Error(
-			'Owner acceptance requires an approved exact HTTPS origin (localhost in development only).',
-		);
 	}
 	const acceptancePath = required(input, 'OWNER_INVITATION_ACCEPTANCE_PATH');
 	if (!/^\/[a-z0-9-]+(?:\/[a-z0-9-]+)*$/u.test(acceptancePath) || acceptancePath.length > 120) {
@@ -84,7 +65,7 @@ export function parseOwnerInvitationDeliveryEnvironment(
 		throw new Error('Development invitation encryption keys are forbidden in production.');
 	}
 	return Object.freeze({
-		acceptanceOrigin,
+		portalOriginPolicy,
 		acceptancePath,
 		acceptanceReviewId,
 		hmacSecret,
