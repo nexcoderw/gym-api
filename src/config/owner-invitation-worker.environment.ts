@@ -1,6 +1,7 @@
 import { loadDatabaseConfig } from '@nexcoderw/gym-db';
 
 import type { EnvironmentVariables } from './environment.types.js';
+import { parseOrganizationPortalOriginPolicy } from './organization-portal-origin.js';
 import { parseOwnerInvitationDeliveryEnvironment } from './owner-invitation-delivery.environment.js';
 
 export type OwnerInvitationWorkerEnvironment = Pick<
@@ -22,7 +23,9 @@ export function validateOwnerInvitationWorkerEnvironment(
 	if (environment !== 'development' && environment !== 'test' && environment !== 'production') {
 		throw new Error('NODE_ENV must be explicitly set for the invitation worker.');
 	}
-	const settings = parseOwnerInvitationDeliveryEnvironment(input, environment === 'production');
+	const production = environment === 'production';
+	const portalOriginPolicy = parseOrganizationPortalOriginPolicy(input, production);
+	const settings = parseOwnerInvitationDeliveryEnvironment(input, production, portalOriginPolicy);
 	if (settings === null)
 		throw new Error('The invitation worker requires approved, enabled delivery.');
 	const database = loadDatabaseConfig({
