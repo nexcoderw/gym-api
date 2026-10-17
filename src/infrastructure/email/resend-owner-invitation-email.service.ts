@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 import type { EnvironmentVariables } from '../../config/environment.types.js';
+import { isOrganizationPortalOrigin } from '../../config/organization-portal-origin.js';
 import type { InvitationEmailSnapshot } from '../../modules/platform-owner-onboarding/owner-invitation-token-envelope.service.js';
 
 export type InvitationProviderOutcome =
@@ -35,7 +36,7 @@ export class ResendOwnerInvitationEmailService {
 			key === null ||
 			sender === null ||
 			snapshot.sender !== sender ||
-			snapshot.acceptanceOrigin !== settings.acceptanceOrigin ||
+			!isOrganizationPortalOrigin(snapshot.acceptanceOrigin, settings.portalOriginPolicy) ||
 			snapshot.acceptancePath !== settings.acceptancePath ||
 			!/^owner-invitation-delivery:[0-9a-f-]{36}$/u.test(idempotencyKey)
 		) {
