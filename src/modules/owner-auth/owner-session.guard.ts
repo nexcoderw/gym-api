@@ -20,7 +20,17 @@ export class OwnerSessionGuard implements CanActivate {
 		if (token === undefined || !this.tokens.isValid(token)) {
 			throw new UnauthorizedException(OWNER_AUTH_ERROR.invalidSession);
 		}
-		request.ownerPrincipal = await this.sessions.authenticate(token);
+		const principal = await this.sessions.authenticate(token);
+		const organizationSlug = request.ownerOrganizationSlug;
+		if (organizationSlug === undefined) {
+			request.ownerPrincipal = principal;
+			return true;
+		}
+		const organization = principal.organizations.find(({ slug }) => slug === organizationSlug);
+		if (organization === undefined) {
+			throw new UnauthorizedException(OWNER_AUTH_ERROR.invalidSession);
+		}
+		request.ownerPrincipal = { ...principal, organizations: [organization] };
 		return true;
 	}
 }
