@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
 	OrganizationOwnerEnrollmentPurpose,
@@ -44,6 +44,7 @@ export interface VerifiedOwnerEnrollment extends OwnerEnrollmentAuthenticatedRes
 
 @Injectable()
 export class OwnerEnrollmentService {
+	private readonly logger = new Logger(OwnerEnrollmentService.name);
 	private readonly challengeLifetimeMilliseconds: number;
 
 	constructor(
@@ -205,6 +206,7 @@ export class OwnerEnrollmentService {
 			throw invalidOwnerEnrollment();
 		}
 		const password = Buffer.from(input.password, 'utf8');
+		let phase: 'password_hash' | 'identity_transaction' | 'session_creation' = 'password_hash';
 		try {
 			if (!acceptsBootstrapPassword(password, challenge.ownerInvitation.invitedEmail)) {
 				throw ownerEnrollmentConflict(
@@ -212,6 +214,7 @@ export class OwnerEnrollmentService {
 				);
 			}
 			const passwordHash = await this.passwords.hash(password);
+			phase = 'identity_transaction';
 			const userId = await this.prisma.$transaction(async (transaction) => {
 				const user = await transaction.user.create({
 					data: {
@@ -244,8 +247,17 @@ export class OwnerEnrollmentService {
 				if (verified.count !== 1) throw invalidOwnerEnrollment();
 				return user.id;
 			}, TRANSACTION_OPTIONS);
+			phase = 'session_creation';
 			return await this.createAuthenticatedResult(userId, now);
 		} catch (error: unknown) {
+			// Classify locally; never log exception messages, credentials or submitted identity fields.
+			const errorKind =
+				error instanceof TypeError
+					? 'type_error'
+					: error instanceof RangeError
+						? 'range_error'
+						: 'operation_error';
+			this.logger.error({ code: 'OWNER_REGISTRATION_FAILED', phase, errorKind });
 			throw ownerEnrollmentFailure(error);
 		} finally {
 			password.fill(0);
