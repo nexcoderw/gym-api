@@ -186,7 +186,7 @@ export class PlatformAuthController {
 
 	@Get('session')
 	@Header('Cache-Control', 'no-store')
-	@UseGuards(PlatformSessionGuard)
+	@UseGuards(PlatformOriginCsrfGuard, PlatformSessionGuard)
 	@ApiCookieAuth('platform-session')
 	@ApiOperation({
 		summary: 'Read the current platform administrator session',
@@ -199,6 +199,10 @@ export class PlatformAuthController {
 	})
 	@ApiUnauthorizedResponse({
 		description: 'The session is missing, invalid, or expired.',
+		type: ApiErrorResponseDto,
+	})
+	@ApiForbiddenResponse({
+		description: 'The administrative Origin is not allowed.',
 		type: ApiErrorResponseDto,
 	})
 	@ApiTooManyRequestsResponse({
