@@ -38,11 +38,12 @@ export class OwnerLoginService {
 		input: OwnerLoginDto,
 		ipAddress: string,
 		now = new Date(),
+		organizationSlug?: string,
 	): Promise<OwnerLoginSuccess> {
 		this.attempts.assertAllowed(ipAddress, input.email, now.getTime());
 		let identity: Awaited<ReturnType<typeof this.readIdentity>>;
 		try {
-			identity = await this.readIdentity(input.email);
+			identity = await this.readIdentity(input.email, organizationSlug);
 		} catch (error: unknown) {
 			throw this.persistenceFailure(error);
 		}
@@ -80,7 +81,7 @@ export class OwnerLoginService {
 		}
 	}
 
-	private readIdentity(email: string) {
+	private readIdentity(email: string, organizationSlug?: string) {
 		return this.prisma.user.findUnique({
 			where: { email },
 			select: {
@@ -90,7 +91,10 @@ export class OwnerLoginService {
 				passwordCredential: { select: { passwordHash: true } },
 				platformStaff: { select: { id: true } },
 				organizationMemberships: {
-					where: { status: OrganizationMembershipStatus.ACTIVE },
+					where: {
+						status: OrganizationMembershipStatus.ACTIVE,
+						organization: organizationSlug === undefined ? undefined : { slug: organizationSlug },
+					},
 					select: {
 						roles: { select: { organizationRole: { select: { key: true } } } },
 					},
