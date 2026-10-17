@@ -1,9 +1,23 @@
 import {
 	databaseErrorCode,
 	databaseSqlState,
+	databaseTransactionFailure,
 } from '../../src/common/errors/database-error-code.js';
 
 describe('safe database diagnostics', () => {
+	it.each([
+		['Unable to start a transaction in the given time.', 'start_timeout'],
+		['A commit cannot be executed on an expired transaction. private details', 'execution_timeout'],
+		['Transaction already closed: private details', 'already_closed'],
+		['private SQL and credentials', 'unknown'],
+	])('classifies transaction failures without exposing details', (detail, expected) => {
+		expect(databaseTransactionFailure({ code: 'P2028', meta: { error: detail } })).toBe(expected);
+	});
+	it('does not classify unrelated or malformed transaction errors', () => {
+		expect(databaseTransactionFailure({ code: 'P2039', meta: { error: 'private' } })).toBeUndefined();
+		expect(databaseTransactionFailure(null)).toBeUndefined();
+		expect(databaseTransactionFailure({ code: 'P2028', meta: { error: null } })).toBe('unknown');
+	});
 	it('exposes only the machine code, never messages or metadata', () => {
 		expect(
 			databaseErrorCode({ code: 'P2028', message: 'private SQL', meta: { secret: 'private' } }),
