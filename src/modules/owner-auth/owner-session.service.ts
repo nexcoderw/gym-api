@@ -20,6 +20,7 @@ import { OwnerTokenService } from './owner-token.service.js';
 const MAXIMUM_ATTEMPTS = 3;
 const TRANSACTION_MAX_WAIT_MS = 10_000;
 const TRANSACTION_TIMEOUT_MS = 10_000;
+const CONNECTION_RETRY_WINDOW_MS = 1_000;
 
 @Injectable()
 export class OwnerSessionService {
@@ -69,12 +70,23 @@ export class OwnerSessionService {
 
 	async authenticate(token: string, now = new Date()): Promise<OwnerPrincipal> {
 		const digest = this.tokens.sessionDigest(token);
+		const startedAt = performance.now();
 		for (let attempt = 0; attempt < MAXIMUM_ATTEMPTS; attempt += 1) {
+			const transactionState = { started: false };
 			try {
-				return await this.authenticateTransaction(digest, now);
+				return await this.authenticateTransaction(digest, now, () => {
+					transactionState.started = true;
+				});
 			} catch (error: unknown) {
 				const code = databaseErrorCode(error);
-				if (code === 'P2034' && attempt + 1 < MAXIMUM_ATTEMPTS) {
+				// Retry one fast connection failure only before any session work could execute.
+				// Never replay an uncertain refresh/revocation or multiply slow connection timeouts.
+				const retryConnection =
+					code === 'P1001' &&
+					!transactionState.started &&
+					attempt === 0 &&
+					performance.now() - startedAt < CONNECTION_RETRY_WINDOW_MS;
+				if ((code === 'P2034' || retryConnection) && attempt + 1 < MAXIMUM_ATTEMPTS) {
 					await delay(randomInt(75, 201) * (attempt + 1));
 					continue;
 				}
@@ -104,9 +116,14 @@ export class OwnerSessionService {
 		});
 	}
 
-	private async authenticateTransaction(tokenDigest: string, now: Date): Promise<OwnerPrincipal> {
+	private async authenticateTransaction(
+		tokenDigest: string,
+		now: Date,
+		onStarted: () => void,
+	): Promise<OwnerPrincipal> {
 		const principal = await this.prisma.$transaction(
 			async (transaction): Promise<OwnerPrincipal | null> => {
+				onStarted();
 				const session = await transaction.ownerSession.findUnique({
 					where: { tokenDigest },
 					select: {
