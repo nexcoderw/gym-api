@@ -3,6 +3,7 @@ import {
 	type EnvironmentVariables,
 	type NodeEnvironment,
 } from './environment.types.js';
+import { parseOrganizationPortalOriginPolicy } from './organization-portal-origin.js';
 import { parseOwnerInvitationDeliveryEnvironment } from './owner-invitation-delivery.environment.js';
 
 const DEFAULT_PORT = 3000;
@@ -319,16 +320,16 @@ export function validateEnvironment(input: Record<string, unknown>): Environment
 		'PLATFORM_AUTH_EMAIL_OTP_ENABLED',
 		false,
 	);
-	const organizationPortalOrigin = parseOrigin(
-		input.ORGANIZATION_PORTAL_ORIGIN,
-		'ORGANIZATION_PORTAL_ORIGIN',
-		nodeEnvironment === 'production' ? undefined : DEFAULT_MANAGER_ORIGIN,
+	const organizationPortalPolicy = parseOrganizationPortalOriginPolicy(
+		input,
+		nodeEnvironment === 'production',
+		DEFAULT_MANAGER_ORIGIN,
 	);
-	if (!corsOrigins.includes(organizationPortalOrigin)) {
+	if (
+		organizationPortalPolicy.fixedOrigin !== null &&
+		!corsOrigins.includes(organizationPortalPolicy.fixedOrigin)
+	) {
 		throw new Error('ORGANIZATION_PORTAL_ORIGIN must also be present in CORS_ORIGINS.');
-	}
-	if (nodeEnvironment === 'production' && !organizationPortalOrigin.startsWith('https://')) {
-		throw new Error('ORGANIZATION_PORTAL_ORIGIN must use HTTPS in production.');
 	}
 	const ownerCookieSecure = parseBoolean(
 		input.OWNER_AUTH_COOKIE_SECURE,
@@ -383,6 +384,7 @@ export function validateEnvironment(input: Record<string, unknown>): Environment
 	const invitationDelivery = parseOwnerInvitationDeliveryEnvironment(
 		input,
 		nodeEnvironment === 'production',
+		organizationPortalPolicy,
 	);
 	if (invitationDelivery !== null) {
 		const invitationSecrets = [
@@ -492,7 +494,8 @@ export function validateEnvironment(input: Record<string, unknown>): Environment
 		),
 		PLATFORM_AUTH_SINGLE_INSTANCE: singleInstance,
 		PLATFORM_AUTH_EMAIL_OTP_ENABLED: emailOtpEnabled,
-		ORGANIZATION_PORTAL_ORIGIN: organizationPortalOrigin,
+		ORGANIZATION_PORTAL_ORIGIN: organizationPortalPolicy.fixedOrigin,
+		ORGANIZATION_PORTAL_BASE_DOMAIN: organizationPortalPolicy.baseDomain,
 		OWNER_AUTH_COOKIE_SECURE: ownerCookieSecure,
 		OWNER_AUTH_TOKEN_PEPPER: ownerTokenPepper,
 		OWNER_ENROLLMENT_TOKEN_PEPPER: ownerEnrollmentTokenPepper,
