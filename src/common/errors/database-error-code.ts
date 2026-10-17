@@ -20,7 +20,9 @@ export function databaseTransactionFailure(error: unknown): string | undefined {
 		if (detail.includes('Unable to start a transaction in the given time.')) {
 			return 'start_timeout';
 		}
-		if (/A (?:query|commit|rollback) cannot be executed on an expired transaction\./u.test(detail)) {
+		if (
+			/A (?:query|commit|rollback) cannot be executed on an expired transaction\./u.test(detail)
+		) {
 			return 'execution_timeout';
 		}
 		if (detail.includes('Transaction already closed:')) return 'already_closed';
