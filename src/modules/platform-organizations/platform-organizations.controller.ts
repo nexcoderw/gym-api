@@ -64,7 +64,7 @@ import { PlatformOrganizationsService } from './platform-organizations.service.j
 	type: ApiErrorResponseDto,
 	description: 'Persistence unavailable, or mutations blocked by ORGANIZATION_AUDIT_UNAVAILABLE.',
 })
-@UseGuards(PlatformOriginCsrfGuard, PlatformSessionGuard, PlatformPermissionGuard)
+@UseGuards(PlatformSessionGuard, PlatformOriginCsrfGuard, PlatformPermissionGuard)
 @Controller('platform/organizations')
 export class PlatformOrganizationsController {
 	constructor(
