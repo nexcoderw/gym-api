@@ -90,10 +90,16 @@ describe('owner onboarding HTTP security (real guards, fake persistence)', () =>
 			.set('Origin', 'http://localhost:4000')
 			.set('x-platform-csrf-token', CSRF_TOKEN);
 	}
+	function list(path = ROOT, cookie = COOKIE) {
+		return request(app().getHttpServer())
+			.get(path)
+			.set('Cookie', cookie)
+			.set('Origin', 'http://localhost:4000');
+	}
 
 	it('requires authentication and distinct permissions for every route', async () => {
 		await create('').expect(401);
-		await request(app().getHttpServer()).get(ROOT).expect(401);
+		await list(ROOT, '').expect(401);
 		await revoke('').expect(401);
 
 		for (const permission of Object.values(OWNER_INVITATION_PERMISSION)) {
@@ -104,7 +110,7 @@ describe('owner onboarding HTTP security (real guards, fake persistence)', () =>
 			);
 			if (permission === OWNER_INVITATION_PERMISSION.invite) await create().expect(403);
 			if (permission === OWNER_INVITATION_PERMISSION.read) {
-				await request(app().getHttpServer()).get(ROOT).set('Cookie', COOKIE).expect(403);
+				await list().expect(403);
 			}
 			if (permission === OWNER_INVITATION_PERMISSION.revoke) await revoke().expect(403);
 		}
@@ -134,7 +140,7 @@ describe('owner onboarding HTTP security (real guards, fake persistence)', () =>
 		];
 		database.sessionFindUnique.mockResolvedValue(session);
 		await create().expect(201);
-		await request(app().getHttpServer()).get(ROOT).set('Cookie', COOKIE).expect(200);
+		await list().expect(200);
 		const revoked = ownerInvitationFixture(OrganizationOwnerInvitationStatus.REVOKED);
 		database.invitationFindFirst
 			.mockResolvedValueOnce(ownerInvitationFixture())
@@ -177,9 +183,7 @@ describe('owner onboarding HTTP security (real guards, fake persistence)', () =>
 	});
 
 	it('returns a bounded organization-scoped no-store list and validates filters', async () => {
-		await request(app().getHttpServer())
-			.get(`${ROOT}?limit=20&status=PENDING_DELIVERY`)
-			.set('Cookie', COOKIE)
+		await list(`${ROOT}?limit=20&status=PENDING_DELIVERY`)
 			.expect(200)
 			.expect('Cache-Control', 'no-store');
 		expect(database.invitationFindMany.mock.calls[0]?.[0]).toMatchObject({
@@ -190,10 +194,7 @@ describe('owner onboarding HTTP security (real guards, fake persistence)', () =>
 			take: 21,
 		});
 		for (const suffix of ['?limit=51', '?status=unknown', '?cursor=bad', '?include=user']) {
-			await request(app().getHttpServer())
-				.get(`${ROOT}${suffix}`)
-				.set('Cookie', COOKIE)
-				.expect(400);
+			await list(`${ROOT}${suffix}`).expect(400);
 		}
 	});
 
