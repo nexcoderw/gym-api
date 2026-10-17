@@ -36,6 +36,7 @@ export class OwnerAcceptanceService {
 		challengeToken: string,
 		requestId: string,
 		now = new Date(),
+		organizationSlug?: string,
 	): Promise<OwnerInvitationAcceptedResponseDto> {
 		if (!this.tokens.isValid(challengeToken)) throw invalidOwnerEnrollment();
 		const challengeDigest = this.tokens.enrollmentDigest(challengeToken);
@@ -90,6 +91,7 @@ export class OwnerAcceptanceService {
 				}
 				const organization = challenge.ownerInvitation.organization;
 				if (
+					(organizationSlug !== undefined && organization.slug !== organizationSlug) ||
 					organization.status !== OrganizationStatus.PENDING &&
 					organization.status !== OrganizationStatus.ACTIVE
 				) {
