@@ -169,6 +169,23 @@ export class OwnerAcceptanceService {
 					},
 					update: {},
 				});
+				// The proof guard requires a still-sent invitation when consuming the challenge.
+				// Both transitions and the audit must commit together in this transaction.
+				const challengeUpdate = await transaction.organizationOwnerEnrollmentChallenge.updateMany({
+					where: {
+						id: challenge.id,
+						userId: principal.userId,
+						status: OrganizationOwnerEnrollmentStatus.VERIFIED,
+						expiresAt: { gt: now },
+					},
+					data: {
+						status: OrganizationOwnerEnrollmentStatus.CONSUMED,
+						tokenDigest: null,
+						consumedAt: now,
+						updatedAt: now,
+					},
+				});
+				if (challengeUpdate.count !== 1) throw invalidOwnerEnrollment();
 				const invitationUpdate = await transaction.organizationOwnerInvitation.updateMany({
 					where: {
 						id: challenge.ownerInvitationId,
@@ -185,21 +202,6 @@ export class OwnerAcceptanceService {
 					},
 				});
 				if (invitationUpdate.count !== 1) throw invalidOwnerEnrollment();
-				const challengeUpdate = await transaction.organizationOwnerEnrollmentChallenge.updateMany({
-					where: {
-						id: challenge.id,
-						userId: principal.userId,
-						status: OrganizationOwnerEnrollmentStatus.VERIFIED,
-						expiresAt: { gt: now },
-					},
-					data: {
-						status: OrganizationOwnerEnrollmentStatus.CONSUMED,
-						tokenDigest: null,
-						consumedAt: now,
-						updatedAt: now,
-					},
-				});
-				if (challengeUpdate.count !== 1) throw invalidOwnerEnrollment();
 				await transaction.organizationOwnerAcceptanceAuditEvent.create({
 					data: {
 						organizationId: organization.id,
