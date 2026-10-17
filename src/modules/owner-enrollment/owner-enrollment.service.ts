@@ -88,8 +88,7 @@ export class OwnerEnrollmentService {
 					invitation.expiresAt <= now ||
 					invitation.revokedAt !== null ||
 					invitation.acceptedAt !== null ||
-					(organizationSlug !== undefined &&
-						invitation.organization.slug !== organizationSlug) ||
+					(organizationSlug !== undefined && invitation.organization.slug !== organizationSlug) ||
 					(invitation.organization.status !== OrganizationStatus.PENDING &&
 						invitation.organization.status !== OrganizationStatus.ACTIVE)
 				) {

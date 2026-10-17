@@ -92,8 +92,8 @@ export class OwnerAcceptanceService {
 				const organization = challenge.ownerInvitation.organization;
 				if (
 					(organizationSlug !== undefined && organization.slug !== organizationSlug) ||
-					organization.status !== OrganizationStatus.PENDING &&
-					organization.status !== OrganizationStatus.ACTIVE
+					(organization.status !== OrganizationStatus.PENDING &&
+						organization.status !== OrganizationStatus.ACTIVE)
 				) {
 					throw ownerEnrollmentConflict('This organization is not eligible for owner enrollment.');
 				}

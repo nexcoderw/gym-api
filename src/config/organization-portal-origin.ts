@@ -106,10 +106,7 @@ function exactOrigin(value: unknown, name: string): string {
 	if (url.origin !== value || !['http:', 'https:'].includes(url.protocol)) {
 		throw new Error(`${name} must be an HTTP origin without a path.`);
 	}
-	if (
-		url.protocol === 'http:' &&
-		!['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)
-	) {
+	if (url.protocol === 'http:' && !['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)) {
 		throw new Error(`${name} may use HTTP only on a loopback host.`);
 	}
 	return url.origin;

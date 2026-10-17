@@ -117,10 +117,7 @@ describe('validateEnvironment', () => {
 		});
 
 		expect(configuration.SWAGGER_ENABLED).toBe(false);
-		expect(configuration.CORS_ORIGINS).toEqual([
-			'https://gym.rw',
-			'https://admin.gym.rw',
-		]);
+		expect(configuration.CORS_ORIGINS).toEqual(['https://gym.rw', 'https://admin.gym.rw']);
 		expect(configuration.ORGANIZATION_PORTAL_ORIGIN).toBeNull();
 		expect(configuration.ORGANIZATION_PORTAL_BASE_DOMAIN).toBe('gym.rw');
 	});

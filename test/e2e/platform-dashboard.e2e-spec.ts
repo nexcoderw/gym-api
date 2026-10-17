@@ -102,9 +102,7 @@ describe('platform dashboard HTTP API (real session and permission guards)', () 
 	});
 
 	it('rejects a malformed session token before database access', async () => {
-		await dashboardRequest()
-			.set('Cookie', `${LOCAL_PLATFORM_SESSION_COOKIE}=short`)
-			.expect(401);
+		await dashboardRequest().set('Cookie', `${LOCAL_PLATFORM_SESSION_COOKIE}=short`).expect(401);
 		expect(database.sessionFindUnique).not.toHaveBeenCalled();
 	});
 

@@ -37,9 +37,7 @@ describe('organization portal origin policy', () => {
 		const localPolicy = { fixedOrigin: 'http://localhost:4001', baseDomain: null };
 		expect(isOrganizationPortalOrigin('http://localhost:4001', localPolicy)).toBe(true);
 		expect(isOrganizationPortalOrigin('http://soho.localhost:4001', localPolicy)).toBe(false);
-		expect(organizationPortalOriginForSlug('soho', localPolicy)).toBe(
-			'http://localhost:4001',
-		);
+		expect(organizationPortalOriginForSlug('soho', localPolicy)).toBe('http://localhost:4001');
 	});
 
 	it('keeps fixed origins local and base-domain routing production-only', () => {
