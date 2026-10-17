@@ -76,6 +76,8 @@ export class OwnerAuthController {
 		const result = await this.loginService.login(
 			input,
 			request.socket.remoteAddress ?? 'unavailable',
+			undefined,
+			request.ownerOrganizationSlug,
 		);
 		const csrfToken = this.tokens.create();
 		this.cookies.setSession(response, result.sessionToken, result.expiresAtDate);
@@ -85,7 +87,7 @@ export class OwnerAuthController {
 
 	@Get('session')
 	@Header('Cache-Control', 'no-store')
-	@UseGuards(OwnerSessionGuard)
+	@UseGuards(OwnerOriginCsrfGuard, OwnerSessionGuard)
 	@ApiCookieAuth('owner-session')
 	@ApiOperation({
 		summary: 'Read the current owner session and live organization access',
