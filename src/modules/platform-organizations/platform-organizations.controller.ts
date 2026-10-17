@@ -64,7 +64,7 @@ import { PlatformOrganizationsService } from './platform-organizations.service.j
 	type: ApiErrorResponseDto,
 	description: 'Persistence unavailable, or mutations blocked by ORGANIZATION_AUDIT_UNAVAILABLE.',
 })
-@UseGuards(PlatformSessionGuard, PlatformPermissionGuard)
+@UseGuards(PlatformOriginCsrfGuard, PlatformSessionGuard, PlatformPermissionGuard)
 @Controller('platform/organizations')
 export class PlatformOrganizationsController {
 	constructor(
@@ -111,7 +111,6 @@ export class PlatformOrganizationsController {
 	@Post()
 	@Header('Cache-Control', 'no-store')
 	@RequirePlatformPermissions(ORGANIZATION_PERMISSION.create)
-	@UseGuards(PlatformOriginCsrfGuard)
 	@RequirePlatformCsrf()
 	@ApiHeader({ name: 'x-platform-csrf-token', required: true })
 	@ApiOperation({
@@ -134,7 +133,6 @@ export class PlatformOrganizationsController {
 	@Patch(':id')
 	@Header('Cache-Control', 'no-store')
 	@RequirePlatformPermissions(ORGANIZATION_PERMISSION.update)
-	@UseGuards(PlatformOriginCsrfGuard)
 	@RequirePlatformCsrf()
 	@ApiParam({ name: 'id', format: 'uuid' })
 	@ApiHeader({ name: 'x-platform-csrf-token', required: true })
@@ -166,7 +164,6 @@ export class PlatformOrganizationsController {
 	@HttpCode(HttpStatus.OK)
 	@Header('Cache-Control', 'no-store')
 	@RequirePlatformPermissions(ORGANIZATION_PERMISSION.activate)
-	@UseGuards(PlatformOriginCsrfGuard)
 	@RequirePlatformCsrf()
 	@ApiParam({ name: 'id', format: 'uuid' })
 	@ApiHeader({ name: 'x-platform-csrf-token', required: true })
@@ -196,7 +193,6 @@ export class PlatformOrganizationsController {
 	@HttpCode(HttpStatus.OK)
 	@Header('Cache-Control', 'no-store')
 	@RequirePlatformPermissions(ORGANIZATION_PERMISSION.suspend)
-	@UseGuards(PlatformOriginCsrfGuard)
 	@RequirePlatformCsrf()
 	@ApiParam({ name: 'id', format: 'uuid' })
 	@ApiHeader({ name: 'x-platform-csrf-token', required: true })
@@ -226,7 +222,6 @@ export class PlatformOrganizationsController {
 	@HttpCode(HttpStatus.OK)
 	@Header('Cache-Control', 'no-store')
 	@RequirePlatformPermissions(ORGANIZATION_PERMISSION.archive)
-	@UseGuards(PlatformOriginCsrfGuard)
 	@RequirePlatformCsrf()
 	@ApiParam({ name: 'id', format: 'uuid' })
 	@ApiHeader({ name: 'x-platform-csrf-token', required: true })
