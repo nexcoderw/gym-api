@@ -3,9 +3,9 @@
 ## Standards
 
 Queue delivery, verify recipient relationship and tenant branding, use the controlled
-`notify.gym.rw` domain, maintain suppression/unsubscribe rules, quotas, delivery state, idempotency,
-provider webhook signatures, and safe templates. Proposed sender: `Soho Gym via Gym.rw
-<reminders@notify.gym.rw>` after domain verification.
+`notify.mucyora.rw` domain, maintain suppression/unsubscribe rules, quotas, delivery state,
+idempotency, provider webhook signatures, and safe templates. Proposed sender: `Soho Gym via Mucyora
+<reminders@notify.mucyora.rw>` after domain verification.
 
 ## Forbidden practices
 
