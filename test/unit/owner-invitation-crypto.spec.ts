@@ -14,6 +14,10 @@ const identity = {
 	organizationId: '22222222-2222-4222-8222-222222222222',
 	ownerInvitationId: '33333333-3333-4333-8333-333333333333',
 };
+const fixedPortalPolicy = {
+	fixedOrigin: 'https://owners.example.invalid',
+	baseDomain: null,
+};
 
 describe('owner invitation configuration and cryptography', () => {
 	it('validates a separately provisioned worker without HTTP session or TOTP secrets', () => {
@@ -40,26 +44,25 @@ describe('owner invitation configuration and cryptography', () => {
 		).toThrow('restricted');
 	});
 	it('is off by default and requires database and independent destination approval', () => {
-		expect(parseOwnerInvitationDeliveryEnvironment({}, false)).toBeNull();
+		expect(parseOwnerInvitationDeliveryEnvironment({}, false, fixedPortalPolicy)).toBeNull();
 		const input = invitationDeliveryInput();
 		expect(() =>
 			parseOwnerInvitationDeliveryEnvironment(
 				{ ...input, OWNER_INVITATION_DELIVERY_DATABASE_APPROVED: 'false' },
 				false,
+				fixedPortalPolicy,
 			),
 		).toThrow('independent approval');
 		expect(() =>
 			parseOwnerInvitationDeliveryEnvironment(
 				{ ...input, OWNER_INVITATION_ACCEPTANCE_REVIEW_ID: '' },
 				false,
+				fixedPortalPolicy,
 			),
 		).toThrow('REVIEW_ID');
 	});
 
 	it.each([
-		{ OWNER_INVITATION_ACCEPTANCE_ORIGIN: 'https://*.example.invalid' },
-		{ OWNER_INVITATION_ACCEPTANCE_ORIGIN: 'https://owners.example.invalid/path' },
-		{ OWNER_INVITATION_ACCEPTANCE_ORIGIN: 'https://user:secret@owners.example.invalid' },
 		{ OWNER_INVITATION_ACCEPTANCE_PATH: '/accept?return=https://evil.invalid' },
 		{ OWNER_INVITATION_TOKEN_HMAC_SECRET: Buffer.alloc(32).toString('base64') },
 		{ OWNER_INVITATION_ENCRYPTION_ACTIVE_KEY_ID: 'missing' },
@@ -71,18 +74,13 @@ describe('owner invitation configuration and cryptography', () => {
 			parseOwnerInvitationDeliveryEnvironment(
 				{ ...invitationDeliveryInput(), ...overrides },
 				false,
+				fixedPortalPolicy,
 			),
 		).toThrow();
 	});
 
-	it('rejects localhost production and reused secrets', () => {
+	it('rejects reused invitation secrets', () => {
 		const input = invitationDeliveryInput();
-		expect(() =>
-			parseOwnerInvitationDeliveryEnvironment(
-				{ ...input, OWNER_INVITATION_ACCEPTANCE_ORIGIN: 'http://localhost:4001' },
-				true,
-			),
-		).toThrow('HTTPS');
 		expect(() =>
 			parseOwnerInvitationDeliveryEnvironment(
 				{
@@ -90,6 +88,7 @@ describe('owner invitation configuration and cryptography', () => {
 					OWNER_INVITATION_ENCRYPTION_KEYRING: `key=${String(input.OWNER_INVITATION_TOKEN_HMAC_SECRET)}`,
 				},
 				false,
+				fixedPortalPolicy,
 			),
 		).toThrow('separate');
 	});
