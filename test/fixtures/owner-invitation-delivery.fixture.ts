@@ -27,10 +27,11 @@ import {
 export function invitationDeliveryInput(): Record<string, unknown> {
 	return {
 		NODE_ENV: 'test',
+		CORS_ORIGINS: 'http://localhost:4000,https://owners.example.invalid',
+		ORGANIZATION_PORTAL_ORIGIN: 'https://owners.example.invalid',
 		OWNER_INVITATION_DELIVERY_ENABLED: 'true',
 		OWNER_INVITATION_DELIVERY_DATABASE_APPROVED: 'true',
 		OWNER_INVITATION_ACCEPTANCE_REVIEW_ID: 'fictional-test-review',
-		OWNER_INVITATION_ACCEPTANCE_ORIGIN: 'https://owners.example.invalid',
 		OWNER_INVITATION_ACCEPTANCE_PATH: '/invitations/accept',
 		OWNER_INVITATION_TOKEN_HMAC_SECRET: randomBytes(32).toString('base64'),
 		OWNER_INVITATION_ENCRYPTION_KEYRING: `test-key=${randomBytes(32).toString('base64')}`,
