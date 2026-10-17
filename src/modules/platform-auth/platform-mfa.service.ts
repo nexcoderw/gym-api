@@ -136,8 +136,7 @@ export class PlatformMfaService {
 						},
 					});
 					if (
-						current === null ||
-						current.consumedAt !== null ||
+						current?.consumedAt !== null ||
 						current.expiresAt <= now ||
 						current.failedAttempts >= current.maxAttempts ||
 						current.platformStaff.status !== PlatformStaffStatus.ACTIVE ||
