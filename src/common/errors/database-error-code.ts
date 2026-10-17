@@ -10,16 +10,22 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 /** Classify Prisma transaction failures without returning the underlying private message. */
 export function databaseTransactionFailure(error: unknown): string | undefined {
-	if (databaseErrorCode(error) !== 'P2028' || !isRecord(error) || !isRecord(error.meta)) {
+	if (databaseErrorCode(error) !== 'P2028' || !isRecord(error)) {
 		return undefined;
 	}
-	const detail = error.meta.error;
-	if (typeof detail !== 'string') return 'unknown';
-	if (detail === 'Unable to start a transaction in the given time.') return 'start_timeout';
-	if (/^A (?:query|commit|rollback) cannot be executed on an expired transaction\./u.test(detail)) {
-		return 'execution_timeout';
+	// Prisma's JS engine places transaction text in message; engine variants may use meta.error.
+	const details = [isRecord(error.meta) ? error.meta.error : undefined, error.message];
+	for (const detail of details) {
+		if (typeof detail !== 'string') continue;
+		if (detail.includes('Unable to start a transaction in the given time.')) {
+			return 'start_timeout';
+		}
+		if (/A (?:query|commit|rollback) cannot be executed on an expired transaction\./u.test(detail)) {
+			return 'execution_timeout';
+		}
+		if (detail.includes('Transaction already closed:')) return 'already_closed';
+		if (detail.includes('Transaction not found.')) return 'not_found';
 	}
-	if (detail.startsWith('Transaction already closed:')) return 'already_closed';
 	return 'unknown';
 }
 
