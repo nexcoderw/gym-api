@@ -14,6 +14,7 @@ import { PlatformTokenService } from '../../src/modules/platform-auth/platform-t
 import { createPlatformDashboardDatabaseFixture } from '../fixtures/platform-dashboard-database.fixture.js';
 
 const ENDPOINT = '/api/v1/platform/dashboard/summary';
+const ADMIN_ORIGIN = 'http://localhost:4000';
 const SESSION_TOKEN = 'fictional-dashboard-session-token-at-least-32-characters';
 const COOKIE = `${LOCAL_PLATFORM_SESSION_COOKIE}=${SESSION_TOKEN}`;
 
@@ -49,11 +50,12 @@ describe('platform dashboard HTTP API (real session and permission guards)', () 
 		return application;
 	}
 
+	function dashboardRequest(target = app()) {
+		return request(target.getHttpServer()).get(ENDPOINT).set('Origin', ADMIN_ORIGIN);
+	}
+
 	it('returns only approved numeric aggregates and a UTC timestamp without caching or PII', async () => {
-		const response = await request(app().getHttpServer())
-			.get(ENDPOINT)
-			.set('Cookie', COOKIE)
-			.expect(200);
+		const response = await dashboardRequest().set('Cookie', COOKIE).expect(200);
 		const body: unknown = response.body;
 		if (!isRecord(body) || typeof body.generatedAt !== 'string') {
 			throw new Error('Expected a dashboard response with a timestamp.');
@@ -84,14 +86,23 @@ describe('platform dashboard HTTP API (real session and permission guards)', () 
 	});
 
 	it('rejects a missing session before reading statistics', async () => {
-		await request(app().getHttpServer()).get(ENDPOINT).expect(401);
+		await dashboardRequest().expect(401);
+		expect(database.sessionFindUnique).not.toHaveBeenCalled();
+		expect(database.userCount).not.toHaveBeenCalled();
+	});
+
+	it('rejects a tenant portal origin before reading the platform session', async () => {
+		await request(app().getHttpServer())
+			.get(ENDPOINT)
+			.set('Origin', 'http://localhost:4001')
+			.set('Cookie', COOKIE)
+			.expect(403);
 		expect(database.sessionFindUnique).not.toHaveBeenCalled();
 		expect(database.userCount).not.toHaveBeenCalled();
 	});
 
 	it('rejects a malformed session token before database access', async () => {
-		await request(app().getHttpServer())
-			.get(ENDPOINT)
+		await dashboardRequest()
 			.set('Cookie', `${LOCAL_PLATFORM_SESSION_COOKIE}=short`)
 			.expect(401);
 		expect(database.sessionFindUnique).not.toHaveBeenCalled();
@@ -99,7 +110,7 @@ describe('platform dashboard HTTP API (real session and permission guards)', () 
 
 	it('rejects an unknown session token through the real session service', async () => {
 		database.sessionFindUnique.mockResolvedValue(null);
-		await request(app().getHttpServer()).get(ENDPOINT).set('Cookie', COOKIE).expect(401);
+		await dashboardRequest().set('Cookie', COOKIE).expect(401);
 		expect(database.userCount).not.toHaveBeenCalled();
 	});
 
@@ -150,7 +161,7 @@ describe('platform dashboard HTTP API (real session and permission guards)', () 
 			default:
 				throw new Error('An unsupported rejection fixture was requested.');
 		}
-		await request(app().getHttpServer()).get(ENDPOINT).set('Cookie', COOKIE).expect(401);
+		await dashboardRequest().set('Cookie', COOKIE).expect(401);
 		expect(database.userCount).not.toHaveBeenCalled();
 	});
 
@@ -158,13 +169,13 @@ describe('platform dashboard HTTP API (real session and permission guards)', () 
 		session.platformStaff.roles[0]?.platformRole.permissions.splice(0, 1, {
 			platformPermission: { key: 'platform.other.read' },
 		});
-		await request(app().getHttpServer()).get(ENDPOINT).set('Cookie', COOKIE).expect(403);
+		await dashboardRequest().set('Cookie', COOKIE).expect(403);
 		expect(database.userCount).not.toHaveBeenCalled();
 	});
 
 	it('permits the explicit permission with a role other than platform.owner', async () => {
 		expect(session.platformStaff.roles[0]?.platformRole.key).toBe('platform.auditor');
-		await request(app().getHttpServer()).get(ENDPOINT).set('Cookie', COOKIE).expect(200);
+		await dashboardRequest().set('Cookie', COOKIE).expect(200);
 	});
 
 	it('denies non-system owner lookalikes even with forged authorization hints', async () => {
@@ -178,6 +189,7 @@ describe('platform dashboard HTTP API (real session and permission guards)', () 
 		];
 		await request(app().getHttpServer())
 			.get(`${ENDPOINT}?organizationId=fictional-org&branchId=fictional-branch`)
+			.set('Origin', ADMIN_ORIGIN)
 			.set('Cookie', COOKIE)
 			.set('x-platform-permissions', 'platform.dashboard.read')
 			.set('x-platform-role', 'platform.owner')
@@ -188,13 +200,12 @@ describe('platform dashboard HTTP API (real session and permission guards)', () 
 
 	it('denies a non-system owner lookalike with no effective permissions', async () => {
 		session.platformStaff.roles = [{ platformRole: { key: 'platform.owner', permissions: [] } }];
-		await request(app().getHttpServer()).get(ENDPOINT).set('Cookie', COOKIE).expect(401);
+		await dashboardRequest().set('Cookie', COOKIE).expect(401);
 		expect(database.userCount).not.toHaveBeenCalled();
 	});
 
 	it('does not accept a normal gym user cookie or tenant ownership hints', async () => {
-		await request(app().getHttpServer())
-			.get(ENDPOINT)
+		await dashboardRequest()
 			.set('Cookie', `gym-user-session=${SESSION_TOKEN}`)
 			.set('x-role', 'gym.owner')
 			.set('x-organization-id', 'fictional-org')
@@ -203,7 +214,7 @@ describe('platform dashboard HTTP API (real session and permission guards)', () 
 	});
 
 	it('re-resolves permissions on the next request after access is removed', async () => {
-		await request(app().getHttpServer()).get(ENDPOINT).set('Cookie', COOKIE).expect(200);
+		await dashboardRequest().set('Cookie', COOKIE).expect(200);
 		session.platformStaff.roles = [
 			{
 				platformRole: {
@@ -213,7 +224,7 @@ describe('platform dashboard HTTP API (real session and permission guards)', () 
 			},
 		];
 		database.userCount.mockClear();
-		await request(app().getHttpServer()).get(ENDPOINT).set('Cookie', COOKIE).expect(403);
+		await dashboardRequest().set('Cookie', COOKIE).expect(403);
 		expect(database.userCount).not.toHaveBeenCalled();
 	});
 
@@ -223,10 +234,7 @@ describe('platform dashboard HTTP API (real session and permission guards)', () 
 			database.userCount.mockRejectedValueOnce(
 				new Error('fictional SQL failure secret=do-not-expose'),
 			);
-			const response = await request(app().getHttpServer())
-				.get(ENDPOINT)
-				.set('Cookie', COOKIE)
-				.expect(500);
+			const response = await dashboardRequest().set('Cookie', COOKIE).expect(500);
 			const body: unknown = response.body;
 			expect(body).toMatchObject({
 				error: { code: 'INTERNAL_ERROR', message: 'An unexpected error occurred' },
@@ -246,12 +254,9 @@ describe('platform dashboard HTTP API (real session and permission guards)', () 
 		const limitedApp = await createApplication(database, 2);
 		try {
 			for (let index = 0; index < 2; index += 1) {
-				await request(limitedApp.getHttpServer()).get(ENDPOINT).set('Cookie', COOKIE).expect(200);
+				await dashboardRequest(limitedApp).set('Cookie', COOKIE).expect(200);
 			}
-			const response = await request(limitedApp.getHttpServer())
-				.get(ENDPOINT)
-				.set('Cookie', COOKIE)
-				.expect(429);
+			const response = await dashboardRequest(limitedApp).set('Cookie', COOKIE).expect(429);
 			const body: unknown = response.body;
 			expect(body).toMatchObject({ error: { code: 'RATE_LIMITED' } });
 		} finally {
