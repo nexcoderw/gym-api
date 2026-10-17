@@ -1,0 +1,30 @@
+import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
+
+import { OWNER_AUTH_ERROR } from '../owner-auth/owner-auth.constants.js';
+import { OwnerCookieService } from '../owner-auth/owner-cookie.service.js';
+import type { OwnerRequest } from '../owner-auth/owner-request.js';
+import { OwnerSessionService } from '../owner-auth/owner-session.service.js';
+import { OwnerTokenService } from '../owner-auth/owner-token.service.js';
+
+/**
+ * Authenticates the invitation recipient before their first organization membership exists.
+ * Tenant authorization remains the responsibility of OwnerAcceptanceService for this one transition.
+ */
+@Injectable()
+export class OwnerEnrollmentSessionGuard implements CanActivate {
+	constructor(
+		private readonly cookies: OwnerCookieService,
+		private readonly sessions: OwnerSessionService,
+		private readonly tokens: OwnerTokenService,
+	) {}
+
+	async canActivate(context: ExecutionContext): Promise<boolean> {
+		const request = context.switchToHttp().getRequest<OwnerRequest>();
+		const token = this.cookies.readSession(request);
+		if (token === undefined || !this.tokens.isValid(token)) {
+			throw new UnauthorizedException(OWNER_AUTH_ERROR.invalidSession);
+		}
+		request.ownerPrincipal = await this.sessions.authenticate(token);
+		return true;
+	}
+}
