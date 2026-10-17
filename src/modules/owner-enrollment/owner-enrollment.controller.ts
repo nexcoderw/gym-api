@@ -32,7 +32,6 @@ import { OwnerCookieService } from '../owner-auth/owner-cookie.service.js';
 import { RequireOwnerCsrf } from '../owner-auth/owner-csrf.decorator.js';
 import { OwnerOriginCsrfGuard } from '../owner-auth/owner-origin-csrf.guard.js';
 import type { OwnerRequest } from '../owner-auth/owner-request.js';
-import { OwnerSessionGuard } from '../owner-auth/owner-session.guard.js';
 import { OwnerTokenService } from '../owner-auth/owner-token.service.js';
 import {
 	AcceptOwnerInvitationDto,
@@ -47,6 +46,7 @@ import {
 } from './dto/owner-enrollment-response.dto.js';
 import { OwnerAcceptanceService } from './owner-acceptance.service.js';
 import { OwnerEnrollmentService } from './owner-enrollment.service.js';
+import { OwnerEnrollmentSessionGuard } from './owner-enrollment-session.guard.js';
 
 @ApiTags('Owner enrollment')
 @Controller()
@@ -131,7 +131,7 @@ export class OwnerEnrollmentController {
 	@HttpCode(HttpStatus.OK)
 	@Header('Cache-Control', 'no-store')
 	@Throttle({ default: { limit: 10, ttl: 60_000 } })
-	@UseGuards(OwnerOriginCsrfGuard, OwnerSessionGuard)
+	@UseGuards(OwnerOriginCsrfGuard, OwnerEnrollmentSessionGuard)
 	@RequireOwnerCsrf()
 	@ApiCookieAuth('owner-session')
 	@ApiOperation({
