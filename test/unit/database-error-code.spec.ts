@@ -16,7 +16,11 @@ describe('safe database diagnostics', () => {
 		});
 		expect(databaseTransactionFailure(error)).toBe(expected);
 		expect(
-			databaseTransactionFailure({ code: 'P2028', meta: { error: 'unrecognized' }, message: error.message }),
+			databaseTransactionFailure({
+				code: 'P2028',
+				meta: { error: 'unrecognized' },
+				message: error.message,
+			}),
 		).toBe(expected);
 	});
 	it.each([
@@ -28,7 +32,9 @@ describe('safe database diagnostics', () => {
 		expect(databaseTransactionFailure({ code: 'P2028', meta: { error: detail } })).toBe(expected);
 	});
 	it('does not classify unrelated or malformed transaction errors', () => {
-		expect(databaseTransactionFailure({ code: 'P2039', meta: { error: 'private' } })).toBeUndefined();
+		expect(
+			databaseTransactionFailure({ code: 'P2039', meta: { error: 'private' } }),
+		).toBeUndefined();
 		expect(databaseTransactionFailure(null)).toBeUndefined();
 		expect(databaseTransactionFailure({ code: 'P2028', meta: { error: null } })).toBe('unknown');
 	});
