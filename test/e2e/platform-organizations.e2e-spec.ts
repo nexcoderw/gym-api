@@ -166,7 +166,11 @@ describe('organization HTTP security (real guards, fake persistence)', () => {
 				],
 			},
 		});
-		await request(app().getHttpServer()).get(ROOT).set('Cookie', COOKIE).expect(200);
+		await request(app().getHttpServer())
+			.get(ROOT)
+			.set('Origin', 'http://localhost:4000')
+			.set('Cookie', COOKIE)
+			.expect(200);
 		expect(database.findMany).toHaveBeenCalled();
 	});
 	it.each(ROUTES.filter((route) => route.method !== 'get'))(
@@ -230,11 +234,13 @@ describe('organization HTTP security (real guards, fake persistence)', () => {
 	it('returns safe reads and rejects malformed filters, cursor and UUID', async () => {
 		await request(app().getHttpServer())
 			.get(ROOT)
+			.set('Origin', 'http://localhost:4000')
 			.set('Cookie', COOKIE)
 			.expect(200)
 			.expect('Cache-Control', 'no-store');
 		const response = await request(app().getHttpServer())
 			.get(`${ROOT}/${ORGANIZATION_ID}`)
+			.set('Origin', 'http://localhost:4000')
 			.set('Cookie', COOKIE)
 			.expect(200);
 		const body: unknown = response.body;
@@ -248,7 +254,11 @@ describe('organization HTTP security (real guards, fake persistence)', () => {
 			`${ROOT}?include=user`,
 			`${ROOT}/bad`,
 		]) {
-			await request(app().getHttpServer()).get(path).set('Cookie', COOKIE).expect(400);
+			await request(app().getHttpServer())
+				.get(path)
+				.set('Origin', 'http://localhost:4000')
+				.set('Cookie', COOKIE)
+				.expect(400);
 		}
 	});
 	it('re-resolves permission removal rather than trusting role names or prior reads', async () => {
@@ -265,10 +275,12 @@ describe('organization HTTP security (real guards, fake persistence)', () => {
 		);
 		await request(app().getHttpServer())
 			.get('/api/v1/platform/auth/session')
+			.set('Origin', 'http://localhost:4000')
 			.set('Cookie', COOKIE)
 			.expect(200);
 		await request(app().getHttpServer())
 			.get('/api/v1/platform/dashboard/summary')
+			.set('Origin', 'http://localhost:4000')
 			.set('Cookie', COOKIE)
 			.expect(200);
 	});
