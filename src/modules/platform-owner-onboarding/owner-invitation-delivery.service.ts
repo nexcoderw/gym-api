@@ -7,6 +7,7 @@ import {
 	PrismaService,
 } from '@nexcoderw/gym-db';
 
+import { organizationPortalOriginForSlug } from '../../config/organization-portal-origin.js';
 import type {
 	OwnerInvitationDeliveryResponseDto,
 	OwnerInvitationPreviewResponseDto,
@@ -52,7 +53,7 @@ export class OwnerInvitationDeliveryService {
 				const now = await lockInvitationParents(transaction, organizationId, invitationId);
 				const organization = await transaction.organization.findUnique({
 					where: { id: organizationId },
-					select: { name: true, status: true },
+					select: { name: true, slug: true, status: true },
 				});
 				if (organization === null) throw ownerInvitationOrganizationNotFound();
 				assertOrganizationCanReceiveOwnerInvitation(organization.status);
@@ -93,7 +94,10 @@ export class OwnerInvitationDeliveryService {
 							recipient: invitation.invitedEmail,
 							organizationName: organization.name,
 							sender: this.gate.sender(),
-							acceptanceOrigin: settings.acceptanceOrigin,
+							acceptanceOrigin: organizationPortalOriginForSlug(
+								organization.slug,
+								settings.portalOriginPolicy,
+							),
 							acceptancePath: settings.acceptancePath,
 						}),
 					},
