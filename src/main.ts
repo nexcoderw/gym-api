@@ -13,6 +13,10 @@ async function bootstrap(): Promise<void> {
 	configureApplication(application, {
 		CORS_ORIGINS: config.get('CORS_ORIGINS', { infer: true }),
 		SWAGGER_ENABLED: config.get('SWAGGER_ENABLED', { infer: true }),
+		ORGANIZATION_PORTAL_ORIGIN: config.get('ORGANIZATION_PORTAL_ORIGIN', { infer: true }),
+		ORGANIZATION_PORTAL_BASE_DOMAIN: config.get('ORGANIZATION_PORTAL_BASE_DOMAIN', {
+			infer: true,
+		}),
 	});
 	await application.listen(
 		config.get('PORT', { infer: true }),
