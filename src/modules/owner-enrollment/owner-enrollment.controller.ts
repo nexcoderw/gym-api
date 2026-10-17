@@ -74,8 +74,11 @@ export class OwnerEnrollmentController {
 	@ApiForbiddenResponse({ type: ApiErrorResponseDto })
 	@ApiTooManyRequestsResponse({ type: ApiErrorResponseDto })
 	@ApiServiceUnavailableResponse({ type: ApiErrorResponseDto })
-	start(@Body() input: StartOwnerEnrollmentDto): Promise<OwnerEnrollmentChallengeResponseDto> {
-		return this.enrollment.start(input.invitationToken);
+	start(
+		@Body() input: StartOwnerEnrollmentDto,
+		@Req() request: OwnerRequest,
+	): Promise<OwnerEnrollmentChallengeResponseDto> {
+		return this.enrollment.start(input.invitationToken, undefined, request.ownerOrganizationSlug);
 	}
 
 	@Post('owner/auth/verify')
@@ -91,9 +94,13 @@ export class OwnerEnrollmentController {
 	@ApiServiceUnavailableResponse({ type: ApiErrorResponseDto })
 	async verify(
 		@Body() input: VerifyExistingOwnerDto,
+		@Req() request: OwnerRequest,
 		@Res({ passthrough: true }) response: Response,
 	): Promise<OwnerEnrollmentAuthenticatedResponseDto> {
-		return this.setAuthenticated(response, await this.enrollment.verifyExisting(input));
+		return this.setAuthenticated(
+			response,
+			await this.enrollment.verifyExisting(input, undefined, request.ownerOrganizationSlug),
+		);
 	}
 
 	@Post('owner-enrollment/registrations')
@@ -111,16 +118,20 @@ export class OwnerEnrollmentController {
 	@ApiServiceUnavailableResponse({ type: ApiErrorResponseDto })
 	async register(
 		@Body() input: RegisterInvitedOwnerDto,
+		@Req() request: OwnerRequest,
 		@Res({ passthrough: true }) response: Response,
 	): Promise<OwnerEnrollmentAuthenticatedResponseDto> {
-		return this.setAuthenticated(response, await this.enrollment.register(input));
+		return this.setAuthenticated(
+			response,
+			await this.enrollment.register(input, undefined, request.ownerOrganizationSlug),
+		);
 	}
 
 	@Post('owner-enrollment/acceptances')
 	@HttpCode(HttpStatus.OK)
 	@Header('Cache-Control', 'no-store')
 	@Throttle({ default: { limit: 10, ttl: 60_000 } })
-	@UseGuards(OwnerSessionGuard, OwnerOriginCsrfGuard)
+	@UseGuards(OwnerOriginCsrfGuard, OwnerSessionGuard)
 	@RequireOwnerCsrf()
 	@ApiCookieAuth('owner-session')
 	@ApiOperation({
@@ -140,7 +151,13 @@ export class OwnerEnrollmentController {
 	): Promise<OwnerInvitationAcceptedResponseDto> {
 		const principal = request.ownerPrincipal;
 		if (principal === undefined) throw new UnauthorizedException(OWNER_AUTH_ERROR.invalidSession);
-		return this.acceptance.accept(principal, input.challengeToken, request.requestId);
+		return this.acceptance.accept(
+			principal,
+			input.challengeToken,
+			request.requestId,
+			undefined,
+			request.ownerOrganizationSlug,
+		);
 	}
 
 	private setAuthenticated(
