@@ -11,6 +11,7 @@ import {
 } from '@nestjs/swagger';
 
 import { ApiErrorResponseDto } from '../../common/dto/api-error-response.dto.js';
+import { PlatformOriginCsrfGuard } from '../platform-auth/platform-origin-csrf.guard.js';
 import { PlatformPermissionGuard } from '../platform-auth/platform-permission.guard.js';
 import { RequirePlatformPermissions } from '../platform-auth/platform-permissions.decorator.js';
 import { PlatformSessionGuard } from '../platform-auth/platform-session.guard.js';
@@ -20,7 +21,7 @@ import { PlatformDashboardService } from './platform-dashboard.service.js';
 
 @ApiTags('Platform dashboard')
 @ApiCookieAuth('platform-session')
-@UseGuards(PlatformSessionGuard, PlatformPermissionGuard)
+@UseGuards(PlatformOriginCsrfGuard, PlatformSessionGuard, PlatformPermissionGuard)
 @Controller('platform/dashboard')
 export class PlatformDashboardController {
 	constructor(private readonly dashboard: PlatformDashboardService) {}
@@ -52,7 +53,8 @@ export class PlatformDashboardController {
 		type: ApiErrorResponseDto,
 	})
 	@ApiForbiddenResponse({
-		description: 'The validated platform session lacks platform.dashboard.read.',
+		description:
+			'The administrative Origin is not allowed or the session lacks platform.dashboard.read.',
 		type: ApiErrorResponseDto,
 	})
 	@ApiTooManyRequestsResponse({
