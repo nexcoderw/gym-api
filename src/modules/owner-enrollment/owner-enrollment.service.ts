@@ -62,6 +62,7 @@ export class OwnerEnrollmentService {
 	async start(
 		invitationToken: string,
 		now = new Date(),
+		organizationSlug?: string,
 	): Promise<OwnerEnrollmentChallengeResponseDto> {
 		if (!this.invitationTokens.isValidFormat(invitationToken)) throw invalidOwnerEnrollment();
 		const challengeToken = this.ownerTokens.create();
@@ -78,7 +79,7 @@ export class OwnerEnrollmentService {
 						expiresAt: true,
 						revokedAt: true,
 						acceptedAt: true,
-						organization: { select: { name: true, status: true } },
+						organization: { select: { name: true, slug: true, status: true } },
 					},
 				});
 				if (
@@ -87,6 +88,8 @@ export class OwnerEnrollmentService {
 					invitation.expiresAt <= now ||
 					invitation.revokedAt !== null ||
 					invitation.acceptedAt !== null ||
+					(organizationSlug !== undefined &&
+						invitation.organization.slug !== organizationSlug) ||
 					(invitation.organization.status !== OrganizationStatus.PENDING &&
 						invitation.organization.status !== OrganizationStatus.ACTIVE)
 				) {
@@ -148,9 +151,12 @@ export class OwnerEnrollmentService {
 	async verifyExisting(
 		input: VerifyExistingOwnerDto,
 		now = new Date(),
+		organizationSlug?: string,
 	): Promise<VerifiedOwnerEnrollment> {
 		const challenge = await this.readChallenge(input.challengeToken, now);
 		if (
+			(organizationSlug !== undefined &&
+				challenge.ownerInvitation.organization.slug !== organizationSlug) ||
 			challenge.purpose !== OrganizationOwnerEnrollmentPurpose.EXISTING_USER_AUTHENTICATION ||
 			challenge.user === null
 		) {
@@ -196,9 +202,12 @@ export class OwnerEnrollmentService {
 	async register(
 		input: RegisterInvitedOwnerDto,
 		now = new Date(),
+		organizationSlug?: string,
 	): Promise<VerifiedOwnerEnrollment> {
 		const challenge = await this.readChallenge(input.challengeToken, now);
 		if (
+			(organizationSlug !== undefined &&
+				challenge.ownerInvitation.organization.slug !== organizationSlug) ||
 			challenge.purpose !== OrganizationOwnerEnrollmentPurpose.NEW_USER_ENROLLMENT ||
 			challenge.user !== null ||
 			challenge.status !== OrganizationOwnerEnrollmentStatus.PENDING
@@ -276,7 +285,9 @@ export class OwnerEnrollmentService {
 					expiresAt: true,
 					failedAttempts: true,
 					maxAttempts: true,
-					ownerInvitation: { select: { invitedEmail: true } },
+					ownerInvitation: {
+						select: { invitedEmail: true, organization: { select: { slug: true } } },
+					},
 					user: {
 						select: {
 							id: true,
