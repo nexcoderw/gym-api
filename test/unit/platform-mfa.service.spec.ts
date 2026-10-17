@@ -46,10 +46,7 @@ describe('PlatformMfaService', () => {
 				{ provide: ConfigService, useValue: config },
 				{
 					provide: PrismaService,
-					useValue: {
-						platformMfaChallenge: { findUnique: challengeFindUnique },
-						$transaction: runTransaction,
-					},
+					useValue: { $transaction: runTransaction },
 				},
 				{
 					provide: PlatformTokenService,
@@ -101,10 +98,11 @@ describe('PlatformMfaService', () => {
 		expect(challengeUpdateMany).toHaveBeenCalledTimes(1);
 		expect(sessionCreate).toHaveBeenCalledTimes(1);
 		expect(runTransaction).toHaveBeenCalledWith(expect.any(Function), {
-			isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
-			maxWait: 10_000,
+			isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
+			maxWait: 8_000,
 			timeout: 10_000,
 		});
+		expect(challengeFindUnique).toHaveBeenCalledTimes(1);
 	});
 
 	it.each(['P2028', 'P2034', 'P2039'])(
@@ -130,7 +128,7 @@ describe('PlatformMfaService', () => {
 		},
 	);
 
-	it('returns the same safe unavailable error when the challenge read cannot connect', async () => {
+	it('returns the same safe unavailable error when the atomic challenge read cannot connect', async () => {
 		challengeFindUnique.mockRejectedValueOnce({ code: 'P1001' });
 
 		await expect(
@@ -143,7 +141,7 @@ describe('PlatformMfaService', () => {
 			status: 503,
 			response: { code: 'PLATFORM_MFA_UNAVAILABLE' },
 		});
-		expect(runTransaction).not.toHaveBeenCalled();
+		expect(runTransaction).toHaveBeenCalledTimes(1);
 	});
 
 	it('requires successful MFA even when a system owner has no per-permission grants', async () => {
@@ -261,7 +259,7 @@ describe('PlatformMfaService', () => {
 				totpCode: '123456',
 			}),
 		).rejects.toMatchObject({ status: 401 });
-		expect(challengeFindUnique).not.toHaveBeenCalled();
+		expect(runTransaction).not.toHaveBeenCalled();
 	});
 
 	it('does not create two sessions when the challenge loses a concurrent consume race', async () => {
