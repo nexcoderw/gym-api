@@ -698,10 +698,12 @@ Enable only after all of these are independently verified:
 
 The `.env.*.example` files list all settings with delivery OFF and approval false. Enabling requires
 `OWNER_INVITATION_DELIVERY_ENABLED=true`, `OWNER_INVITATION_DELIVERY_DATABASE_APPROVED=true`, a completed
-`OWNER_INVITATION_ACCEPTANCE_REVIEW_ID`, exact `OWNER_INVITATION_ACCEPTANCE_ORIGIN` and fixed
-`OWNER_INVITATION_ACCEPTANCE_PATH`. These attestations must never be copied blindly into production.
-Production requires HTTPS, rejects localhost/development key IDs, and has no bypass. No wildcard,
-credentials, query, fragment, client-selected destination or Host-derived link is accepted.
+`OWNER_INVITATION_ACCEPTANCE_REVIEW_ID` and fixed `OWNER_INVITATION_ACCEPTANCE_PATH`. Local development
+uses the exact `ORGANIZATION_PORTAL_ORIGIN`; production derives each invitation origin from the stored
+organization slug and `ORGANIZATION_PORTAL_BASE_DOMAIN`. These attestations must never be copied blindly
+into production. Production requires HTTPS, rejects localhost/development key IDs, and has no bypass.
+No wildcard, credentials, query, fragment, client-selected destination or unvalidated Host-derived
+link is accepted.
 
 Use `OWNER_INVITATION_TOKEN_HMAC_SECRET` for a separately managed canonical base64 32-byte key.
 `OWNER_INVITATION_ENCRYPTION_KEYRING` is up to four comma-separated `key-id=base64-key` entries;
@@ -919,7 +921,9 @@ no portal operations.
 
 Local portal configuration uses `ORGANIZATION_PORTAL_ORIGIN=http://localhost:4001`, non-Secure local
 owner cookies, and independent canonical base64 32-byte owner session/enrollment peppers. Production
-requires HTTPS, Secure host-only cookies and independent managed secrets. Deploy and grant the reviewed
+uses `ORGANIZATION_PORTAL_BASE_DOMAIN=mucyora.rw`, requires one valid organization slug label, HTTPS,
+Secure host-only cookies and independent managed secrets. The Origin/Host-derived slug is routing input;
+live membership and stored organization scope remain authoritative. Deploy and grant the reviewed
 owner-session migration in `gym_dev` before starting this API; see the database README. Delivery must
-remain disabled until the Resend sender, fixed portal acceptance origin, worker, monitoring and real
+remain disabled until the Resend sender, tenant-domain acceptance flow, worker, monitoring and real
 portal deployment are reviewed together.
