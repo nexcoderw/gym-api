@@ -5,10 +5,10 @@ import { PlatformStaffStatus, Prisma, PrismaService, UserStatus } from '@nexcode
 
 import type { EnvironmentVariables } from '../../src/config/environment.types.js';
 import { validateEnvironment } from '../../src/config/environment.validation.js';
-import { PlatformLoginAttemptService } from '../../src/modules/platform-auth/platform-login-attempt.service.js';
-import { PlatformLoginService } from '../../src/modules/platform-auth/platform-login.service.js';
-import { PlatformPasswordService } from '../../src/modules/platform-auth/platform-password.service.js';
-import { PlatformTokenService } from '../../src/modules/platform-auth/platform-token.service.js';
+import { PlatformLoginAttemptService } from '../../src/modules/platform/auth/platform-login-attempt.service.js';
+import { PlatformLoginService } from '../../src/modules/platform/auth/platform-login.service.js';
+import { PlatformPasswordService } from '../../src/modules/platform/auth/platform-password.service.js';
+import { PlatformTokenService } from '../../src/modules/platform/auth/platform-token.service.js';
 
 describe('PlatformLoginService', () => {
 	const userFindUnique = jest.fn<() => Promise<unknown>>();
