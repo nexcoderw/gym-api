@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { argon2id, hash as createArgon2Hash, verify } from 'argon2';
 
-import type { EnvironmentVariables } from '../../config/environment.types.js';
+import type { EnvironmentVariables } from '../../../config/environment.types.js';
 
 const ARGON2_PARAMETERS = /\$argon2id\$v=19\$m=(\d+),t=(\d+),p=(\d+)\$/u;
 const MINIMUM_MEMORY_COST = 65_536;
