@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 
-import { PlatformAuthModule } from '../platform-auth/platform-auth.module.js';
+import { PlatformAuthModule } from '../../platform/auth/platform-auth.module.js';
 import { OwnerAuthController } from './owner-auth.controller.js';
 import { OwnerCookieService } from './owner-cookie.service.js';
 import { OwnerLoginAttemptService } from './owner-login-attempt.service.js';
