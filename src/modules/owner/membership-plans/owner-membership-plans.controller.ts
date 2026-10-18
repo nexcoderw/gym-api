@@ -36,11 +36,11 @@ import {
 } from '@nestjs/swagger';
 import type { Response } from 'express';
 
-import { ApiErrorResponseDto } from '../../common/dto/api-error-response.dto.js';
-import { OwnerOriginCsrfGuard } from '../owner-auth/owner-origin-csrf.guard.js';
-import type { OwnerRequest } from '../owner-auth/owner-request.js';
-import { OwnerSessionGuard } from '../owner-auth/owner-session.guard.js';
-import { RequireOwnerCsrf } from '../owner-auth/owner-csrf.decorator.js';
+import { ApiErrorResponseDto } from '../../../common/dto/api-error-response.dto.js';
+import { OwnerOriginCsrfGuard } from '../auth/owner-origin-csrf.guard.js';
+import type { OwnerRequest } from '../auth/owner-request.js';
+import { OwnerSessionGuard } from '../auth/owner-session.guard.js';
+import { RequireOwnerCsrf } from '../auth/owner-csrf.decorator.js';
 import { CreateMembershipPlanDto } from './dto/create-membership-plan.dto.js';
 import { ListMembershipPlansQueryDto } from './dto/list-membership-plans-query.dto.js';
 import { MembershipPlanListResponseDto } from './dto/membership-plan-list-response.dto.js';
