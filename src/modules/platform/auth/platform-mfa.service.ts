@@ -7,8 +7,8 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { PlatformStaffStatus, Prisma, PrismaService, UserStatus } from '@nexcoderw/gym-db';
 
-import type { EnvironmentVariables } from '../../config/environment.types.js';
-import { databaseErrorCode } from '../../common/errors/database-error-code.js';
+import type { EnvironmentVariables } from '../../../config/environment.types.js';
+import { databaseErrorCode } from '../../../common/errors/database-error-code.js';
 import type { PlatformMfaVerifyDto } from './dto/platform-mfa-verify.dto.js';
 import { PLATFORM_AUTH_ERROR } from './platform-auth.constants.js';
 import { PlatformTokenService } from './platform-token.service.js';
