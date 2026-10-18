@@ -10,12 +10,12 @@ import {
 	ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 
-import { ApiErrorResponseDto } from '../../common/dto/api-error-response.dto.js';
-import { PlatformOriginCsrfGuard } from '../platform-auth/platform-origin-csrf.guard.js';
-import { PlatformPermissionGuard } from '../platform-auth/platform-permission.guard.js';
-import { RequirePlatformPermissions } from '../platform-auth/platform-permissions.decorator.js';
-import { PlatformSessionGuard } from '../platform-auth/platform-session.guard.js';
-import { PLATFORM_PERMISSION } from '../platform-auth/platform-permission.constants.js';
+import { ApiErrorResponseDto } from '../../../common/dto/api-error-response.dto.js';
+import { PlatformOriginCsrfGuard } from '../auth/platform-origin-csrf.guard.js';
+import { PlatformPermissionGuard } from '../auth/platform-permission.guard.js';
+import { RequirePlatformPermissions } from '../auth/platform-permissions.decorator.js';
+import { PlatformSessionGuard } from '../auth/platform-session.guard.js';
+import { PLATFORM_PERMISSION } from '../auth/platform-permission.constants.js';
 import { PlatformDashboardSummaryDto } from './dto/platform-dashboard-summary.dto.js';
 import { PlatformDashboardService } from './platform-dashboard.service.js';
 
