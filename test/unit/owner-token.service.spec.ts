@@ -2,7 +2,7 @@ import { ConfigService } from '@nestjs/config';
 
 import type { EnvironmentVariables } from '../../src/config/environment.types.js';
 import { validateEnvironment } from '../../src/config/environment.validation.js';
-import { OwnerTokenService } from '../../src/modules/owner-auth/owner-token.service.js';
+import { OwnerTokenService } from '../../src/modules/owner/auth/owner-token.service.js';
 
 describe('OwnerTokenService', () => {
 	const service = new OwnerTokenService(
