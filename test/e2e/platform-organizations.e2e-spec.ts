@@ -18,8 +18,8 @@ import { createOpenApiDocument } from '../../src/docs/swagger.js';
 import {
 	LOCAL_PLATFORM_CSRF_COOKIE,
 	LOCAL_PLATFORM_SESSION_COOKIE,
-} from '../../src/modules/platform-auth/platform-auth.constants.js';
-import { ORGANIZATION_PERMISSION } from '../../src/modules/platform-organizations/platform-organizations.constants.js';
+} from '../../src/modules/platform/auth/platform-auth.constants.js';
+import { ORGANIZATION_PERMISSION } from '../../src/modules/platform/organizations/platform-organizations.constants.js';
 import {
 	createPlatformOrganizationsDatabaseFixture,
 	organizationFixture,
