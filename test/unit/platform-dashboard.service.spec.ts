@@ -1,7 +1,7 @@
 import { Test, type TestingModule } from '@nestjs/testing';
 import { PlatformStaffStatus, Prisma, PrismaService } from '@nexcoderw/gym-db';
 
-import { PlatformDashboardService } from '../../src/modules/platform-dashboard/platform-dashboard.service.js';
+import { PlatformDashboardService } from '../../src/modules/platform/dashboard/platform-dashboard.service.js';
 import { createPlatformDashboardDatabaseFixture } from '../fixtures/platform-dashboard-database.fixture.js';
 
 describe('PlatformDashboardService', () => {
