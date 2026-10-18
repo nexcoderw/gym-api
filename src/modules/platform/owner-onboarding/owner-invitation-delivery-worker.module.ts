@@ -5,8 +5,8 @@ import { DatabaseModule } from '@nexcoderw/gym-db';
 import {
 	validateOwnerInvitationWorkerEnvironment,
 	type OwnerInvitationWorkerEnvironment,
-} from '../../config/owner-invitation-worker.environment.js';
-import { ResendOwnerInvitationEmailService } from '../../infrastructure/email/resend-owner-invitation-email.service.js';
+} from '../../../config/owner-invitation-worker.environment.js';
+import { ResendOwnerInvitationEmailService } from '../../../infrastructure/email/resend-owner-invitation-email.service.js';
 import { OwnerInvitationDeliveryGate } from './owner-invitation-delivery.policy.js';
 import { OwnerInvitationDeliveryWorkerService } from './owner-invitation-delivery-worker.service.js';
 import { OwnerInvitationTokenEnvelopeService } from './owner-invitation-token-envelope.service.js';
