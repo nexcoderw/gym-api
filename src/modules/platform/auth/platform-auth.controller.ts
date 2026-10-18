@@ -27,7 +27,7 @@ import {
 import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
 
-import { ApiErrorResponseDto } from '../../common/dto/api-error-response.dto.js';
+import { ApiErrorResponseDto } from '../../../common/dto/api-error-response.dto.js';
 import {
 	PlatformMfaChallengeResponseDto,
 	PlatformMfaVerifiedResponseDto,
