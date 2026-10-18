@@ -101,7 +101,8 @@ export class OwnerPaymentsController {
 	@ApiHeader({
 		name: 'Idempotency-Key',
 		required: true,
-		description: 'A UUID reused only for identical retries of the complete registration and payment.',
+		description:
+			'A UUID reused only for identical retries of the complete registration and payment.',
 	})
 	@ApiOperation({
 		summary: 'Register a member and record the plan payment',
