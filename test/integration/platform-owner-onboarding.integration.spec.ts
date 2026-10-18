@@ -5,12 +5,12 @@ import { AppModule } from '../../src/app.module.js';
 import {
 	DurableOwnerInvitationAudit,
 	PlatformOwnerInvitationAudit,
-} from '../../src/modules/platform-owner-onboarding/platform-owner-invitation-audit.js';
-import { PlatformOwnerOnboardingController } from '../../src/modules/platform-owner-onboarding/platform-owner-onboarding.controller.js';
-import { PlatformOwnerOnboardingService } from '../../src/modules/platform-owner-onboarding/platform-owner-onboarding.service.js';
-import { OwnerInvitationDeliveryService } from '../../src/modules/platform-owner-onboarding/owner-invitation-delivery.service.js';
-import { OwnerInvitationDeliveryWorkerService } from '../../src/modules/platform-owner-onboarding/owner-invitation-delivery-worker.service.js';
-import { OwnerInvitationPreviewController } from '../../src/modules/platform-owner-onboarding/owner-invitation-preview.controller.js';
+} from '../../src/modules/platform/owner-onboarding/platform-owner-invitation-audit.js';
+import { PlatformOwnerOnboardingController } from '../../src/modules/platform/owner-onboarding/platform-owner-onboarding.controller.js';
+import { PlatformOwnerOnboardingService } from '../../src/modules/platform/owner-onboarding/platform-owner-onboarding.service.js';
+import { OwnerInvitationDeliveryService } from '../../src/modules/platform/owner-onboarding/owner-invitation-delivery.service.js';
+import { OwnerInvitationDeliveryWorkerService } from '../../src/modules/platform/owner-onboarding/owner-invitation-delivery-worker.service.js';
+import { OwnerInvitationPreviewController } from '../../src/modules/platform/owner-onboarding/owner-invitation-preview.controller.js';
 import {
 	createPlatformOwnerOnboardingDatabaseFixture,
 	OWNER_INVITATION_ACTOR_ID,
