@@ -1,6 +1,6 @@
-import { PLATFORM_PERMISSION } from '../platform-auth/platform-permission.constants.js';
+import { PLATFORM_PERMISSION } from '../auth/platform-permission.constants.js';
 
-export { ORGANIZATION_RESERVED_SLUGS } from '../../common/organization/organization-slug.js';
+export { ORGANIZATION_RESERVED_SLUGS } from '../../../common/organization/organization-slug.js';
 
 export const ORGANIZATION_PERMISSION = Object.freeze({
 	create: PLATFORM_PERMISSION.organizationsCreate,
