@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
 
-import { PlatformPasswordService } from '../platform-auth/platform-password.service.js';
-import { PlatformTokenService } from '../platform-auth/platform-token.service.js';
-import { PlatformTotpService } from '../platform-auth/platform-totp.service.js';
+import { PlatformPasswordService } from '../auth/platform-password.service.js';
+import { PlatformTokenService } from '../auth/platform-token.service.js';
+import { PlatformTotpService } from '../auth/platform-totp.service.js';
 import { PlatformOwnerBootstrapService } from './platform-owner-bootstrap.service.js';
 
 @Module({
