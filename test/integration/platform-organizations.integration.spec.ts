@@ -5,9 +5,9 @@ import { AppModule } from '../../src/app.module.js';
 import {
 	PlatformOrganizationAudit,
 	DurableOrganizationAudit,
-} from '../../src/modules/platform-organizations/platform-organization-audit.js';
-import { PlatformOrganizationsController } from '../../src/modules/platform-organizations/platform-organizations.controller.js';
-import { PlatformOrganizationMutationsService } from '../../src/modules/platform-organizations/platform-organization-mutations.service.js';
+} from '../../src/modules/platform/organizations/platform-organization-audit.js';
+import { PlatformOrganizationsController } from '../../src/modules/platform/organizations/platform-organizations.controller.js';
+import { PlatformOrganizationMutationsService } from '../../src/modules/platform/organizations/platform-organization-mutations.service.js';
 import {
 	createPlatformOrganizationsDatabaseFixture,
 	ORGANIZATION_ID,
