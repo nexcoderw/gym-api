@@ -10,7 +10,7 @@ import {
 } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 
-import { ApiErrorResponseDto } from '../../common/dto/api-error-response.dto.js';
+import { ApiErrorResponseDto } from '../../../common/dto/api-error-response.dto.js';
 import {
 	OwnerInvitationPreviewDto,
 	OwnerInvitationPreviewResponseDto,
