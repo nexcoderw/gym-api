@@ -3,8 +3,8 @@ import { HttpException, Injectable, UnauthorizedException } from '@nestjs/common
 import { ConfigService } from '@nestjs/config';
 import { PlatformStaffStatus, PrismaService, UserStatus } from '@nexcoderw/gym-db';
 
-import type { EnvironmentVariables } from '../../config/environment.types.js';
-import { ResendEmailService } from '../../infrastructure/email/resend-email.service.js';
+import type { EnvironmentVariables } from '../../../config/environment.types.js';
+import { ResendEmailService } from '../../../infrastructure/email/resend-email.service.js';
 import type { PlatformEmailOtpSentResponseDto } from './dto/platform-auth-response.dto.js';
 import { PLATFORM_AUTH_ERROR } from './platform-auth.constants.js';
 import { PlatformTokenService } from './platform-token.service.js';
