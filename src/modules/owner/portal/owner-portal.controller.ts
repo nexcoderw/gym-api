@@ -20,10 +20,10 @@ import {
 } from '@nestjs/swagger';
 import { OrganizationStatus } from '@nexcoderw/gym-db';
 
-import { ApiErrorResponseDto } from '../../common/dto/api-error-response.dto.js';
-import { OwnerOriginCsrfGuard } from '../owner-auth/owner-origin-csrf.guard.js';
-import type { OwnerRequest } from '../owner-auth/owner-request.js';
-import { OwnerSessionGuard } from '../owner-auth/owner-session.guard.js';
+import { ApiErrorResponseDto } from '../../../common/dto/api-error-response.dto.js';
+import { OwnerOriginCsrfGuard } from '../auth/owner-origin-csrf.guard.js';
+import type { OwnerRequest } from '../auth/owner-request.js';
+import { OwnerSessionGuard } from '../auth/owner-session.guard.js';
 import { OwnerDashboardResponseDto } from './dto/owner-dashboard-response.dto.js';
 
 @ApiTags('Organization Portal')
