@@ -1,9 +1,9 @@
 import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { OrganizationStatus } from '@nexcoderw/gym-db';
 
-import { OWNER_AUTH_ERROR } from '../owner-auth/owner-auth.constants.js';
-import type { OwnerOrganizationAccess } from '../owner-auth/owner-auth.types.js';
-import type { OwnerRequest } from '../owner-auth/owner-request.js';
+import { OWNER_AUTH_ERROR } from '../auth/owner-auth.constants.js';
+import type { OwnerOrganizationAccess } from '../auth/owner-auth.types.js';
+import type { OwnerRequest } from '../auth/owner-request.js';
 
 /** Resolves one authorized tenant after OwnerSessionGuard has constrained production subdomains. */
 export function ownerMembershipPlanOrganization(
