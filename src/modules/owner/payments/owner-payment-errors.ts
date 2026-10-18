@@ -38,6 +38,12 @@ export function paymentFailure(error: unknown): HttpException {
 			'The payment changed concurrently. Reload before retrying with the same idempotency key.',
 		);
 	}
+	if (databaseSqlState(error) === '23P01') {
+		return paymentConflict(
+			'PAYMENT_MEMBER_PERIOD_OVERLAP',
+			'This member already has a registration covering these dates.',
+		);
+	}
 	return new ServiceUnavailableException(
 		{
 			code: 'PAYMENT_PERSISTENCE_UNAVAILABLE',
