@@ -32,7 +32,7 @@ export class OwnerMembershipPlansService {
 		) {
 			throw new BadRequestException({
 				code: 'MEMBERSHIP_PLAN_PAGE_INVALID',
-				message: `Page size must be between 1 and ${MEMBERSHIP_PLAN_PAGE_MAXIMUM}.`,
+				message: `Page size must be between 1 and ${String(MEMBERSHIP_PLAN_PAGE_MAXIMUM)}.`,
 			});
 		}
 		try {
