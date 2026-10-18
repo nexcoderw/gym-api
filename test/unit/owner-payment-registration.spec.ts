@@ -56,14 +56,25 @@ const PAYMENT = {
 	voidReason: null,
 	createdAt: AT,
 	member: { name: 'Example Member' },
-	allocations: [{ memberSubscriptionId: SUBSCRIPTION_ID, amountRwf: 30_000n, memberSubscription: { planName: 'Monthly access' } }],
+	allocations: [
+		{
+			memberSubscriptionId: SUBSCRIPTION_ID,
+			amountRwf: 30_000n,
+			memberSubscription: { planName: 'Monthly access' },
+		},
+	],
 	refunds: [],
 };
+
+function inputWith(changes: Partial<RegisterPaymentDto>): RegisterPaymentDto {
+	return Object.assign(Object.create(Object.getPrototypeOf(INPUT)), INPUT, changes);
+}
 
 describe('owner registration payment', () => {
 	let service: OwnerPaymentsService;
 	let module: TestingModule | undefined;
-	const findPayment = jest.fn<() => Promise<(typeof PAYMENT & { requestFingerprint: string }) | null>>();
+	const findPayment =
+		jest.fn<() => Promise<(typeof PAYMENT & { requestFingerprint: string }) | null>>();
 	const createMember = jest.fn<() => Promise<{ id: string }>>();
 	const createSubscription = jest.fn<() => Promise<typeof SUBSCRIPTION>>();
 	const createPayment = jest.fn<
@@ -77,7 +88,8 @@ describe('owner registration payment', () => {
 		}) => Promise<typeof PAYMENT>
 	>();
 	const audit = jest.fn<() => Promise<unknown>>();
-	const lock = jest.fn<() => Promise<({ id: string } | { id: string; name: string; price_rwf: bigint })[]>>();
+	const lock =
+		jest.fn<() => Promise<({ id: string } | { id: string; name: string; price_rwf: bigint })[]>>();
 	const transaction = {
 		organizationPayment: { findFirst: findPayment, create: createPayment },
 		organizationMember: { create: createMember },
@@ -100,7 +112,9 @@ describe('owner registration payment', () => {
 		createPayment.mockResolvedValue(PAYMENT);
 		audit.mockResolvedValue({});
 		transaction.organizationMemberSubscription.findFirst.mockResolvedValue(null);
-		transaction.organizationPaymentAllocation.aggregate.mockResolvedValue({ _sum: { amountRwf: 0n } });
+		transaction.organizationPaymentAllocation.aggregate.mockResolvedValue({
+			_sum: { amountRwf: 0n },
+		});
 		lock
 			.mockResolvedValueOnce([{ id: MEMBER_ID }])
 			.mockResolvedValueOnce([{ id: PLAN_ID, name: 'Monthly access', price_rwf: 30_000n }])
@@ -128,12 +142,19 @@ describe('owner registration payment', () => {
 		const result = await service.registerPayment(CONTEXT, INPUT, KEY);
 		expect(result.amount).toBe(30_000);
 		expect(result.status).toBe(OrganizationPaymentStatus.CONFIRMED);
-		expect(createMember).toHaveBeenCalledWith(expect.objectContaining({
-			data: expect.objectContaining({ organizationId: ORGANIZATION_ID }),
-		}));
-		expect(createSubscription).toHaveBeenCalledWith(expect.objectContaining({
-			data: expect.objectContaining({ endDate: SUBSCRIPTION.endDate, organizationId: ORGANIZATION_ID }),
-		}));
+		expect(createMember).toHaveBeenCalledWith(
+			expect.objectContaining({
+				data: expect.objectContaining({ organizationId: ORGANIZATION_ID }),
+			}),
+		);
+		expect(createSubscription).toHaveBeenCalledWith(
+			expect.objectContaining({
+				data: expect.objectContaining({
+					endDate: SUBSCRIPTION.endDate,
+					organizationId: ORGANIZATION_ID,
+				}),
+			}),
+		);
 		expect(createPayment.mock.calls[0]?.[0].data).toMatchObject({
 			amountRwf: 30_000,
 			memberId: MEMBER_ID,
@@ -153,24 +174,27 @@ describe('owner registration payment', () => {
 		await service.registerPayment(CONTEXT, INPUT, KEY);
 		expect(createMember).toHaveBeenCalledTimes(1);
 		expect(createPayment).toHaveBeenCalledTimes(1);
-		await expect(service.registerPayment(CONTEXT, { ...INPUT, note: 'Changed' }, KEY))
-			.rejects.toMatchObject({
+		await expect(
+			service.registerPayment(CONTEXT, inputWith({ note: 'Changed' }), KEY),
+		).rejects.toMatchObject({
 			response: { code: 'PAYMENT_IDEMPOTENCY_CONFLICT' },
 		});
 	});
 
 	it('requires exactly one member selection before opening a transaction', async () => {
-		await expect(service.registerPayment(CONTEXT, { ...INPUT, memberId: MEMBER_ID }, KEY))
-			.rejects.toMatchObject({ response: { code: 'PAYMENT_MEMBER_REQUIRED' } });
-		await expect(service.registerPayment(CONTEXT, { ...INPUT, member: undefined }, KEY))
-			.rejects.toMatchObject({ response: { code: 'PAYMENT_MEMBER_REQUIRED' } });
+		await expect(
+			service.registerPayment(CONTEXT, inputWith({ memberId: MEMBER_ID }), KEY),
+		).rejects.toMatchObject({ response: { code: 'PAYMENT_MEMBER_REQUIRED' } });
+		await expect(
+			service.registerPayment(CONTEXT, inputWith({ member: undefined }), KEY),
+		).rejects.toMatchObject({ response: { code: 'PAYMENT_MEMBER_REQUIRED' } });
 		expect(createMember).not.toHaveBeenCalled();
 	});
 
 	it('uses an existing active member without creating another profile', async () => {
 		const result = await service.registerPayment(
 			CONTEXT,
-			{ ...INPUT, member: undefined, memberId: MEMBER_ID },
+			inputWith({ member: undefined, memberId: MEMBER_ID }),
 			KEY,
 		);
 		expect(result.memberId).toBe(MEMBER_ID);
