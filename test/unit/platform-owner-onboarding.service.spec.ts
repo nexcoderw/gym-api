@@ -9,8 +9,8 @@ import {
 import {
 	PlatformOwnerInvitationAudit,
 	UnavailableOwnerInvitationAudit,
-} from '../../src/modules/platform-owner-onboarding/platform-owner-invitation-audit.js';
-import { PlatformOwnerOnboardingService } from '../../src/modules/platform-owner-onboarding/platform-owner-onboarding.service.js';
+} from '../../src/modules/platform/owner-onboarding/platform-owner-invitation-audit.js';
+import { PlatformOwnerOnboardingService } from '../../src/modules/platform/owner-onboarding/platform-owner-onboarding.service.js';
 import {
 	createPlatformOwnerOnboardingDatabaseFixture,
 	OWNER_INVITATION_ACTOR_ID,
