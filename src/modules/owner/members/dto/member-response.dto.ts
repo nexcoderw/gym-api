@@ -37,7 +37,11 @@ export class MemberSubscriptionResponseDto {
 	membershipPlanId!: string;
 	@ApiProperty({ description: 'Plan name at the time of registration.' })
 	planName!: string;
-	@ApiProperty({ minimum: 0, description: 'Whole-RWF plan price snapshot, not a payment receipt or a multiplied period charge.' })
+	@ApiProperty({
+		minimum: 0,
+		description:
+			'Whole-RWF plan price snapshot, not a payment receipt or a multiplied period charge.',
+	})
 	price!: number;
 	@ApiProperty({ enum: ['RWF'] })
 	currency!: 'RWF';
@@ -47,7 +51,10 @@ export class MemberSubscriptionResponseDto {
 	periodCount!: number;
 	@ApiProperty({ format: 'date' })
 	startDate!: string;
-	@ApiProperty({ format: 'date', description: 'Last included calendar day, calculated by the API.' })
+	@ApiProperty({
+		format: 'date',
+		description: 'Last included calendar day, calculated by the API.',
+	})
 	endDate!: string;
 	@ApiProperty({ enum: MemberSubscriptionStatus })
 	status!: MemberSubscriptionStatus;
