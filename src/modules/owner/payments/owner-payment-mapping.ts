@@ -21,7 +21,7 @@ export const PAYMENT_SELECT = {
 		select: {
 			memberSubscriptionId: true,
 			amountRwf: true,
-			memberSubscription: { select: { planName: true } },
+			memberSubscription: { select: { planName: true, startDate: true, endDate: true } },
 		},
 		orderBy: { createdAt: 'asc' },
 	},
@@ -61,6 +61,8 @@ export function paymentResponse(row: PaymentRow): PaymentResponseDto {
 			subscriptionId: allocation.memberSubscriptionId,
 			planName: allocation.memberSubscription.planName,
 			amount: Number(allocation.amountRwf),
+			startDate: allocation.memberSubscription.startDate.toISOString().slice(0, 10),
+			endDate: allocation.memberSubscription.endDate.toISOString().slice(0, 10),
 		})),
 		refunds: row.refunds.map((refund) => ({
 			id: refund.id,
