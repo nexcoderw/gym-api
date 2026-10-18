@@ -9,8 +9,8 @@ import {
 	UserStatus,
 } from '@nexcoderw/gym-db';
 
-import type { OwnerPrincipal } from '../owner-auth/owner-auth.types.js';
-import { OwnerTokenService } from '../owner-auth/owner-token.service.js';
+import type { OwnerPrincipal } from '../auth/owner-auth.types.js';
+import { OwnerTokenService } from '../auth/owner-token.service.js';
 import type { OwnerInvitationAcceptedResponseDto } from './dto/owner-enrollment-response.dto.js';
 import {
 	invalidOwnerEnrollment,
