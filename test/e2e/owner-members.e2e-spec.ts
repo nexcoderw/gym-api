@@ -6,7 +6,10 @@ import { OrganizationStatus } from '@nexcoderw/gym-db';
 import request from 'supertest';
 
 import { configureApplication } from '../../src/app-bootstrap.js';
-import { OWNER_CSRF_COOKIE, OWNER_SESSION_COOKIE } from '../../src/modules/owner/auth/owner-auth.constants.js';
+import {
+	OWNER_CSRF_COOKIE,
+	OWNER_SESSION_COOKIE,
+} from '../../src/modules/owner/auth/owner-auth.constants.js';
 import { OwnerCookieService } from '../../src/modules/owner/auth/owner-cookie.service.js';
 import { OwnerOriginCsrfGuard } from '../../src/modules/owner/auth/owner-origin-csrf.guard.js';
 import { OwnerSessionGuard } from '../../src/modules/owner/auth/owner-session.guard.js';
@@ -29,19 +32,39 @@ const TOKEN = 'a'.repeat(43);
 const CSRF = 'b'.repeat(43);
 const CONTEXT = { organizationId: ORGANIZATION_ID, actorUserId: USER_ID };
 const INPUT = {
-	name: 'Example Member', phoneNumber: '+250700000001',
-	subscription: { membershipPlanId: PLAN_ID, startDate: '2026-11-01', periodUnit: MemberPeriodUnit.MONTHS, periodCount: 1 },
+	name: 'Example Member',
+	phoneNumber: '+250700000001',
+	subscription: {
+		membershipPlanId: PLAN_ID,
+		startDate: '2026-11-01',
+		periodUnit: MemberPeriodUnit.MONTHS,
+		periodCount: 1,
+	},
 };
 const MEMBER = {
-	id: MEMBER_ID, name: INPUT.name, phoneNumber: INPUT.phoneNumber, email: null,
-	status: 'ACTIVE' as const, createdAt: AT, updatedAt: AT, archivedAt: null,
+	id: MEMBER_ID,
+	name: INPUT.name,
+	phoneNumber: INPUT.phoneNumber,
+	email: null,
+	status: 'ACTIVE' as const,
+	createdAt: AT,
+	updatedAt: AT,
+	archivedAt: null,
 };
 const SUBSCRIPTION = {
-	id: KEY, memberId: MEMBER_ID, membershipPlanId: PLAN_ID,
-	planName: 'Monthly fitness', price: 30_000, currency: 'RWF' as const,
-	periodUnit: MemberPeriodUnit.MONTHS, periodCount: 1,
-	startDate: '2026-11-01', endDate: '2026-11-30', status: MemberSubscriptionStatus.SCHEDULED,
-	createdAt: AT, cancelledAt: null,
+	id: KEY,
+	memberId: MEMBER_ID,
+	membershipPlanId: PLAN_ID,
+	planName: 'Monthly fitness',
+	price: 30_000,
+	currency: 'RWF' as const,
+	periodUnit: MemberPeriodUnit.MONTHS,
+	periodCount: 1,
+	startDate: '2026-11-01',
+	endDate: '2026-11-30',
+	status: MemberSubscriptionStatus.SCHEDULED,
+	createdAt: AT,
+	cancelledAt: null,
 };
 
 describe('owner members HTTP security', () => {
@@ -65,15 +88,30 @@ describe('owner members HTTP security', () => {
 		const module = await Test.createTestingModule({
 			controllers: [OwnerMembersController],
 			providers: [
-				OwnerCookieService, OwnerOriginCsrfGuard, OwnerSessionGuard,
+				OwnerCookieService,
+				OwnerOriginCsrfGuard,
+				OwnerSessionGuard,
 				{ provide: ConfigService, useValue: { get: (key: string): unknown => values.get(key) } },
 				{ provide: OwnerSessionService, useValue: { authenticate } },
-				{ provide: OwnerTokenService, useValue: { equal: (a: string, b: string) => a === b, isValid: (value: string) => value === TOKEN } },
-				{ provide: OwnerMembersService, useValue: { list, get, create, update, archive, renew, subscriptions, cancel } },
+				{
+					provide: OwnerTokenService,
+					useValue: {
+						equal: (a: string, b: string) => a === b,
+						isValid: (value: string) => value === TOKEN,
+					},
+				},
+				{
+					provide: OwnerMembersService,
+					useValue: { list, get, create, update, archive, renew, subscriptions, cancel },
+				},
 			],
 		}).compile();
 		application = module.createNestApplication<NestExpressApplication>();
-		configureApplication(application, { CORS_ORIGINS: [], ORGANIZATION_PORTAL_BASE_DOMAIN: 'mucyora.rw', SWAGGER_ENABLED: false });
+		configureApplication(application, {
+			CORS_ORIGINS: [],
+			ORGANIZATION_PORTAL_BASE_DOMAIN: 'mucyora.rw',
+			SWAGGER_ENABLED: false,
+		});
 		await application.init();
 	});
 
@@ -87,7 +125,11 @@ describe('owner members HTTP security', () => {
 		archive.mockResolvedValue(undefined);
 		renew.mockResolvedValue(SUBSCRIPTION);
 		subscriptions.mockResolvedValue({ items: [SUBSCRIPTION], nextCursor: null });
-		cancel.mockResolvedValue({ ...SUBSCRIPTION, status: MemberSubscriptionStatus.CANCELLED, cancelledAt: AT });
+		cancel.mockResolvedValue({
+			...SUBSCRIPTION,
+			status: MemberSubscriptionStatus.CANCELLED,
+			cancelledAt: AT,
+		});
 	});
 
 	afterAll(async () => application?.close());
@@ -114,16 +156,29 @@ describe('owner members HTTP security', () => {
 	it('requires authentication, matching tenant membership and CSRF', async () => {
 		await request(app().getHttpServer()).get(ROOT).set('Origin', ORIGIN).expect(401);
 		await ownerRequest('get', ROOT).set('Origin', 'https://powergym.mucyora.rw').expect(401);
-		await ownerRequest('post', ROOT).set('x-owner-csrf-token', 'invalid').set('Idempotency-Key', KEY).send(INPUT).expect(403);
+		await ownerRequest('post', ROOT)
+			.set('x-owner-csrf-token', 'invalid')
+			.set('Idempotency-Key', KEY)
+			.send(INPUT)
+			.expect(403);
 		expect(create).not.toHaveBeenCalled();
 		expect(list).not.toHaveBeenCalled();
 	});
 
 	it('requires a registration idempotency key and rejects unknown update fields', async () => {
 		await ownerRequest('post', ROOT).send(INPUT).expect(400);
-		await ownerRequest('post', `${ROOT}/${MEMBER_ID}/subscriptions`).set('Idempotency-Key', 'invalid').send(INPUT.subscription).expect(400);
-		await ownerRequest('patch', `${ROOT}/${MEMBER_ID}`).set('If-Match', `"${AT}"`).send({ organizationId: ORGANIZATION_ID }).expect(400);
-		await ownerRequest('patch', `${ROOT}/${MEMBER_ID}`).set('If-Match', `"${AT}"`).send({ name: null }).expect(400);
+		await ownerRequest('post', `${ROOT}/${MEMBER_ID}/subscriptions`)
+			.set('Idempotency-Key', 'invalid')
+			.send(INPUT.subscription)
+			.expect(400);
+		await ownerRequest('patch', `${ROOT}/${MEMBER_ID}`)
+			.set('If-Match', `"${AT}"`)
+			.send({ organizationId: ORGANIZATION_ID })
+			.expect(400);
+		await ownerRequest('patch', `${ROOT}/${MEMBER_ID}`)
+			.set('If-Match', `"${AT}"`)
+			.send({ name: null })
+			.expect(400);
 	});
 
 	it('bounds pagination and scopes history and commands to the authenticated gym', async () => {
@@ -132,17 +187,32 @@ describe('owner members HTTP security', () => {
 		expect(list).toHaveBeenCalledWith(CONTEXT, { limit: 20, status: 'ACTIVE' });
 		await ownerRequest('get', `${ROOT}/${MEMBER_ID}/subscriptions`).expect(200);
 		expect(subscriptions).toHaveBeenCalledWith(CONTEXT, MEMBER_ID, { limit: 20 });
-		await ownerRequest('post', `${ROOT}/${MEMBER_ID}/subscriptions`).set('Idempotency-Key', KEY).send(INPUT.subscription).expect(201);
+		await ownerRequest('post', `${ROOT}/${MEMBER_ID}/subscriptions`)
+			.set('Idempotency-Key', KEY)
+			.send(INPUT.subscription)
+			.expect(201);
 		expect(renew).toHaveBeenCalledWith(CONTEXT, MEMBER_ID, INPUT.subscription, KEY);
-		await ownerRequest('post', `${ROOT}/${MEMBER_ID}/subscriptions/${KEY}/cancellations`).expect(200);
+		await ownerRequest('post', `${ROOT}/${MEMBER_ID}/subscriptions/${KEY}/cancellations`).expect(
+			200,
+		);
 		expect(cancel).toHaveBeenCalledWith(CONTEXT, MEMBER_ID, KEY);
 	});
 
 	it('requires optimistic concurrency for profile changes and archival', async () => {
 		await ownerRequest('get', `${ROOT}/${MEMBER_ID}`).expect(200).expect('ETag', `"${AT}"`);
-		await ownerRequest('patch', `${ROOT}/${MEMBER_ID}`).send({ name: 'Updated Member' }).expect(400);
-		await ownerRequest('patch', `${ROOT}/${MEMBER_ID}`).set('If-Match', `"${AT}"`).send({ name: 'Updated Member' }).expect(200);
-		expect(update).toHaveBeenCalledWith(CONTEXT, MEMBER_ID, { name: 'Updated Member' }, new Date(AT));
+		await ownerRequest('patch', `${ROOT}/${MEMBER_ID}`)
+			.send({ name: 'Updated Member' })
+			.expect(400);
+		await ownerRequest('patch', `${ROOT}/${MEMBER_ID}`)
+			.set('If-Match', `"${AT}"`)
+			.send({ name: 'Updated Member' })
+			.expect(200);
+		expect(update).toHaveBeenCalledWith(
+			CONTEXT,
+			MEMBER_ID,
+			{ name: 'Updated Member' },
+			new Date(AT),
+		);
 		await ownerRequest('delete', `${ROOT}/${MEMBER_ID}`).set('If-Match', `"${AT}"`).expect(204);
 	});
 
@@ -161,17 +231,34 @@ describe('owner members HTTP security', () => {
 	}
 
 	function ownerRequest(method: 'get' | 'post' | 'patch' | 'delete', path: string): request.Test {
-		return request(app().getHttpServer())[method](path)
+		return request(app().getHttpServer())
+			[method](path)
 			.set('Origin', ORIGIN)
 			.set('Cookie', `${OWNER_SESSION_COOKIE}=${TOKEN}; ${OWNER_CSRF_COOKIE}=${CSRF}`)
 			.set('x-owner-csrf-token', CSRF);
 	}
 
-	function principal(status: OrganizationStatus = OrganizationStatus.ACTIVE, roles: readonly string[] = ['owner']): Awaited<ReturnType<OwnerSessionService['authenticate']>> {
+	function principal(
+		status: OrganizationStatus = OrganizationStatus.ACTIVE,
+		roles: readonly string[] = ['owner'],
+	): Awaited<ReturnType<OwnerSessionService['authenticate']>> {
 		return {
-			sessionId: KEY, userId: USER_ID, displayName: 'Example Owner', email: 'owner@example.com',
-			assurance: 'AAL1', expiresAt: new Date('2030-01-01T00:00:00.000Z'),
-			organizations: [{ organizationId: ORGANIZATION_ID, name: 'Soho Gym', slug: 'soho', status, membershipId: KEY, roles }],
+			sessionId: KEY,
+			userId: USER_ID,
+			displayName: 'Example Owner',
+			email: 'owner@example.com',
+			assurance: 'AAL1',
+			expiresAt: new Date('2030-01-01T00:00:00.000Z'),
+			organizations: [
+				{
+					organizationId: ORGANIZATION_ID,
+					name: 'Soho Gym',
+					slug: 'soho',
+					status,
+					membershipId: KEY,
+					roles,
+				},
+			],
 		};
 	}
 });
