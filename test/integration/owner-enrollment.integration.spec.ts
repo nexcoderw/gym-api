@@ -2,10 +2,10 @@ import { Test, type TestingModule } from '@nestjs/testing';
 import { PrismaService } from '@nexcoderw/gym-db';
 
 import { AppModule } from '../../src/app.module.js';
-import { OwnerSessionGuard } from '../../src/modules/owner-auth/owner-session.guard.js';
-import { OwnerAcceptanceService } from '../../src/modules/owner-enrollment/owner-acceptance.service.js';
-import { OwnerEnrollmentController } from '../../src/modules/owner-enrollment/owner-enrollment.controller.js';
-import { OwnerEnrollmentSessionGuard } from '../../src/modules/owner-enrollment/owner-enrollment-session.guard.js';
+import { OwnerSessionGuard } from '../../src/modules/owner/auth/owner-session.guard.js';
+import { OwnerAcceptanceService } from '../../src/modules/owner/enrollment/owner-acceptance.service.js';
+import { OwnerEnrollmentController } from '../../src/modules/owner/enrollment/owner-enrollment.controller.js';
+import { OwnerEnrollmentSessionGuard } from '../../src/modules/owner/enrollment/owner-enrollment-session.guard.js';
 
 describe('OwnerEnrollmentModule integration', () => {
 	let module: TestingModule;
