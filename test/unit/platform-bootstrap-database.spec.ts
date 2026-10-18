@@ -1,10 +1,10 @@
 import { jest } from '@jest/globals';
 
-import { PLATFORM_OWNER_BOOTSTRAP_LOCK_ID } from '../../src/modules/platform-bootstrap/platform-bootstrap.constants.js';
+import { PLATFORM_OWNER_BOOTSTRAP_LOCK_ID } from '../../src/modules/platform/bootstrap/platform-bootstrap.constants.js';
 import {
 	acquireBootstrapLock,
 	verifyBootstrapDatabase,
-} from '../../src/modules/platform-bootstrap/platform-bootstrap-database.js';
+} from '../../src/modules/platform/bootstrap/platform-bootstrap-database.js';
 
 const target = {
 	databaseName: 'gym_bootstrap_test',
