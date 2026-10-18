@@ -30,8 +30,21 @@ describe('member registration workflow', () => {
 	let service: OwnerMembersService;
 	let module: TestingModule | undefined;
 	let storedFingerprint: string;
-	const createMember = jest.fn<() => Promise<typeof MEMBER>>();
-	const createSubscription = jest.fn<(input: { data: { requestFingerprint: string } }) => Promise<typeof SUBSCRIPTION>>();
+	const createMember = jest.fn<
+		(input: { data: { organizationId: string } }) => Promise<typeof MEMBER>
+	>();
+	const createSubscription = jest.fn<
+		(input: {
+			data: {
+				organizationId: string;
+				memberId: string;
+				priceRwf: bigint;
+				createdByUserId: string;
+				idempotencyKey: string;
+				requestFingerprint: string;
+			};
+		}) => Promise<typeof SUBSCRIPTION>
+	>();
 	const findReplay = jest.fn<() => Promise<(typeof SUBSCRIPTION & { requestFingerprint: string; member: typeof MEMBER }) | null>>();
 	const lock = jest.fn<() => Promise<({ id: string } | { id: string; name: string; price_rwf: bigint })[]>>();
 	const transaction = {
@@ -67,11 +80,16 @@ describe('member registration workflow', () => {
 		const result = await service.create(CONTEXT, INPUT, KEY);
 		expect(result.member.id).toBe(MEMBER_ID);
 		expect(result.subscription.endDate).toBe('2030-01-31');
-		expect(createMember).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ organizationId: ORGANIZATION_ID }) }));
-		expect(createSubscription).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({
-			memberId: MEMBER_ID, organizationId: ORGANIZATION_ID, priceRwf: 30_000n,
-			createdByUserId: KEY, idempotencyKey: KEY,
-		}) }));
+		const memberInput = createMember.mock.calls[0]?.[0];
+		const subscriptionInput = createSubscription.mock.calls[0]?.[0];
+		expect(memberInput?.data.organizationId).toBe(ORGANIZATION_ID);
+		expect(subscriptionInput?.data).toMatchObject({
+			memberId: MEMBER_ID,
+			organizationId: ORGANIZATION_ID,
+			priceRwf: 30_000n,
+			createdByUserId: KEY,
+			idempotencyKey: KEY,
+		});
 	});
 
 	it('returns the original registration for identical retries and rejects key reuse', async () => {
