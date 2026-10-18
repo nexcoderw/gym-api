@@ -7,7 +7,7 @@ import {
 } from '@nexcoderw/gym-db';
 
 import { MemberPeriodUnit } from '../../src/modules/owner/members/member-period.js';
-import type { RegisterPaymentDto } from '../../src/modules/owner/payments/dto/register-payment.dto.js';
+import { RegisterPaymentDto } from '../../src/modules/owner/payments/dto/register-payment.dto.js';
 import { OwnerPaymentsService } from '../../src/modules/owner/payments/owner-payments.service.js';
 
 const ORGANIZATION_ID = '11111111-1111-4111-8111-111111111111';
@@ -67,7 +67,7 @@ const PAYMENT = {
 };
 
 function inputWith(changes: Partial<RegisterPaymentDto>): RegisterPaymentDto {
-	return Object.assign(Object.create(Object.getPrototypeOf(INPUT)), INPUT, changes);
+	return Object.assign(new RegisterPaymentDto(), INPUT, changes);
 }
 
 describe('owner registration payment', () => {
@@ -75,8 +75,12 @@ describe('owner registration payment', () => {
 	let module: TestingModule | undefined;
 	const findPayment =
 		jest.fn<() => Promise<(typeof PAYMENT & { requestFingerprint: string }) | null>>();
-	const createMember = jest.fn<() => Promise<{ id: string }>>();
-	const createSubscription = jest.fn<() => Promise<typeof SUBSCRIPTION>>();
+	const createMember =
+		jest.fn<(input: { data: { organizationId: string } }) => Promise<{ id: string }>>();
+	const createSubscription =
+		jest.fn<
+			(input: { data: { endDate: Date; organizationId: string } }) => Promise<typeof SUBSCRIPTION>
+		>();
 	const createPayment = jest.fn<
 		(input: {
 			data: {
@@ -142,19 +146,11 @@ describe('owner registration payment', () => {
 		const result = await service.registerPayment(CONTEXT, INPUT, KEY);
 		expect(result.amount).toBe(30_000);
 		expect(result.status).toBe(OrganizationPaymentStatus.CONFIRMED);
-		expect(createMember).toHaveBeenCalledWith(
-			expect.objectContaining({
-				data: expect.objectContaining({ organizationId: ORGANIZATION_ID }),
-			}),
-		);
-		expect(createSubscription).toHaveBeenCalledWith(
-			expect.objectContaining({
-				data: expect.objectContaining({
-					endDate: SUBSCRIPTION.endDate,
-					organizationId: ORGANIZATION_ID,
-				}),
-			}),
-		);
+		const memberInput = createMember.mock.calls[0]?.[0];
+		expect(memberInput?.data.organizationId).toBe(ORGANIZATION_ID);
+		const subscriptionInput = createSubscription.mock.calls[0]?.[0];
+		expect(subscriptionInput?.data.endDate).toEqual(SUBSCRIPTION.endDate);
+		expect(subscriptionInput?.data.organizationId).toBe(ORGANIZATION_ID);
 		expect(createPayment.mock.calls[0]?.[0].data).toMatchObject({
 			amountRwf: 30_000,
 			memberId: MEMBER_ID,
