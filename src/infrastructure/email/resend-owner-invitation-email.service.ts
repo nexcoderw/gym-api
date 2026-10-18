@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 
 import type { EnvironmentVariables } from '../../config/environment.types.js';
 import { isOrganizationPortalOrigin } from '../../config/organization-portal-origin.js';
-import type { InvitationEmailSnapshot } from '../../modules/platform-owner-onboarding/owner-invitation-token-envelope.service.js';
+import type { InvitationEmailSnapshot } from '../../modules/platform/owner-onboarding/owner-invitation-token-envelope.service.js';
 
 export type InvitationProviderOutcome =
 	| { readonly kind: 'accepted'; readonly messageId: string }
