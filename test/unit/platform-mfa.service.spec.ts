@@ -5,9 +5,9 @@ import { PlatformStaffStatus, Prisma, PrismaService, UserStatus } from '@nexcode
 
 import type { EnvironmentVariables } from '../../src/config/environment.types.js';
 import { validateEnvironment } from '../../src/config/environment.validation.js';
-import { PlatformMfaService } from '../../src/modules/platform-auth/platform-mfa.service.js';
-import { PlatformTokenService } from '../../src/modules/platform-auth/platform-token.service.js';
-import { PlatformTotpService } from '../../src/modules/platform-auth/platform-totp.service.js';
+import { PlatformMfaService } from '../../src/modules/platform/auth/platform-mfa.service.js';
+import { PlatformTokenService } from '../../src/modules/platform/auth/platform-token.service.js';
+import { PlatformTotpService } from '../../src/modules/platform/auth/platform-totp.service.js';
 
 describe('PlatformMfaService', () => {
 	const challengeFindUnique = jest.fn<() => Promise<unknown>>();
