@@ -1,8 +1,8 @@
 import { Test, type TestingModule } from '@nestjs/testing';
 import { PrismaService } from '@nexcoderw/gym-db';
 
-import { PlatformBootstrapCliModule } from '../../src/modules/platform-bootstrap/platform-bootstrap-cli.module.js';
-import { PlatformOwnerBootstrapService } from '../../src/modules/platform-bootstrap/platform-owner-bootstrap.service.js';
+import { PlatformBootstrapCliModule } from '../../src/modules/platform/bootstrap/platform-bootstrap-cli.module.js';
+import { PlatformOwnerBootstrapService } from '../../src/modules/platform/bootstrap/platform-owner-bootstrap.service.js';
 
 describe('PlatformBootstrapCliModule integration', () => {
 	let module: TestingModule;
