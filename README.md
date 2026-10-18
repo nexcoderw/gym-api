@@ -938,7 +938,7 @@ The active gym owner policy, live tenant session, Origin validation and mutation
 Member creation includes the first plan registration in one transaction. Renewals append separate
 history records. Each registration references an active plan from the same gym and snapshots its
 name and whole-RWF price. That snapshot is the listed plan price: it is not multiplied by the period
-and is not evidence of a provider-confirmed payment. A separate payment ledger is outside this slice.
+and is not evidence of a provider-confirmed payment. The payment ledger remains a separate record.
 
 Dates are calendar dates. Periods support DAYS, WEEKS, MONTHS and YEARS with unit-specific limits of
 3650, 520, 120 and 10. End dates are inclusive: November 1 plus one month ends November 30. Monthly
@@ -956,6 +956,17 @@ Routes under `/api/v1/owner/members` provide list/create, read/update/archive by
 registration history, registration/renewal and explicit subscription cancellation. Swagger describes
 the request/response contracts and security headers. List endpoints are bounded to 50 rows and cursors
 must belong to the same organization and filter.
+
+`POST /api/v1/owner/payments/registrations` creates an optional new member profile, a dated plan
+registration and a full-plan-price payment with its allocation and audit event in one tenant
+transaction. Alternatively, it registers an existing active member for a new non-overlapping period.
+The request supplies exactly one of `member` or `memberId`, an active plan, start date, period,
+method, received time, optional note and a provider reference for non-cash methods. The server owns
+the price and inclusive end date. An unchanged retry reuses the same UUID `Idempotency-Key`; different
+input with that key is rejected. Zero-price plans are not eligible for payment recording. If any
+write fails, the whole operation rolls back. Cash is confirmed on record; external methods remain
+pending until provider verification exists. The existing payment command for an already created
+registration is unchanged.
 
 Deployment is pending the human-generated member expansion migration, SQL integrity/non-overlap
 review, runtime grants, database client generation/build and consumer package refresh. Do not deploy
