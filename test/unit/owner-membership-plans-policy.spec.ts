@@ -1,9 +1,9 @@
 import { OrganizationStatus } from '@nexcoderw/gym-db';
 
-import type { OwnerRequest } from '../../src/modules/owner-auth/owner-request.js';
-import { ownerMembershipPlanOrganization } from '../../src/modules/owner-membership-plans/owner-membership-plan-context.js';
-import { membershipPlanPrecondition } from '../../src/modules/owner-membership-plans/owner-membership-plan-precondition.js';
-import { normalizedMembershipPlanName } from '../../src/modules/owner-membership-plans/owner-membership-plans.service.js';
+import type { OwnerRequest } from '../../src/modules/owner/auth/owner-request.js';
+import { ownerMembershipPlanOrganization } from '../../src/modules/owner/membership-plans/owner-membership-plan-context.js';
+import { membershipPlanPrecondition } from '../../src/modules/owner/membership-plans/owner-membership-plan-precondition.js';
+import { normalizedMembershipPlanName } from '../../src/modules/owner/membership-plans/owner-membership-plans.service.js';
 
 const UPDATED_AT = '2026-10-18T08:00:00.000Z';
 
