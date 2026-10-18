@@ -139,7 +139,7 @@ export class OwnerPaymentsService {
 			input.subscription.periodUnit,
 			input.subscription.periodCount,
 		);
-		const occurredAt = paymentDate(input.occurredAt);
+		const requestedOccurredAt = paymentDate(input.occurredAt);
 		const providerReference = paymentProviderReference(input.method, input.providerReference);
 		const note = input.note?.trim();
 		const profile =
@@ -161,7 +161,7 @@ export class OwnerPaymentsService {
 			input.subscription.periodUnit,
 			input.subscription.periodCount,
 			input.method,
-			occurredAt.toISOString(),
+			requestedOccurredAt.toISOString(),
 			providerReference,
 			note ?? null,
 		]);
@@ -209,7 +209,10 @@ export class OwnerPaymentsService {
 						method: input.method,
 						providerReference,
 						note,
-						occurredAt,
+						// The API server is authoritative for registration time. The browser
+						// timestamp is validated above but must not violate the database's
+						// clock-skew guard when a wizard remains open or the client clock drifts.
+						occurredAt: new Date(),
 						idempotencyKey,
 						fingerprint,
 					}),
