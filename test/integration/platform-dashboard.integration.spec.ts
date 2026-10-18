@@ -2,10 +2,10 @@ import { Test, type TestingModule } from '@nestjs/testing';
 import { PlatformStaffStatus, PrismaService, UserStatus } from '@nexcoderw/gym-db';
 
 import { AppModule } from '../../src/app.module.js';
-import { PlatformPermissionGuard } from '../../src/modules/platform-auth/platform-permission.guard.js';
-import { PlatformSessionGuard } from '../../src/modules/platform-auth/platform-session.guard.js';
-import { PlatformDashboardController } from '../../src/modules/platform-dashboard/platform-dashboard.controller.js';
-import { PlatformDashboardService } from '../../src/modules/platform-dashboard/platform-dashboard.service.js';
+import { PlatformPermissionGuard } from '../../src/modules/platform/auth/platform-permission.guard.js';
+import { PlatformSessionGuard } from '../../src/modules/platform/auth/platform-session.guard.js';
+import { PlatformDashboardController } from '../../src/modules/platform/dashboard/platform-dashboard.controller.js';
+import { PlatformDashboardService } from '../../src/modules/platform/dashboard/platform-dashboard.service.js';
 import { createPlatformDashboardDatabaseFixture } from '../fixtures/platform-dashboard-database.fixture.js';
 
 describe('PlatformDashboardModule adapter integration (no PostgreSQL)', () => {
