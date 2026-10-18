@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { ResendEmailService } from '../../infrastructure/email/resend-email.service.js';
+import { ResendEmailService } from '../../../infrastructure/email/resend-email.service.js';
 import { PlatformEmailOtpService } from './platform-email-otp.service.js';
 
 import { PlatformAuthController } from './platform-auth.controller.js';
