@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 
-import { validateEnvironment } from '../../config/environment.validation.js';
-import { DatabaseIntegrationModule } from '../../infrastructure/database/database-integration.module.js';
+import { validateEnvironment } from '../../../config/environment.validation.js';
+import { DatabaseIntegrationModule } from '../../../infrastructure/database/database-integration.module.js';
 import { PlatformBootstrapModule } from './platform-bootstrap.module.js';
 
 /** Standalone dependency graph for the operator CLI; it never creates an HTTP listener. */
