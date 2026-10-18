@@ -4,7 +4,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as OTPAuth from 'otpauth';
 
-import type { EnvironmentVariables } from '../../config/environment.types.js';
+import type { EnvironmentVariables } from '../../../config/environment.types.js';
 import type { AcceptedTotp } from './platform-auth.types.js';
 
 const TOTP_PERIOD_SECONDS = 30;
