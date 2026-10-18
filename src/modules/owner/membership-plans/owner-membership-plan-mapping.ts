@@ -26,8 +26,7 @@ export function membershipPlanResponse(row: MembershipPlanRow): MembershipPlanRe
 		price: Number(row.priceRwf),
 		currency: 'RWF',
 		description: row.description,
-		status:
-			row.archivedAt === null ? MembershipPlanStatus.ACTIVE : MembershipPlanStatus.ARCHIVED,
+		status: row.archivedAt === null ? MembershipPlanStatus.ACTIVE : MembershipPlanStatus.ARCHIVED,
 		createdAt: row.createdAt.toISOString(),
 		updatedAt: row.updatedAt.toISOString(),
 		archivedAt: row.archivedAt?.toISOString() ?? null,
