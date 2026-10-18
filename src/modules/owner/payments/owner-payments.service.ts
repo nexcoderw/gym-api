@@ -34,13 +34,16 @@ export class OwnerPaymentsService {
 		try {
 			return await this.tenants.run(context, async (transaction) => {
 				const where = paymentWhere(context.organizationId, query);
+
 				if (query.cursor !== undefined) {
 					const cursor = await transaction.organizationPayment.findFirst({
 						where: { ...where, id: query.cursor },
 						select: { id: true },
 					});
+
 					if (cursor === null) throw invalidCursor();
 				}
+
 				const rows = await transaction.organizationPayment.findMany({
 					where,
 					select: PAYMENT_SELECT,
@@ -48,7 +51,9 @@ export class OwnerPaymentsService {
 					take: query.limit + 1,
 					...(query.cursor === undefined ? {} : { cursor: { id: query.cursor }, skip: 1 }),
 				});
+
 				const page = rows.slice(0, query.limit);
+
 				return {
 					items: page.map(paymentResponse),
 					nextCursor: rows.length > query.limit ? (page.at(-1)?.id ?? null) : null,
@@ -63,7 +68,9 @@ export class OwnerPaymentsService {
 		try {
 			return await this.tenants.run(context, async (transaction) => {
 				const payment = await findPayment(transaction, context.organizationId, paymentId);
+
 				if (payment === null) throw paymentNotFound();
+
 				return paymentResponse(payment);
 			});
 		} catch (error: unknown) {
@@ -79,6 +86,7 @@ export class OwnerPaymentsService {
 		const occurredAt = paymentDate(input.occurredAt);
 		const providerReference = paymentProviderReference(input.method, input.providerReference);
 		const note = input.note?.trim();
+
 		const fingerprint = requestFingerprint([
 			'record',
 			input.memberId,
@@ -89,6 +97,7 @@ export class OwnerPaymentsService {
 			providerReference,
 			note ?? null,
 		]);
+
 		try {
 			return await this.tenants.run(context, async (transaction) => {
 				const replay = await paymentReplay(
@@ -97,6 +106,7 @@ export class OwnerPaymentsService {
 					idempotencyKey,
 					fingerprint,
 				);
+
 				if (replay !== null) return paymentResponse(replay);
 
 				return paymentResponse(
@@ -116,8 +126,10 @@ export class OwnerPaymentsService {
 		} catch (error: unknown) {
 			if (databaseErrorCode(error) === 'P2002') {
 				const replay = await this.replayPayment(context, idempotencyKey, fingerprint);
+
 				if (replay !== null) return replay;
 			}
+
 			throw paymentFailure(error);
 		}
 	}
@@ -134,14 +146,17 @@ export class OwnerPaymentsService {
 				message: 'Choose an existing member or enter a new member, but not both.',
 			});
 		}
+
 		memberPeriod(
 			input.subscription.startDate,
 			input.subscription.periodUnit,
 			input.subscription.periodCount,
 		);
+
 		const requestedOccurredAt = paymentDate(input.occurredAt);
 		const providerReference = paymentProviderReference(input.method, input.providerReference);
 		const note = input.note?.trim();
+
 		const profile =
 			input.member === undefined
 				? null
@@ -150,6 +165,7 @@ export class OwnerPaymentsService {
 						phoneNumber: memberPhone(input.member.phoneNumber),
 						email: input.member.email ?? null,
 					};
+
 		const fingerprint = requestFingerprint([
 			'register-payment',
 			input.memberId ?? null,
@@ -165,6 +181,7 @@ export class OwnerPaymentsService {
 			providerReference,
 			note ?? null,
 		]);
+
 		try {
 			return await this.tenants.run(
 				context,
@@ -175,20 +192,26 @@ export class OwnerPaymentsService {
 						idempotencyKey,
 						fingerprint,
 					);
+
 					if (replay !== null) return paymentResponse(replay);
+
 					let memberId: string;
+
 					if (profile === null) {
 						if (input.memberId === undefined) {
 							throw new BadRequestException({ code: 'PAYMENT_MEMBER_REQUIRED' });
 						}
+
 						memberId = input.memberId;
 					} else {
 						const member = await transaction.organizationMember.create({
 							data: { organizationId: context.organizationId, ...profile },
 							select: { id: true },
 						});
+
 						memberId = member.id;
 					}
+
 					const subscription = await registerMemberPlan(
 						transaction,
 						context,
@@ -197,12 +220,14 @@ export class OwnerPaymentsService {
 						idempotencyKey,
 						fingerprint,
 					);
+
 					if (subscription.price < 1) {
 						throw paymentConflict(
 							'PAYMENT_FREE_PLAN',
 							'A free membership plan cannot be recorded as a payment.',
 						);
 					}
+
 					return paymentResponse(
 						await recordPayment(transaction, context, {
 							memberId,
@@ -211,10 +236,13 @@ export class OwnerPaymentsService {
 							method: input.method,
 							providerReference,
 							note,
-							// The API server is authoritative for registration time. The browser
-							// timestamp is validated above but must not violate the database's
-							// clock-skew guard when a wizard remains open or the client clock drifts.
-							occurredAt: new Date(),
+
+							// The requested timestamp remains part of the immutable
+							// idempotency fingerprint. The actual registration payment
+							// uses the database clock to satisfy financial constraints.
+							occurredAt: requestedOccurredAt,
+							useDatabaseOccurredAt: true,
+
 							idempotencyKey,
 							fingerprint,
 						}),
@@ -225,8 +253,10 @@ export class OwnerPaymentsService {
 		} catch (error: unknown) {
 			if (databaseErrorCode(error) === 'P2002') {
 				const replay = await this.replayPayment(context, idempotencyKey, fingerprint);
+
 				if (replay !== null) return replay;
 			}
+
 			throw paymentFailure(error);
 		}
 	}
@@ -239,8 +269,10 @@ export class OwnerPaymentsService {
 	): Promise<PaymentResponseDto> {
 		const reason = input.reason.trim();
 		const fingerprint = requestFingerprint(['void', paymentId, reason]);
+
 		return this.command(context, idempotencyKey, fingerprint, async (transaction) => {
 			const locked = await lockPayment(transaction, context.organizationId, paymentId);
+
 			if (
 				locked.status !== OrganizationPaymentStatus.PENDING &&
 				locked.status !== OrganizationPaymentStatus.CONFIRMED
@@ -250,17 +282,21 @@ export class OwnerPaymentsService {
 					'Only pending or confirmed payments can be voided.',
 				);
 			}
+
 			const refund = await transaction.organizationPaymentRefund.findFirst({
 				where: { organizationId: context.organizationId, paymentId },
 				select: { id: true },
 			});
+
 			if (refund !== null) {
 				throw paymentConflict(
 					'PAYMENT_HAS_REFUNDS',
 					'A payment with a refund record cannot be voided.',
 				);
 			}
+
 			const now = new Date();
+
 			const payment = await transaction.organizationPayment.update({
 				where: { organizationId_id: { organizationId: context.organizationId, id: paymentId } },
 				data: {
@@ -271,6 +307,7 @@ export class OwnerPaymentsService {
 				},
 				select: PAYMENT_SELECT,
 			});
+
 			await createAudit(transaction, context, {
 				paymentId,
 				action: OrganizationPaymentAuditAction.PAYMENT_VOIDED,
@@ -280,6 +317,7 @@ export class OwnerPaymentsService {
 				resultingStatus: OrganizationPaymentStatus.VOIDED,
 				now,
 			});
+
 			return payment;
 		});
 	}
@@ -292,14 +330,17 @@ export class OwnerPaymentsService {
 	): Promise<PaymentResponseDto> {
 		const reason = input.reason.trim();
 		const fingerprint = requestFingerprint(['refund', paymentId, input.amount, reason]);
+
 		return this.command(context, idempotencyKey, fingerprint, async (transaction) => {
 			const locked = await lockPayment(transaction, context.organizationId, paymentId);
+
 			if (locked.method !== OrganizationPaymentMethod.CASH) {
 				throw paymentConflict(
 					'PAYMENT_REFUND_METHOD_UNAVAILABLE',
 					'External refunds require a verified provider workflow that is not enabled.',
 				);
 			}
+
 			if (
 				locked.status !== OrganizationPaymentStatus.CONFIRMED &&
 				locked.status !== OrganizationPaymentStatus.PARTIALLY_REFUNDED
@@ -309,6 +350,7 @@ export class OwnerPaymentsService {
 					'Only confirmed cash payments can be refunded.',
 				);
 			}
+
 			const refunded = await transaction.organizationPaymentRefund.aggregate({
 				where: {
 					organizationId: context.organizationId,
@@ -317,18 +359,23 @@ export class OwnerPaymentsService {
 				},
 				_sum: { amountRwf: true },
 			});
+
 			const total = (refunded._sum.amountRwf ?? 0n) + BigInt(input.amount);
+
 			if (total > locked.amountRwf) {
 				throw paymentConflict(
 					'PAYMENT_REFUND_EXCEEDS_BALANCE',
 					'The refund exceeds the remaining payment amount.',
 				);
 			}
+
 			const now = new Date();
+
 			const status =
 				total === locked.amountRwf
 					? OrganizationPaymentStatus.REFUNDED
 					: OrganizationPaymentStatus.PARTIALLY_REFUNDED;
+
 			const refund = await transaction.organizationPaymentRefund.create({
 				data: {
 					organizationId: context.organizationId,
@@ -344,11 +391,13 @@ export class OwnerPaymentsService {
 				},
 				select: { id: true },
 			});
+
 			const payment = await transaction.organizationPayment.update({
 				where: { organizationId_id: { organizationId: context.organizationId, id: paymentId } },
 				data: { status },
 				select: PAYMENT_SELECT,
 			});
+
 			await createAudit(transaction, context, {
 				paymentId,
 				refundId: refund.id,
@@ -359,6 +408,7 @@ export class OwnerPaymentsService {
 				resultingStatus: status,
 				now,
 			});
+
 			return payment;
 		});
 	}
@@ -377,8 +427,10 @@ export class OwnerPaymentsService {
 					idempotencyKey,
 					fingerprint,
 				);
+
 				return replay ?? operation(transaction);
 			});
+
 			return paymentResponse(row);
 		} catch (error: unknown) {
 			if (databaseErrorCode(error) === 'P2002') {
@@ -386,11 +438,13 @@ export class OwnerPaymentsService {
 					const replay = await this.tenants.run(context, (transaction) =>
 						auditReplay(transaction, context.organizationId, idempotencyKey, fingerprint),
 					);
+
 					if (replay !== null) return paymentResponse(replay);
 				} catch (replayError: unknown) {
 					throw paymentFailure(replayError);
 				}
 			}
+
 			throw paymentFailure(error);
 		}
 	}
@@ -408,6 +462,7 @@ export class OwnerPaymentsService {
 					idempotencyKey,
 					fingerprint,
 				);
+
 				return replay === null ? null : paymentResponse(replay);
 			});
 		} catch (error: unknown) {
@@ -427,6 +482,7 @@ async function recordPayment(
 		providerReference: string | null;
 		note: string | undefined;
 		occurredAt: Date;
+		useDatabaseOccurredAt?: boolean;
 		idempotencyKey: string;
 		fingerprint: string;
 	},
@@ -437,6 +493,7 @@ async function recordPayment(
 		input.memberId,
 		input.subscriptionId,
 	);
+
 	const allocated = await transaction.organizationPaymentAllocation.aggregate({
 		where: {
 			organizationId: context.organizationId,
@@ -447,18 +504,33 @@ async function recordPayment(
 		},
 		_sum: { amountRwf: true },
 	});
+
 	if ((allocated._sum.amountRwf ?? 0n) + BigInt(input.amount) > subscription.price_rwf) {
 		throw paymentConflict(
 			'PAYMENT_EXCEEDS_BALANCE',
 			'This amount is greater than the remaining registration balance.',
 		);
 	}
-	const now = new Date();
+
+	// Use the database clock for financial event timestamps.
+	// This avoids mixing the API server clock with PostgreSQL-generated values.
+	const timestamps = await transaction.$queryRaw<{ recordedAt: Date }[]>`
+		SELECT clock_timestamp() AS "recordedAt"
+	`;
+
+	const now = timestamps[0]?.recordedAt;
+
+	if (!(now instanceof Date) || !Number.isFinite(now.getTime())) {
+		throw new Error('The database did not provide a valid timestamp.');
+	}
+
 	const status =
 		input.method === OrganizationPaymentMethod.CASH
 			? OrganizationPaymentStatus.CONFIRMED
 			: OrganizationPaymentStatus.PENDING;
+
 	const paymentId = randomUUID();
+
 	const payment = await transaction.organizationPayment.create({
 		data: {
 			id: paymentId,
@@ -470,17 +542,23 @@ async function recordPayment(
 			status,
 			providerReference: input.providerReference,
 			note: input.note,
-			occurredAt: input.occurredAt,
+			occurredAt: input.useDatabaseOccurredAt ? now : input.occurredAt,
 			confirmedAt: status === OrganizationPaymentStatus.CONFIRMED ? now : null,
+			createdAt: now,
+			updatedAt: now,
 			idempotencyKey: input.idempotencyKey,
 			requestFingerprint: input.fingerprint,
 			recordedByUserId: context.actorUserId,
 			allocations: {
-				create: { memberSubscriptionId: input.subscriptionId, amountRwf: input.amount },
+				create: {
+					memberSubscriptionId: input.subscriptionId,
+					amountRwf: input.amount,
+				},
 			},
 		},
 		select: PAYMENT_SELECT,
 	});
+
 	await transaction.organizationPaymentAuditEvent.create({
 		data: {
 			organizationId: context.organizationId,
@@ -494,6 +572,7 @@ async function recordPayment(
 			occurredAt: now,
 		},
 	});
+
 	return payment;
 }
 
@@ -510,6 +589,7 @@ function paymentOrder(order: PaymentOrder): Prisma.OrganizationPaymentOrderByWit
 	if (order === PaymentOrder.OLDEST) return [{ occurredAt: 'asc' }, { id: 'asc' }];
 	if (order === PaymentOrder.AMOUNT_HIGH) return [{ amountRwf: 'desc' }, { id: 'asc' }];
 	if (order === PaymentOrder.AMOUNT_LOW) return [{ amountRwf: 'asc' }, { id: 'asc' }];
+
 	return [{ occurredAt: 'desc' }, { id: 'asc' }];
 }
 
@@ -534,13 +614,16 @@ async function paymentReplay(
 		where: { organizationId, idempotencyKey },
 		select: { ...PAYMENT_SELECT, requestFingerprint: true },
 	});
+
 	if (row === null) return null;
+
 	if (row.requestFingerprint !== fingerprint) {
 		throw paymentConflict(
 			'PAYMENT_IDEMPOTENCY_CONFLICT',
 			'This idempotency key was already used for a different payment command.',
 		);
 	}
+
 	return row;
 }
 
@@ -554,13 +637,16 @@ async function auditReplay(
 		where: { organizationId, idempotencyKey },
 		select: { requestFingerprint: true, payment: { select: PAYMENT_SELECT } },
 	});
+
 	if (row === null) return null;
+
 	if (row.requestFingerprint !== fingerprint) {
 		throw paymentConflict(
 			'PAYMENT_IDEMPOTENCY_CONFLICT',
 			'This idempotency key was already used for a different payment command.',
 		);
 	}
+
 	return row.payment;
 }
 
@@ -578,8 +664,11 @@ async function lockSubscription(
 			AND cancelled_at IS NULL
 		FOR UPDATE
 	`;
+
 	const row = rows[0];
+
 	if (row === undefined) throw paymentNotFound();
+
 	return row;
 }
 
@@ -599,12 +688,16 @@ async function lockPayment(
 		WHERE organization_id = ${organizationId}::uuid AND id = ${paymentId}::uuid
 		FOR UPDATE
 	`;
+
 	if (rows.length !== 1) throw paymentNotFound();
+
 	const payment = await transaction.organizationPayment.findFirst({
 		where: { organizationId, id: paymentId },
 		select: { id: true, memberId: true, amountRwf: true, method: true, status: true },
 	});
+
 	if (payment === null) throw paymentNotFound();
+
 	return payment;
 }
 
@@ -641,13 +734,16 @@ async function createAudit(
 
 function paymentDate(value: string): Date {
 	const date = new Date(value);
+
 	if (!Number.isFinite(date.getTime())) {
 		throw new BadRequestException({
 			code: 'PAYMENT_DATE_INVALID',
 			message: 'Supply a valid payment date.',
 		});
 	}
+
 	const earliest = Date.UTC(2000, 0, 1);
+
 	// Allow bounded browser/API clock skew while preventing arbitrarily future-dated payments.
 	if (date.getTime() < earliest || date.getTime() > Date.now() + 24 * 60 * 60 * 1000) {
 		throw new BadRequestException({
@@ -655,6 +751,7 @@ function paymentDate(value: string): Date {
 			message: 'Payment date must be between 2000-01-01 and one day from now.',
 		});
 	}
+
 	return date;
 }
 
@@ -663,18 +760,21 @@ function paymentProviderReference(
 	value: string | undefined,
 ): string | null {
 	const reference = value?.trim() ?? null;
+
 	if (method === OrganizationPaymentMethod.CASH && reference !== null) {
 		throw new BadRequestException({
 			code: 'PAYMENT_PROVIDER_REFERENCE_FORBIDDEN',
 			message: 'Cash payments do not use a provider reference.',
 		});
 	}
+
 	if (method !== OrganizationPaymentMethod.CASH && reference === null) {
 		throw new BadRequestException({
 			code: 'PAYMENT_PROVIDER_REFERENCE_REQUIRED',
 			message: 'A provider reference is required for non-cash payments.',
 		});
 	}
+
 	return reference;
 }
 
