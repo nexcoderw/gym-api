@@ -10,14 +10,8 @@ import type { EnvironmentVariables } from './config/environment.types.js';
 import { validateEnvironment } from './config/environment.validation.js';
 import { DatabaseIntegrationModule } from './infrastructure/database/database-integration.module.js';
 import { HealthModule } from './modules/health/health.module.js';
-import { OwnerAuthModule } from './modules/owner-auth/owner-auth.module.js';
-import { OwnerEnrollmentModule } from './modules/owner-enrollment/owner-enrollment.module.js';
-import { OwnerMembershipPlansModule } from './modules/owner-membership-plans/owner-membership-plans.module.js';
-import { OwnerPortalModule } from './modules/owner-portal/owner-portal.module.js';
-import { PlatformAuthModule } from './modules/platform-auth/platform-auth.module.js';
-import { PlatformDashboardModule } from './modules/platform-dashboard/platform-dashboard.module.js';
-import { PlatformOrganizationsModule } from './modules/platform-organizations/platform-organizations.module.js';
-import { PlatformOwnerOnboardingModule } from './modules/platform-owner-onboarding/platform-owner-onboarding.module.js';
+import { OwnerModule } from './modules/owner/owner.module.js';
+import { PlatformModule } from './modules/platform/platform.module.js';
 
 @Module({
 	imports: [
@@ -41,14 +35,8 @@ import { PlatformOwnerOnboardingModule } from './modules/platform-owner-onboardi
 			}),
 		}),
 		HealthModule,
-		OwnerAuthModule,
-		OwnerEnrollmentModule,
-		OwnerMembershipPlansModule,
-		OwnerPortalModule,
-		PlatformAuthModule,
-		PlatformDashboardModule,
-		PlatformOrganizationsModule,
-		PlatformOwnerOnboardingModule,
+		OwnerModule,
+		PlatformModule,
 	],
 	providers: [
 		{ provide: APP_GUARD, useClass: ThrottlerGuard },
