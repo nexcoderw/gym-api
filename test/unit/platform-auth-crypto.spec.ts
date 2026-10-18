@@ -6,9 +6,9 @@ import * as OTPAuth from 'otpauth';
 
 import type { EnvironmentVariables } from '../../src/config/environment.types.js';
 import { validateEnvironment } from '../../src/config/environment.validation.js';
-import { PlatformPasswordService } from '../../src/modules/platform-auth/platform-password.service.js';
-import { PlatformTokenService } from '../../src/modules/platform-auth/platform-token.service.js';
-import { PlatformTotpService } from '../../src/modules/platform-auth/platform-totp.service.js';
+import { PlatformPasswordService } from '../../src/modules/platform/auth/platform-password.service.js';
+import { PlatformTokenService } from '../../src/modules/platform/auth/platform-token.service.js';
+import { PlatformTotpService } from '../../src/modules/platform/auth/platform-totp.service.js';
 
 describe('platform authentication cryptography', () => {
 	const environment = validateEnvironment({ NODE_ENV: 'test' });
