@@ -5,11 +5,11 @@ import { ConfigService } from '@nestjs/config';
 import { isEmail } from 'class-validator';
 import { PlatformStaffStatus, Prisma, PrismaService, UserStatus } from '@nexcoderw/gym-db';
 
-import type { EnvironmentVariables } from '../../config/environment.types.js';
-import { PlatformPasswordService } from '../platform-auth/platform-password.service.js';
-import { acceptsBootstrapPassword } from '../platform-auth/platform-password-policy.js';
-import { PlatformTokenService } from '../platform-auth/platform-token.service.js';
-import { PlatformTotpService } from '../platform-auth/platform-totp.service.js';
+import type { EnvironmentVariables } from '../../../config/environment.types.js';
+import { PlatformPasswordService } from '../auth/platform-password.service.js';
+import { acceptsBootstrapPassword } from '../auth/platform-password-policy.js';
+import { PlatformTokenService } from '../auth/platform-token.service.js';
+import { PlatformTotpService } from '../auth/platform-totp.service.js';
 import {
 	PLATFORM_OWNER_PERMISSIONS,
 	PLATFORM_OWNER_RECOVERY_CODE_BYTES,
