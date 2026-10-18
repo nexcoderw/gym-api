@@ -144,8 +144,6 @@ export class OwnerPaymentsService {
 						recordedByUserId: context.actorUserId,
 						allocations: {
 							create: {
-								organizationId: context.organizationId,
-								memberId: input.memberId,
 								memberSubscriptionId: input.subscriptionId,
 								amountRwf: input.amount,
 							},
