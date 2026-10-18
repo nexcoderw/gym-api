@@ -13,18 +13,18 @@ import {
 	ResendOwnerInvitationEmailService,
 	type InvitationProviderOutcome,
 } from '../../src/infrastructure/email/resend-owner-invitation-email.service.js';
-import { OwnerInvitationDeliveryGate } from '../../src/modules/platform-owner-onboarding/owner-invitation-delivery.policy.js';
+import { OwnerInvitationDeliveryGate } from '../../src/modules/platform/owner-onboarding/owner-invitation-delivery.policy.js';
 import {
 	OwnerInvitationDeliveryService,
 	deliveryResponse,
-} from '../../src/modules/platform-owner-onboarding/owner-invitation-delivery.service.js';
-import { OwnerInvitationDeliveryWorkerService } from '../../src/modules/platform-owner-onboarding/owner-invitation-delivery-worker.service.js';
-import { OwnerInvitationTokenService } from '../../src/modules/platform-owner-onboarding/owner-invitation-token.service.js';
-import { OwnerInvitationTokenEnvelopeService } from '../../src/modules/platform-owner-onboarding/owner-invitation-token-envelope.service.js';
+} from '../../src/modules/platform/owner-onboarding/owner-invitation-delivery.service.js';
+import { OwnerInvitationDeliveryWorkerService } from '../../src/modules/platform/owner-onboarding/owner-invitation-delivery-worker.service.js';
+import { OwnerInvitationTokenService } from '../../src/modules/platform/owner-onboarding/owner-invitation-token.service.js';
+import { OwnerInvitationTokenEnvelopeService } from '../../src/modules/platform/owner-onboarding/owner-invitation-token-envelope.service.js';
 import {
 	DurableOwnerInvitationAudit,
 	PlatformOwnerInvitationAudit,
-} from '../../src/modules/platform-owner-onboarding/platform-owner-invitation-audit.js';
+} from '../../src/modules/platform/owner-onboarding/platform-owner-invitation-audit.js';
 import {
 	createInvitationDeliveryDatabaseFixture,
 	invitationDeliveryConfig,
