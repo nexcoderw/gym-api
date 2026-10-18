@@ -9,9 +9,9 @@ import {
 	UserStatus,
 } from '@nexcoderw/gym-db';
 
-import type { OwnerPrincipal } from '../../src/modules/owner-auth/owner-auth.types.js';
-import { OwnerTokenService } from '../../src/modules/owner-auth/owner-token.service.js';
-import { OwnerAcceptanceService } from '../../src/modules/owner-enrollment/owner-acceptance.service.js';
+import type { OwnerPrincipal } from '../../src/modules/owner/auth/owner-auth.types.js';
+import { OwnerTokenService } from '../../src/modules/owner/auth/owner-token.service.js';
+import { OwnerAcceptanceService } from '../../src/modules/owner/enrollment/owner-acceptance.service.js';
 
 const NOW = new Date('2026-01-01T00:00:00Z');
 const EXPIRES_AT = new Date('2026-01-02T00:00:00Z');
