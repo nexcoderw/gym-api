@@ -14,10 +14,7 @@ import {
 	membershipPlanNotFound,
 	staleMembershipPlan,
 } from './owner-membership-plan-errors.js';
-import {
-	MEMBERSHIP_PLAN_SELECT,
-	membershipPlanResponse,
-} from './owner-membership-plan-mapping.js';
+import { MEMBERSHIP_PLAN_SELECT, membershipPlanResponse } from './owner-membership-plan-mapping.js';
 import { MEMBERSHIP_PLAN_PAGE_MAXIMUM } from './owner-membership-plans.constants.js';
 
 @Injectable()
@@ -28,7 +25,11 @@ export class OwnerMembershipPlansService {
 		organizationId: string,
 		query: ListMembershipPlansQueryDto,
 	): Promise<MembershipPlanListResponseDto> {
-		if (!Number.isInteger(query.limit) || query.limit < 1 || query.limit > MEMBERSHIP_PLAN_PAGE_MAXIMUM) {
+		if (
+			!Number.isInteger(query.limit) ||
+			query.limit < 1 ||
+			query.limit > MEMBERSHIP_PLAN_PAGE_MAXIMUM
+		) {
 			throw new BadRequestException({
 				code: 'MEMBERSHIP_PLAN_PAGE_INVALID',
 				message: `Page size must be between 1 and ${MEMBERSHIP_PLAN_PAGE_MAXIMUM}.`,
