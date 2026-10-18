@@ -6,13 +6,13 @@ import { Writable } from 'node:stream';
 
 import { NestFactory } from '@nestjs/core';
 
-import { PlatformBootstrapCliModule } from '../modules/platform-bootstrap/platform-bootstrap-cli.module.js';
-import { PlatformOwnerBootstrapService } from '../modules/platform-bootstrap/platform-owner-bootstrap.service.js';
+import { PlatformBootstrapCliModule } from '../modules/platform/bootstrap/platform-bootstrap-cli.module.js';
+import { PlatformOwnerBootstrapService } from '../modules/platform/bootstrap/platform-owner-bootstrap.service.js';
 import {
 	PlatformBootstrapError,
 	type PlatformBootstrapStage,
 	type PlatformBootstrapTarget,
-} from '../modules/platform-bootstrap/platform-bootstrap.types.js';
+} from '../modules/platform/bootstrap/platform-bootstrap.types.js';
 
 const INITIALIZE_AUTHORIZATION = 'AUTHORIZE FIRST PLATFORM OWNER';
 const ACTIVATE_AUTHORIZATION = 'ACTIVATE FIRST PLATFORM OWNER';
