@@ -35,13 +35,13 @@ import {
 } from '@nestjs/swagger';
 import type { Response } from 'express';
 
-import { ApiErrorResponseDto } from '../../common/dto/api-error-response.dto.js';
-import { RequirePlatformCsrf } from '../platform-auth/platform-csrf.decorator.js';
-import { PlatformOriginCsrfGuard } from '../platform-auth/platform-origin-csrf.guard.js';
-import { PlatformPermissionGuard } from '../platform-auth/platform-permission.guard.js';
-import { RequirePlatformPermissions } from '../platform-auth/platform-permissions.decorator.js';
-import type { PlatformRequest } from '../platform-auth/platform-request.js';
-import { PlatformSessionGuard } from '../platform-auth/platform-session.guard.js';
+import { ApiErrorResponseDto } from '../../../common/dto/api-error-response.dto.js';
+import { RequirePlatformCsrf } from '../auth/platform-csrf.decorator.js';
+import { PlatformOriginCsrfGuard } from '../auth/platform-origin-csrf.guard.js';
+import { PlatformPermissionGuard } from '../auth/platform-permission.guard.js';
+import { RequirePlatformPermissions } from '../auth/platform-permissions.decorator.js';
+import type { PlatformRequest } from '../auth/platform-request.js';
+import { PlatformSessionGuard } from '../auth/platform-session.guard.js';
 import { CreateOrganizationDto } from './dto/create-organization.dto.js';
 import { ListOrganizationsQueryDto } from './dto/list-organizations-query.dto.js';
 import { OrganizationActionDto } from './dto/organization-action.dto.js';
