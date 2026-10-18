@@ -9,8 +9,8 @@ import request from 'supertest';
 import { configureApplication } from '../../src/app-bootstrap.js';
 import { AppModule } from '../../src/app.module.js';
 import { validateEnvironment } from '../../src/config/environment.validation.js';
-import { LOCAL_PLATFORM_SESSION_COOKIE } from '../../src/modules/platform-auth/platform-auth.constants.js';
-import { PlatformTokenService } from '../../src/modules/platform-auth/platform-token.service.js';
+import { LOCAL_PLATFORM_SESSION_COOKIE } from '../../src/modules/platform/auth/platform-auth.constants.js';
+import { PlatformTokenService } from '../../src/modules/platform/auth/platform-token.service.js';
 import { createPlatformDashboardDatabaseFixture } from '../fixtures/platform-dashboard-database.fixture.js';
 
 const ENDPOINT = '/api/v1/platform/dashboard/summary';
