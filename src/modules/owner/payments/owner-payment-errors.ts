@@ -22,7 +22,11 @@ export function paymentFailure(error: unknown): HttpException {
 	if (code === 'P2025' || code === 'P2003') return paymentNotFound();
 	if (code === 'P2002') {
 		const target = databaseUniqueTarget(error);
-		if (target.some((field) => field === 'name' || field === 'phone_number' || field === 'phoneNumber')) {
+		if (
+			target.some(
+				(field) => field === 'name' || field === 'phone_number' || field === 'phoneNumber',
+			)
+		) {
 			return paymentConflict(
 				'MEMBER_UNIQUE_CONFLICT',
 				'A member with this name or phone number already exists. Choose that member instead.',
@@ -65,5 +69,7 @@ function databaseUniqueTarget(error: unknown): string[] {
 	const meta = error.meta;
 	if (typeof meta !== 'object' || meta === null || !('target' in meta)) return [];
 	const target = meta.target;
-	return Array.isArray(target) ? target.filter((value): value is string => typeof value === 'string') : [];
+	return Array.isArray(target)
+		? target.filter((value): value is string => typeof value === 'string')
+		: [];
 }
