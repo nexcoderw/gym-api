@@ -18,10 +18,10 @@ import { ResendOwnerInvitationEmailService } from '../../src/infrastructure/emai
 import {
 	LOCAL_PLATFORM_CSRF_COOKIE,
 	LOCAL_PLATFORM_SESSION_COOKIE,
-} from '../../src/modules/platform-auth/platform-auth.constants.js';
-import { PLATFORM_PERMISSION } from '../../src/modules/platform-auth/platform-permission.constants.js';
-import { OwnerInvitationTokenService } from '../../src/modules/platform-owner-onboarding/owner-invitation-token.service.js';
-import { OWNER_INVITATION_PERMISSION } from '../../src/modules/platform-owner-onboarding/platform-owner-onboarding.constants.js';
+} from '../../src/modules/platform/auth/platform-auth.constants.js';
+import { PLATFORM_PERMISSION } from '../../src/modules/platform/auth/platform-permission.constants.js';
+import { OwnerInvitationTokenService } from '../../src/modules/platform/owner-onboarding/owner-invitation-token.service.js';
+import { OWNER_INVITATION_PERMISSION } from '../../src/modules/platform/owner-onboarding/platform-owner-onboarding.constants.js';
 import {
 	createInvitationDeliveryDatabaseFixture,
 	invitationDeliveryConfig,
