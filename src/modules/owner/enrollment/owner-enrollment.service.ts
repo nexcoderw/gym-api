@@ -11,12 +11,12 @@ import {
 	UserStatus,
 } from '@nexcoderw/gym-db';
 
-import type { EnvironmentVariables } from '../../config/environment.types.js';
-import { PlatformPasswordService } from '../platform-auth/platform-password.service.js';
-import { acceptsBootstrapPassword } from '../platform-auth/platform-password-policy.js';
-import { OwnerSessionService } from '../owner-auth/owner-session.service.js';
-import { OwnerTokenService } from '../owner-auth/owner-token.service.js';
-import { OwnerInvitationTokenService } from '../platform-owner-onboarding/owner-invitation-token.service.js';
+import type { EnvironmentVariables } from '../../../config/environment.types.js';
+import { PlatformPasswordService } from '../../platform/auth/platform-password.service.js';
+import { acceptsBootstrapPassword } from '../../platform/auth/platform-password-policy.js';
+import { OwnerSessionService } from '../auth/owner-session.service.js';
+import { OwnerTokenService } from '../auth/owner-token.service.js';
+import { OwnerInvitationTokenService } from '../../platform/owner-onboarding/owner-invitation-token.service.js';
 import type {
 	RegisterInvitedOwnerDto,
 	VerifyExistingOwnerDto,
