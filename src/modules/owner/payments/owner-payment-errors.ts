@@ -21,6 +21,13 @@ export function paymentFailure(error: unknown): HttpException {
 	const code = databaseErrorCode(error);
 	if (code === 'P2025' || code === 'P2003') return paymentNotFound();
 	if (code === 'P2002') {
+		const target = databaseUniqueTarget(error);
+		if (target.some((field) => field === 'name' || field === 'phone_number' || field === 'phoneNumber')) {
+			return paymentConflict(
+				'MEMBER_UNIQUE_CONFLICT',
+				'A member with this name or phone number already exists. Choose that member instead.',
+			);
+		}
 		return paymentConflict(
 			'PAYMENT_UNIQUE_CONFLICT',
 			'This payment command or provider reference was already recorded.',
@@ -51,4 +58,12 @@ export function paymentFailure(error: unknown): HttpException {
 		},
 		{ cause: error },
 	);
+}
+
+function databaseUniqueTarget(error: unknown): string[] {
+	if (typeof error !== 'object' || error === null || !('meta' in error)) return [];
+	const meta = error.meta;
+	if (typeof meta !== 'object' || meta === null || !('target' in meta)) return [];
+	const target = meta.target;
+	return Array.isArray(target) ? target.filter((value): value is string => typeof value === 'string') : [];
 }
