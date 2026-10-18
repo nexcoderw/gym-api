@@ -3,9 +3,9 @@ import { validate } from 'class-validator';
 import { ConfigService } from '@nestjs/config';
 
 import { validateEnvironment } from '../../src/config/environment.validation.js';
-import { PlatformLoginDto } from '../../src/modules/platform-auth/dto/platform-login.dto.js';
-import { acceptsBootstrapPassword } from '../../src/modules/platform-auth/platform-password-policy.js';
-import { PlatformPasswordService } from '../../src/modules/platform-auth/platform-password.service.js';
+import { PlatformLoginDto } from '../../src/modules/platform/auth/dto/platform-login.dto.js';
+import { acceptsBootstrapPassword } from '../../src/modules/platform/auth/platform-password-policy.js';
+import { PlatformPasswordService } from '../../src/modules/platform/auth/platform-password.service.js';
 import type { EnvironmentVariables } from '../../src/config/environment.types.js';
 
 describe('future bootstrap password compatibility', () => {
