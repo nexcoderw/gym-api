@@ -3,13 +3,13 @@ import { Test, type TestingModule } from '@nestjs/testing';
 import { OrganizationStatus, PrismaService } from '@nexcoderw/gym-db';
 
 import { databaseErrorCode } from '../../src/common/errors/database-error-code.js';
-import { organizationFailure } from '../../src/modules/platform-organizations/platform-organization-errors.js';
-import { PlatformOrganizationsService } from '../../src/modules/platform-organizations/platform-organizations.service.js';
-import { PlatformOrganizationMutationsService } from '../../src/modules/platform-organizations/platform-organization-mutations.service.js';
+import { organizationFailure } from '../../src/modules/platform/organizations/platform-organization-errors.js';
+import { PlatformOrganizationsService } from '../../src/modules/platform/organizations/platform-organizations.service.js';
+import { PlatformOrganizationMutationsService } from '../../src/modules/platform/organizations/platform-organization-mutations.service.js';
 import {
 	PlatformOrganizationAudit,
 	UnavailableOrganizationAudit,
-} from '../../src/modules/platform-organizations/platform-organization-audit.js';
+} from '../../src/modules/platform/organizations/platform-organization-audit.js';
 import {
 	createPlatformOrganizationsDatabaseFixture,
 	organizationFixture,
