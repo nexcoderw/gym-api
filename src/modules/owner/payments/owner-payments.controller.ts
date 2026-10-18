@@ -97,7 +97,8 @@ export class OwnerPaymentsController {
 	@Header('Cache-Control', 'no-store')
 	@ApiOperation({
 		summary: 'Read a gym payment',
-		description: 'Returns payment, allocation, and refund evidence only from the authenticated gym.',
+		description:
+			'Returns payment, allocation, and refund evidence only from the authenticated gym.',
 	})
 	@ApiOkResponse({ type: PaymentResponseDto })
 	get(
