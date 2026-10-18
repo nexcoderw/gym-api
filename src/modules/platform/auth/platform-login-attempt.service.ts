@@ -1,7 +1,7 @@
 import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
-import type { EnvironmentVariables } from '../../config/environment.types.js';
+import type { EnvironmentVariables } from '../../../config/environment.types.js';
 import { PlatformTokenService } from './platform-token.service.js';
 
 interface AttemptWindow {
