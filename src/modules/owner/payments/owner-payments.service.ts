@@ -11,7 +11,11 @@ import {
 } from '@nexcoderw/gym-db';
 
 import { databaseErrorCode } from '../../../common/errors/database-error-code.js';
+import { memberName, memberPhone } from '../members/member-normalization.js';
+import { memberPeriod } from '../members/member-period.js';
+import { registerMemberPlan } from '../members/member-plan-registration.js';
 import type { CreatePaymentDto } from './dto/create-payment.dto.js';
+import type { RegisterPaymentDto } from './dto/register-payment.dto.js';
 import { PaymentOrder, type ListPaymentsQueryDto } from './dto/list-payments-query.dto.js';
 import type { CreatePaymentRefundDto, VoidPaymentDto } from './dto/payment-command.dto.js';
 import type { PaymentListResponseDto, PaymentResponseDto } from './dto/payment-response.dto.js';
@@ -95,77 +99,122 @@ export class OwnerPaymentsService {
 				);
 				if (replay !== null) return paymentResponse(replay);
 
-				const subscription = await lockSubscription(
-					transaction,
-					context.organizationId,
-					input.memberId,
-					input.subscriptionId,
-				);
-				const allocated = await transaction.organizationPaymentAllocation.aggregate({
-					where: {
-						organizationId: context.organizationId,
-						memberSubscriptionId: input.subscriptionId,
-						payment: {
-							status: {
-								notIn: [OrganizationPaymentStatus.FAILED, OrganizationPaymentStatus.VOIDED],
-							},
-						},
-					},
-					_sum: { amountRwf: true },
-				});
-				if ((allocated._sum.amountRwf ?? 0n) + BigInt(input.amount) > subscription.price_rwf) {
-					throw paymentConflict(
-						'PAYMENT_EXCEEDS_BALANCE',
-						'This amount is greater than the remaining registration balance.',
-					);
-				}
-
-				const now = new Date();
-				const status =
-					input.method === OrganizationPaymentMethod.CASH
-						? OrganizationPaymentStatus.CONFIRMED
-						: OrganizationPaymentStatus.PENDING;
-				const paymentId = randomUUID();
-				const payment = await transaction.organizationPayment.create({
-					data: {
-						id: paymentId,
-						organizationId: context.organizationId,
+				return paymentResponse(
+					await recordPayment(transaction, context, {
 						memberId: input.memberId,
-						receiptNumber: receiptNumber(paymentId, now),
-						amountRwf: input.amount,
+						subscriptionId: input.subscriptionId,
+						amount: input.amount,
 						method: input.method,
-						status,
 						providerReference,
 						note,
 						occurredAt,
-						confirmedAt: status === OrganizationPaymentStatus.CONFIRMED ? now : null,
 						idempotencyKey,
-						requestFingerprint: fingerprint,
-						recordedByUserId: context.actorUserId,
-						allocations: {
-							create: {
-								memberSubscriptionId: input.subscriptionId,
-								amountRwf: input.amount,
-							},
-						},
-					},
-					select: PAYMENT_SELECT,
-				});
-				await transaction.organizationPaymentAuditEvent.create({
-					data: {
-						organizationId: context.organizationId,
-						paymentId: payment.id,
-						actorUserId: context.actorUserId,
-						action: OrganizationPaymentAuditAction.PAYMENT_RECORDED,
-						requestId: context.requestId,
-						idempotencyKey,
-						requestFingerprint: fingerprint,
-						resultingStatus: status,
-						occurredAt: now,
-					},
-				});
-				return paymentResponse(payment);
+						fingerprint,
+					}),
+				);
 			});
+		} catch (error: unknown) {
+			if (databaseErrorCode(error) === 'P2002') {
+				const replay = await this.replayPayment(context, idempotencyKey, fingerprint);
+				if (replay !== null) return replay;
+			}
+			throw paymentFailure(error);
+		}
+	}
+
+	/** Creates the profile, registration and payment in one tenant transaction. */
+	async registerPayment(
+		context: OwnerPaymentContext,
+		input: RegisterPaymentDto,
+		idempotencyKey: string,
+	): Promise<PaymentResponseDto> {
+		if ((input.memberId === undefined) === (input.member === undefined)) {
+			throw new BadRequestException({
+				code: 'PAYMENT_MEMBER_REQUIRED',
+				message: 'Choose an existing member or enter a new member, but not both.',
+			});
+		}
+		memberPeriod(
+			input.subscription.startDate,
+			input.subscription.periodUnit,
+			input.subscription.periodCount,
+		);
+		const occurredAt = paymentDate(input.occurredAt);
+		const providerReference = paymentProviderReference(input.method, input.providerReference);
+		const note = input.note?.trim();
+		const profile =
+			input.member === undefined
+				? null
+				: {
+						...memberName(input.member.name),
+						phoneNumber: memberPhone(input.member.phoneNumber),
+						email: input.member.email ?? null,
+					};
+		const fingerprint = requestFingerprint([
+			'register-payment',
+			input.memberId ?? null,
+			profile?.normalizedName ?? null,
+			profile?.phoneNumber ?? null,
+			profile?.email ?? null,
+			input.subscription.membershipPlanId,
+			input.subscription.startDate,
+			input.subscription.periodUnit,
+			input.subscription.periodCount,
+			input.method,
+			occurredAt.toISOString(),
+			providerReference,
+			note ?? null,
+		]);
+		try {
+			return await this.tenants.run(context, async (transaction) => {
+				const replay = await paymentReplay(
+					transaction,
+					context.organizationId,
+					idempotencyKey,
+					fingerprint,
+				);
+				if (replay !== null) return paymentResponse(replay);
+				let memberId: string;
+				if (profile === null) {
+					if (input.memberId === undefined) {
+						throw new BadRequestException({ code: 'PAYMENT_MEMBER_REQUIRED' });
+					}
+					memberId = input.memberId;
+				} else {
+					const member = await transaction.organizationMember.create({
+						data: { organizationId: context.organizationId, ...profile },
+						select: { id: true },
+					});
+					memberId = member.id;
+				}
+				const subscription = await registerMemberPlan(
+					transaction,
+					context,
+					memberId,
+					input.subscription,
+					idempotencyKey,
+					fingerprint,
+				);
+				if (subscription.price < 1) {
+					throw paymentConflict(
+						'PAYMENT_FREE_PLAN',
+						'A free membership plan cannot be recorded as a payment.',
+					);
+				}
+				return paymentResponse(
+					await recordPayment(transaction, context, {
+						memberId,
+						subscriptionId: subscription.id,
+						amount: subscription.price,
+						method: input.method,
+						providerReference,
+						note,
+						occurredAt,
+						idempotencyKey,
+						fingerprint,
+					}),
+				);
+			}, { maxWait: 5_000, timeout: 20_000 });
 		} catch (error: unknown) {
 			if (databaseErrorCode(error) === 'P2002') {
 				const replay = await this.replayPayment(context, idempotencyKey, fingerprint);
@@ -358,6 +407,87 @@ export class OwnerPaymentsService {
 			throw paymentFailure(error);
 		}
 	}
+}
+
+async function recordPayment(
+	transaction: Prisma.TransactionClient,
+	context: OwnerPaymentContext,
+	input: {
+		memberId: string;
+		subscriptionId: string;
+		amount: number;
+		method: OrganizationPaymentMethod;
+		providerReference: string | null;
+		note: string | undefined;
+		occurredAt: Date;
+		idempotencyKey: string;
+		fingerprint: string;
+	},
+): Promise<PaymentRow> {
+	const subscription = await lockSubscription(
+		transaction,
+		context.organizationId,
+		input.memberId,
+		input.subscriptionId,
+	);
+	const allocated = await transaction.organizationPaymentAllocation.aggregate({
+		where: {
+			organizationId: context.organizationId,
+			memberSubscriptionId: input.subscriptionId,
+			payment: {
+				status: { notIn: [OrganizationPaymentStatus.FAILED, OrganizationPaymentStatus.VOIDED] },
+			},
+		},
+		_sum: { amountRwf: true },
+	});
+	if ((allocated._sum.amountRwf ?? 0n) + BigInt(input.amount) > subscription.price_rwf) {
+		throw paymentConflict(
+			'PAYMENT_EXCEEDS_BALANCE',
+			'This amount is greater than the remaining registration balance.',
+		);
+	}
+	const now = new Date();
+	const status =
+		input.method === OrganizationPaymentMethod.CASH
+			? OrganizationPaymentStatus.CONFIRMED
+			: OrganizationPaymentStatus.PENDING;
+	const paymentId = randomUUID();
+	const payment = await transaction.organizationPayment.create({
+		data: {
+			id: paymentId,
+			organizationId: context.organizationId,
+			memberId: input.memberId,
+			receiptNumber: receiptNumber(paymentId, now),
+			amountRwf: input.amount,
+			method: input.method,
+			status,
+			providerReference: input.providerReference,
+			note: input.note,
+			occurredAt: input.occurredAt,
+			confirmedAt: status === OrganizationPaymentStatus.CONFIRMED ? now : null,
+			idempotencyKey: input.idempotencyKey,
+			requestFingerprint: input.fingerprint,
+			recordedByUserId: context.actorUserId,
+			allocations: {
+				create: { memberSubscriptionId: input.subscriptionId, amountRwf: input.amount },
+			},
+		},
+		select: PAYMENT_SELECT,
+	});
+	await transaction.organizationPaymentAuditEvent.create({
+		data: {
+			organizationId: context.organizationId,
+			paymentId: payment.id,
+			actorUserId: context.actorUserId,
+			action: OrganizationPaymentAuditAction.PAYMENT_RECORDED,
+			requestId: context.requestId,
+			idempotencyKey: input.idempotencyKey,
+			requestFingerprint: input.fingerprint,
+			resultingStatus: status,
+			occurredAt: now,
+		},
+	});
+	return payment;
 }
 
 function paymentWhere(organizationId: string, query: ListPaymentsQueryDto) {
