@@ -1,4 +1,4 @@
-import { PLATFORM_PERMISSION } from '../platform-auth/platform-permission.constants.js';
+import { PLATFORM_PERMISSION } from '../auth/platform-permission.constants.js';
 
 export const OWNER_INVITATION_PERMISSION = Object.freeze({
 	invite: PLATFORM_PERMISSION.organizationOwnersInvite,
