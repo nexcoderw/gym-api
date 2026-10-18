@@ -37,7 +37,7 @@ describe('owner membership plan policy', () => {
 });
 
 function ownerRequest(
-	status = OrganizationStatus.ACTIVE,
+	status: OrganizationStatus = OrganizationStatus.ACTIVE,
 	roles: readonly string[] = ['owner'],
 	organizationCount = 1,
 ): Pick<OwnerRequest, 'ownerPrincipal'> {
