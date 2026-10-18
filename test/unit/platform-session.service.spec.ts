@@ -5,9 +5,9 @@ import { PlatformStaffStatus, Prisma, PrismaService, UserStatus } from '@nexcode
 
 import type { EnvironmentVariables } from '../../src/config/environment.types.js';
 import { validateEnvironment } from '../../src/config/environment.validation.js';
-import { PlatformSessionService } from '../../src/modules/platform-auth/platform-session.service.js';
-import { PlatformTokenService } from '../../src/modules/platform-auth/platform-token.service.js';
-import { PLATFORM_PERMISSION } from '../../src/modules/platform-auth/platform-permission.constants.js';
+import { PlatformSessionService } from '../../src/modules/platform/auth/platform-session.service.js';
+import { PlatformTokenService } from '../../src/modules/platform/auth/platform-token.service.js';
+import { PLATFORM_PERMISSION } from '../../src/modules/platform/auth/platform-permission.constants.js';
 
 describe('PlatformSessionService', () => {
 	const sessionFindUnique = jest.fn<() => Promise<unknown>>();
