@@ -68,7 +68,15 @@ const PAYMENT = {
 	voidedAt: null,
 	voidReason: null,
 	createdAt: AT,
-	allocations: [{ subscriptionId: SUBSCRIPTION_ID, planName: 'Monthly fitness', amount: 30_000 }],
+	allocations: [
+		{
+			subscriptionId: SUBSCRIPTION_ID,
+			planName: 'Monthly fitness',
+			amount: 30_000,
+			startDate: '2030-01-01',
+			endDate: '2030-01-31',
+		},
+	],
 	refunds: [],
 };
 
