@@ -5,9 +5,9 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { Logger, type LoggerService } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 
-import { OwnerInvitationDeliveryWorkerModule } from '../modules/platform-owner-onboarding/owner-invitation-delivery-worker.module.js';
-import { OwnerInvitationDeliveryGate } from '../modules/platform-owner-onboarding/owner-invitation-delivery.policy.js';
-import { OwnerInvitationDeliveryWorkerService } from '../modules/platform-owner-onboarding/owner-invitation-delivery-worker.service.js';
+import { OwnerInvitationDeliveryWorkerModule } from '../modules/platform/owner-onboarding/owner-invitation-delivery-worker.module.js';
+import { OwnerInvitationDeliveryGate } from '../modules/platform/owner-onboarding/owner-invitation-delivery.policy.js';
+import { OwnerInvitationDeliveryWorkerService } from '../modules/platform/owner-onboarding/owner-invitation-delivery-worker.service.js';
 
 const safeCodes = new Set([
 	'OWNER_INVITATION_WORKER_OPERATION_FAILED',
