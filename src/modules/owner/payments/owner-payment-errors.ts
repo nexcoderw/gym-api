@@ -40,6 +40,10 @@ const PAYMENT_CONSTRAINTS = new Set([
 	'payment_audit_history_guard',
 ]);
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
 export function paymentNotFound(): NotFoundException {
 	return new NotFoundException({ code: 'PAYMENT_NOT_FOUND', message: 'Payment was not found.' });
 }
@@ -147,7 +151,7 @@ function paymentConstraintName(error: unknown): string {
 
 	const cause = adapter.cause;
 
-	if (typeof cause !== 'object' || cause === null) {
+	if (!isRecord(cause)) {
 		return 'unknown';
 	}
 
