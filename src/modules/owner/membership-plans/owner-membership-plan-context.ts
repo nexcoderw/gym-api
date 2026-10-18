@@ -18,7 +18,7 @@ export function ownerMembershipPlanOrganization(
 		});
 	}
 	const organization = principal.organizations[0];
-	if (organization === undefined || !organization.roles.includes('owner')) {
+	if (!organization?.roles.includes('owner')) {
 		throw new ForbiddenException({
 			code: 'MEMBERSHIP_PLAN_ACCESS_DENIED',
 			message: 'Membership plan access is not permitted.',
