@@ -39,6 +39,7 @@ import { CreatePaymentDto } from './dto/create-payment.dto.js';
 import { ListPaymentsQueryDto } from './dto/list-payments-query.dto.js';
 import { CreatePaymentRefundDto, VoidPaymentDto } from './dto/payment-command.dto.js';
 import { PaymentListResponseDto, PaymentResponseDto } from './dto/payment-response.dto.js';
+import { RegisterPaymentDto } from './dto/register-payment.dto.js';
 import { ownerPaymentContext } from './owner-payment-context.js';
 import { OwnerPaymentsService } from './owner-payments.service.js';
 
@@ -91,6 +92,33 @@ export class OwnerPaymentsController {
 		@Req() request: OwnerRequest,
 	): Promise<PaymentResponseDto> {
 		return this.payments.create(ownerPaymentContext(request), input, paymentIdempotencyKey(key));
+	}
+
+	@Post('registrations')
+	@Header('Cache-Control', 'no-store')
+	@RequireOwnerCsrf()
+	@ApiHeader({ name: 'x-owner-csrf-token', required: true })
+	@ApiHeader({
+		name: 'Idempotency-Key',
+		required: true,
+		description: 'A UUID reused only for identical retries of the complete registration and payment.',
+	})
+	@ApiOperation({
+		summary: 'Register a member and record the plan payment',
+		description:
+			'Atomically creates a new member when supplied, a dated plan registration, and a full-price payment. An existing active member may instead be selected. The end date and price come from server-authoritative plan terms.',
+	})
+	@ApiCreatedResponse({ type: PaymentResponseDto })
+	registerPayment(
+		@Body() input: RegisterPaymentDto,
+		@Headers('idempotency-key') key: string | undefined,
+		@Req() request: OwnerRequest,
+	): Promise<PaymentResponseDto> {
+		return this.payments.registerPayment(
+			ownerPaymentContext(request),
+			input,
+			paymentIdempotencyKey(key),
+		);
 	}
 
 	@Get(':paymentId')
