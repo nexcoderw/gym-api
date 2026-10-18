@@ -11,8 +11,8 @@ import {
 	UserStatus,
 } from '@nexcoderw/gym-db';
 
-import { databaseErrorCode } from '../../common/errors/database-error-code.js';
-import type { EnvironmentVariables } from '../../config/environment.types.js';
+import { databaseErrorCode } from '../../../common/errors/database-error-code.js';
+import type { EnvironmentVariables } from '../../../config/environment.types.js';
 import { OWNER_AUTH_ERROR } from './owner-auth.constants.js';
 import type { OwnerPrincipal } from './owner-auth.types.js';
 import { OwnerTokenService } from './owner-token.service.js';
