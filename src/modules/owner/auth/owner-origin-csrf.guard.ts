@@ -2,12 +2,12 @@ import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@
 import { ConfigService } from '@nestjs/config';
 import { Reflector } from '@nestjs/core';
 
-import type { EnvironmentVariables } from '../../config/environment.types.js';
+import type { EnvironmentVariables } from '../../../config/environment.types.js';
 import {
 	isOrganizationPortalOrigin,
 	organizationSlugFromPortalOrigin,
 	type OrganizationPortalOriginPolicy,
-} from '../../config/organization-portal-origin.js';
+} from '../../../config/organization-portal-origin.js';
 import { OWNER_CSRF_HEADER, OWNER_CSRF_REQUIRED_METADATA } from './owner-auth.constants.js';
 import { OwnerCookieService } from './owner-cookie.service.js';
 import type { OwnerRequest } from './owner-request.js';
