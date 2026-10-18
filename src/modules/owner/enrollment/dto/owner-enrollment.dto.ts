@@ -5,7 +5,7 @@ import { IsString, Matches, MaxLength, MinLength, NotContains } from 'class-vali
 import {
 	MAXIMUM_PASSWORD_CHARACTERS,
 	MINIMUM_PASSWORD_CHARACTERS,
-} from '../../platform-auth/platform-password-policy.js';
+} from '../../../platform/auth/platform-password-policy.js';
 
 const OPAQUE_TOKEN = /^[A-Za-z0-9_-]{43}$/u;
 const TRIM_PATTERN = /^[\s\u0085]+|[\s\u0085]+$/gu;
