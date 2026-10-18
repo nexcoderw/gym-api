@@ -16,9 +16,12 @@ describe('member registration calendar and normalization', () => {
 		expect(result.endDate.toISOString().slice(0, 10)).toBe(expected);
 	});
 
-	it.each(['2026-02-30', '2026-13-01', '2026-1-01', '2026-01-01T00:00:00Z'])('rejects impossible and non-date-only starts: %s', (start) => {
-		expect(() => memberPeriod(start, MemberPeriodUnit.MONTHS, 1)).toThrow();
-	});
+	it.each(['2026-02-30', '2026-13-01', '2026-1-01', '2026-01-01T00:00:00Z'])(
+		'rejects impossible and non-date-only starts: %s',
+		(start) => {
+			expect(() => memberPeriod(start, MemberPeriodUnit.MONTHS, 1)).toThrow();
+		},
+	);
 
 	it.each([0, -1, 1.5, 121])('rejects invalid month counts: %s', (count) => {
 		expect(() => memberPeriod('2026-11-01', MemberPeriodUnit.MONTHS, count)).toThrow();
@@ -26,7 +29,8 @@ describe('member registration calendar and normalization', () => {
 
 	it('normalizes equivalent names and phone representations for uniqueness', () => {
 		expect(memberName('  Ｅｘａｍｐｌｅ   Member ')).toEqual({
-			name: 'Example Member', normalizedName: 'example member',
+			name: 'Example Member',
+			normalizedName: 'example member',
 		});
 		expect(memberPhone('0700 000 001')).toBe('+250700000001');
 		expect(memberPhone('+250 (700) 000-001')).toBe('+250700000001');
