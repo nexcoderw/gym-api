@@ -3,8 +3,8 @@ import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 import { PrismaService } from '@nexcoderw/gym-db';
 
-import { OwnerSessionService } from '../../src/modules/owner-auth/owner-session.service.js';
-import { OwnerTokenService } from '../../src/modules/owner-auth/owner-token.service.js';
+import { OwnerSessionService } from '../../src/modules/owner/auth/owner-session.service.js';
+import { OwnerTokenService } from '../../src/modules/owner/auth/owner-token.service.js';
 
 describe('OwnerSessionService connection recovery', () => {
 	it.each([
