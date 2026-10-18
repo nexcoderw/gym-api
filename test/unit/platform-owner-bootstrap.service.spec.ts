@@ -5,10 +5,10 @@ import { PlatformStaffStatus, PrismaService, UserStatus } from '@nexcoderw/gym-d
 
 import type { EnvironmentVariables } from '../../src/config/environment.types.js';
 import { validateEnvironment } from '../../src/config/environment.validation.js';
-import { PlatformPasswordService } from '../../src/modules/platform-auth/platform-password.service.js';
-import { PlatformTokenService } from '../../src/modules/platform-auth/platform-token.service.js';
-import { PlatformTotpService } from '../../src/modules/platform-auth/platform-totp.service.js';
-import { PlatformOwnerBootstrapService } from '../../src/modules/platform-bootstrap/platform-owner-bootstrap.service.js';
+import { PlatformPasswordService } from '../../src/modules/platform/auth/platform-password.service.js';
+import { PlatformTokenService } from '../../src/modules/platform/auth/platform-token.service.js';
+import { PlatformTotpService } from '../../src/modules/platform/auth/platform-totp.service.js';
+import { PlatformOwnerBootstrapService } from '../../src/modules/platform/bootstrap/platform-owner-bootstrap.service.js';
 
 interface UserUpdateManyInput {
 	readonly data: { readonly status: UserStatus };
