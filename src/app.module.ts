@@ -12,6 +12,7 @@ import { DatabaseIntegrationModule } from './infrastructure/database/database-in
 import { HealthModule } from './modules/health/health.module.js';
 import { OwnerAuthModule } from './modules/owner-auth/owner-auth.module.js';
 import { OwnerEnrollmentModule } from './modules/owner-enrollment/owner-enrollment.module.js';
+import { OwnerMembershipPlansModule } from './modules/owner-membership-plans/owner-membership-plans.module.js';
 import { OwnerPortalModule } from './modules/owner-portal/owner-portal.module.js';
 import { PlatformAuthModule } from './modules/platform-auth/platform-auth.module.js';
 import { PlatformDashboardModule } from './modules/platform-dashboard/platform-dashboard.module.js';
@@ -42,6 +43,7 @@ import { PlatformOwnerOnboardingModule } from './modules/platform-owner-onboardi
 		HealthModule,
 		OwnerAuthModule,
 		OwnerEnrollmentModule,
+		OwnerMembershipPlansModule,
 		OwnerPortalModule,
 		PlatformAuthModule,
 		PlatformDashboardModule,
