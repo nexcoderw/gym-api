@@ -15,6 +15,10 @@ import { OwnerOriginCsrfGuard } from '../../src/modules/owner/auth/owner-origin-
 import { OwnerSessionGuard } from '../../src/modules/owner/auth/owner-session.guard.js';
 import { OwnerSessionService } from '../../src/modules/owner/auth/owner-session.service.js';
 import { OwnerTokenService } from '../../src/modules/owner/auth/owner-token.service.js';
+import {
+	MembershipPlanStatus,
+	type MembershipPlanResponseDto,
+} from '../../src/modules/owner/membership-plans/dto/membership-plan-response.dto.js';
 import { OwnerMembershipPlansController } from '../../src/modules/owner/membership-plans/owner-membership-plans.controller.js';
 import { OwnerMembershipPlansService } from '../../src/modules/owner/membership-plans/owner-membership-plans.service.js';
 
@@ -33,11 +37,11 @@ const PLAN = {
 	price: 35_000,
 	currency: 'RWF' as const,
 	description: null,
-	status: 'ACTIVE' as const,
+	status: MembershipPlanStatus.ACTIVE,
 	createdAt: UPDATED_AT,
 	updatedAt: UPDATED_AT,
 	archivedAt: null,
-};
+} satisfies MembershipPlanResponseDto;
 
 describe('owner membership plan HTTP security (e2e)', () => {
 	let application: NestExpressApplication | undefined;
@@ -199,7 +203,7 @@ describe('owner membership plan HTTP security (e2e)', () => {
 	}
 
 	function ownerPrincipal(
-		status = OrganizationStatus.ACTIVE,
+		status: OrganizationStatus = OrganizationStatus.ACTIVE,
 		roles: readonly string[] = ['owner'],
 	): Awaited<ReturnType<OwnerSessionService['authenticate']>> {
 		return {
