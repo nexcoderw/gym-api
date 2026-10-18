@@ -927,3 +927,38 @@ live membership and stored organization scope remain authoritative. Deploy and g
 owner-session migration in `gym_dev` before starting this API; see the database README. Delivery must
 remain disabled until the Resend sender, tenant-domain acceptance flow, worker, monitoring and real
 portal deployment are reviewed together.
+
+## Gym members and dated plan registrations
+
+The owner members module prepares tenant-scoped member profiles separately from plan registrations.
+Profiles require a name and phone number, each unique within the organization after normalization;
+email is optional and not unique. Gym customers are independent of login users and staff memberships.
+The active gym owner policy, live tenant session, Origin validation and mutation CSRF remain required.
+
+Member creation includes the first plan registration in one transaction. Renewals append separate
+history records. Each registration references an active plan from the same gym and snapshots its
+name and whole-RWF price. That snapshot is the listed plan price: it is not multiplied by the period
+and is not evidence of a provider-confirmed payment. A separate payment ledger is outside this slice.
+
+Dates are calendar dates. Periods support DAYS, WEEKS, MONTHS and YEARS with unit-specific limits of
+3650, 520, 120 and 10. End dates are inclusive: November 1 plus one month ends November 30. Monthly
+and yearly periods clamp the next anniversary to the last available day, then subtract one day;
+January 31 plus one month in a non-leap year therefore ends February 27. Kigali calendar dates drive
+scheduled/active/expired state. Cancellation is explicit and preserves history and its actor.
+
+Registration commands require a UUID Idempotency-Key. Identical retries return the existing
+registration; reusing a key for different input is a conflict. Member row locks serialize renewals
+and cancellation; plan row locks preserve snapshot consistency. Overlapping uncancelled periods are
+rejected. Profile updates and archival require If-Match with the latest quoted updatedAt. Archival
+requires cancelling any unexpired registrations first and retains name/phone reservations.
+
+Routes under `/api/v1/owner/members` provide list/create, read/update/archive by member ID, paginated
+registration history, registration/renewal and explicit subscription cancellation. Swagger describes
+the request/response contracts and security headers. List endpoints are bounded to 50 rows and cursors
+must belong to the same organization and filter.
+
+Deployment is pending the human-generated member expansion migration, SQL integrity/non-overlap
+review, runtime grants, database client generation/build and consumer package refresh. Do not deploy
+this module against the old schema. Source, calendar tests, security e2e tests and storage tests have
+been authored; they have not been executed. Member data is personal data: production rollout also
+requires the organization's approved retention and correction/erasure process, including backups.
