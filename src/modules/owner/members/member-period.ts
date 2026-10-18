@@ -34,7 +34,9 @@ export function memberPeriod(
 	} else {
 		const day = boundary.getUTCDate();
 		boundary.setUTCDate(1);
-		boundary.setUTCMonth(boundary.getUTCMonth() + count * (unit === MemberPeriodUnit.YEARS ? 12 : 1));
+		boundary.setUTCMonth(
+			boundary.getUTCMonth() + count * (unit === MemberPeriodUnit.YEARS ? 12 : 1),
+		);
 		const lastDay = new Date(Date.UTC(boundary.getUTCFullYear(), boundary.getUTCMonth() + 1, 0));
 		boundary.setUTCDate(Math.min(day, lastDay.getUTCDate()));
 	}
