@@ -641,10 +641,11 @@ function paymentDate(value: string): Date {
 		});
 	}
 	const earliest = Date.UTC(2000, 0, 1);
-	if (date.getTime() < earliest || date.getTime() > Date.now() + 5 * 60 * 1000) {
+	// Allow bounded browser/API clock skew while preventing arbitrarily future-dated payments.
+	if (date.getTime() < earliest || date.getTime() > Date.now() + 24 * 60 * 60 * 1000) {
 		throw new BadRequestException({
 			code: 'PAYMENT_DATE_OUT_OF_RANGE',
-			message: 'Payment date must be between 2000-01-01 and five minutes from now.',
+			message: 'Payment date must be between 2000-01-01 and one day from now.',
 		});
 	}
 	return date;
