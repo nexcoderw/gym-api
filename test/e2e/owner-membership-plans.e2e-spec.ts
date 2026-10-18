@@ -9,14 +9,14 @@ import { configureApplication } from '../../src/app-bootstrap.js';
 import {
 	OWNER_CSRF_COOKIE,
 	OWNER_SESSION_COOKIE,
-} from '../../src/modules/owner-auth/owner-auth.constants.js';
-import { OwnerCookieService } from '../../src/modules/owner-auth/owner-cookie.service.js';
-import { OwnerOriginCsrfGuard } from '../../src/modules/owner-auth/owner-origin-csrf.guard.js';
-import { OwnerSessionGuard } from '../../src/modules/owner-auth/owner-session.guard.js';
-import { OwnerSessionService } from '../../src/modules/owner-auth/owner-session.service.js';
-import { OwnerTokenService } from '../../src/modules/owner-auth/owner-token.service.js';
-import { OwnerMembershipPlansController } from '../../src/modules/owner-membership-plans/owner-membership-plans.controller.js';
-import { OwnerMembershipPlansService } from '../../src/modules/owner-membership-plans/owner-membership-plans.service.js';
+} from '../../src/modules/owner/auth/owner-auth.constants.js';
+import { OwnerCookieService } from '../../src/modules/owner/auth/owner-cookie.service.js';
+import { OwnerOriginCsrfGuard } from '../../src/modules/owner/auth/owner-origin-csrf.guard.js';
+import { OwnerSessionGuard } from '../../src/modules/owner/auth/owner-session.guard.js';
+import { OwnerSessionService } from '../../src/modules/owner/auth/owner-session.service.js';
+import { OwnerTokenService } from '../../src/modules/owner/auth/owner-token.service.js';
+import { OwnerMembershipPlansController } from '../../src/modules/owner/membership-plans/owner-membership-plans.controller.js';
+import { OwnerMembershipPlansService } from '../../src/modules/owner/membership-plans/owner-membership-plans.service.js';
 
 const ROOT = '/api/v1/owner/membership-plans';
 const SESSION_TOKEN = 'a'.repeat(43);
@@ -100,7 +100,9 @@ describe('owner membership plan HTTP security (e2e)', () => {
 	afterAll(async () => application?.close());
 
 	it('lists only the organization selected by the authenticated portal origin', async () => {
-		await ownerRequest('get', ROOT).expect(200).expect({ items: [PLAN], nextCursor: null });
+		await ownerRequest('get', ROOT)
+			.expect(200)
+			.expect({ items: [PLAN], nextCursor: null });
 		expect(list).toHaveBeenCalledWith(ORGANIZATION_ID, {
 			limit: 20,
 			status: 'ACTIVE',
@@ -162,9 +164,7 @@ describe('owner membership plan HTTP security (e2e)', () => {
 
 	it('returns ETags and requires them for update and archival', async () => {
 		await ownerRequest('get', `${ROOT}/${PLAN_ID}`).expect(200).expect('ETag', `"${UPDATED_AT}"`);
-		await ownerRequest('patch', `${ROOT}/${PLAN_ID}`)
-			.send({ name: 'Premium fitness' })
-			.expect(400);
+		await ownerRequest('patch', `${ROOT}/${PLAN_ID}`).send({ name: 'Premium fitness' }).expect(400);
 		await ownerRequest('patch', `${ROOT}/${PLAN_ID}`)
 			.set('If-Match', `"${UPDATED_AT}"`)
 			.send({ name: 'Premium fitness' })
