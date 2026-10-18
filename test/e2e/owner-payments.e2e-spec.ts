@@ -159,7 +159,9 @@ describe('owner payments HTTP security', () => {
 			{ limit: 20, order: PaymentOrder.NEWEST },
 		);
 		await ownerRequest('post', ROOT).send(INPUT).expect(400);
-		await ownerRequest('post', `${ROOT}/${PAYMENT_ID}/voids`).send({ reason: 'Incorrect entry' }).expect(400);
+		await ownerRequest('post', `${ROOT}/${PAYMENT_ID}/voids`)
+			.send({ reason: 'Incorrect entry' })
+			.expect(400);
 		await ownerRequest('post', `${ROOT}/${PAYMENT_ID}/refunds`)
 			.set('Idempotency-Key', 'invalid')
 			.send({ amount: 1_000, reason: 'Customer request' })
@@ -197,7 +199,8 @@ describe('owner payments HTTP security', () => {
 	}
 
 	function ownerRequest(method: 'get' | 'post', path: string): request.Test {
-		return request(app().getHttpServer())[method](path)
+		return request(app().getHttpServer())
+			[method](path)
 			.set('Origin', ORIGIN)
 			.set('Cookie', `${OWNER_SESSION_COOKIE}=${TOKEN}; ${OWNER_CSRF_COOKIE}=${CSRF}`)
 			.set('x-owner-csrf-token', CSRF);
