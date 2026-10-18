@@ -8,15 +8,15 @@ import * as OTPAuth from 'otpauth';
 
 import type { EnvironmentVariables } from '../../src/config/environment.types.js';
 import { validateEnvironment } from '../../src/config/environment.validation.js';
-import { PlatformPasswordService } from '../../src/modules/platform-auth/platform-password.service.js';
-import { PlatformTokenService } from '../../src/modules/platform-auth/platform-token.service.js';
-import { PlatformTotpService } from '../../src/modules/platform-auth/platform-totp.service.js';
-import { PLATFORM_OWNER_ROLE } from '../../src/modules/platform-bootstrap/platform-bootstrap.constants.js';
+import { PlatformPasswordService } from '../../src/modules/platform/auth/platform-password.service.js';
+import { PlatformTokenService } from '../../src/modules/platform/auth/platform-token.service.js';
+import { PlatformTotpService } from '../../src/modules/platform/auth/platform-totp.service.js';
+import { PLATFORM_OWNER_ROLE } from '../../src/modules/platform/bootstrap/platform-bootstrap.constants.js';
 import {
 	acquireBootstrapLock,
 	verifyBootstrapDatabase,
-} from '../../src/modules/platform-bootstrap/platform-bootstrap-database.js';
-import { PlatformOwnerBootstrapService } from '../../src/modules/platform-bootstrap/platform-owner-bootstrap.service.js';
+} from '../../src/modules/platform/bootstrap/platform-bootstrap-database.js';
+import { PlatformOwnerBootstrapService } from '../../src/modules/platform/bootstrap/platform-owner-bootstrap.service.js';
 
 // Explicit opt-in: the default suite never opens a connection or loads an operator .env file.
 const postgresDescribe = process.env.BOOTSTRAP_POSTGRES_TESTS === '1' ? describe : describe.skip;
