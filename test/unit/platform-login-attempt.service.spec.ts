@@ -3,8 +3,8 @@ import { HttpException } from '@nestjs/common';
 
 import type { EnvironmentVariables } from '../../src/config/environment.types.js';
 import { validateEnvironment } from '../../src/config/environment.validation.js';
-import { PlatformLoginAttemptService } from '../../src/modules/platform-auth/platform-login-attempt.service.js';
-import { PlatformTokenService } from '../../src/modules/platform-auth/platform-token.service.js';
+import { PlatformLoginAttemptService } from '../../src/modules/platform/auth/platform-login-attempt.service.js';
+import { PlatformTokenService } from '../../src/modules/platform/auth/platform-token.service.js';
 
 describe('PlatformLoginAttemptService', () => {
 	const configuration = new ConfigService<EnvironmentVariables, true>(
