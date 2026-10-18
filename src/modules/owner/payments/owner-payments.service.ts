@@ -189,14 +189,20 @@ export class OwnerPaymentsService {
 				locked.status !== OrganizationPaymentStatus.PENDING &&
 				locked.status !== OrganizationPaymentStatus.CONFIRMED
 			) {
-				throw paymentConflict('PAYMENT_CANNOT_BE_VOIDED', 'Only pending or confirmed payments can be voided.');
+				throw paymentConflict(
+					'PAYMENT_CANNOT_BE_VOIDED',
+					'Only pending or confirmed payments can be voided.',
+				);
 			}
 			const refund = await transaction.organizationPaymentRefund.findFirst({
 				where: { organizationId: context.organizationId, paymentId },
 				select: { id: true },
 			});
 			if (refund !== null) {
-				throw paymentConflict('PAYMENT_HAS_REFUNDS', 'A payment with a refund record cannot be voided.');
+				throw paymentConflict(
+					'PAYMENT_HAS_REFUNDS',
+					'A payment with a refund record cannot be voided.',
+				);
 			}
 			const now = new Date();
 			const payment = await transaction.organizationPayment.update({
@@ -242,7 +248,10 @@ export class OwnerPaymentsService {
 				locked.status !== OrganizationPaymentStatus.CONFIRMED &&
 				locked.status !== OrganizationPaymentStatus.PARTIALLY_REFUNDED
 			) {
-				throw paymentConflict('PAYMENT_CANNOT_BE_REFUNDED', 'Only confirmed cash payments can be refunded.');
+				throw paymentConflict(
+					'PAYMENT_CANNOT_BE_REFUNDED',
+					'Only confirmed cash payments can be refunded.',
+				);
 			}
 			const refunded = await transaction.organizationPaymentRefund.aggregate({
 				where: {
@@ -254,7 +263,10 @@ export class OwnerPaymentsService {
 			});
 			const total = (refunded._sum.amountRwf ?? 0n) + BigInt(input.amount);
 			if (total > locked.amountRwf) {
-				throw paymentConflict('PAYMENT_REFUND_EXCEEDS_BALANCE', 'The refund exceeds the remaining payment amount.');
+				throw paymentConflict(
+					'PAYMENT_REFUND_EXCEEDS_BALANCE',
+					'The refund exceeds the remaining payment amount.',
+				);
 			}
 			const now = new Date();
 			const status =
@@ -316,12 +328,7 @@ export class OwnerPaymentsService {
 			if (databaseErrorCode(error) === 'P2002') {
 				try {
 					const replay = await this.tenants.run(context, (transaction) =>
-						auditReplay(
-							transaction,
-							context.organizationId,
-							idempotencyKey,
-							fingerprint,
-						),
+						auditReplay(transaction, context.organizationId, idempotencyKey, fingerprint),
 					);
 					if (replay !== null) return paymentResponse(replay);
 				} catch (replayError: unknown) {
@@ -498,7 +505,10 @@ async function createAudit(
 function paymentDate(value: string): Date {
 	const date = new Date(value);
 	if (!Number.isFinite(date.getTime())) {
-		throw new BadRequestException({ code: 'PAYMENT_DATE_INVALID', message: 'Supply a valid payment date.' });
+		throw new BadRequestException({
+			code: 'PAYMENT_DATE_INVALID',
+			message: 'Supply a valid payment date.',
+		});
 	}
 	const earliest = Date.UTC(2000, 0, 1);
 	if (date.getTime() < earliest || date.getTime() > Date.now() + 5 * 60 * 1000) {
