@@ -39,7 +39,10 @@ export class MemberProfileDto {
 }
 
 export class CreateMemberDto extends MemberProfileDto {
-	@ApiProperty({ type: RegisterMemberSubscriptionDto, description: 'The first plan registration; both records are created atomically.' })
+	@ApiProperty({
+		type: RegisterMemberSubscriptionDto,
+		description: 'The first plan registration; both records are created atomically.',
+	})
 	@IsDefined()
 	@ValidateNested()
 	@Type(() => RegisterMemberSubscriptionDto)
