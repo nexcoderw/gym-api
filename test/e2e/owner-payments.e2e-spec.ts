@@ -41,6 +41,17 @@ const INPUT = {
 	method: OrganizationPaymentMethod.CASH,
 	occurredAt: AT,
 };
+const REGISTRATION_INPUT = {
+	member: { name: 'Example Member', phoneNumber: '+250700000001' },
+	subscription: {
+		membershipPlanId: SUBSCRIPTION_ID,
+		startDate: '2030-01-01',
+		periodUnit: 'MONTHS',
+		periodCount: 1,
+	},
+	method: OrganizationPaymentMethod.CASH,
+	occurredAt: AT,
+};
 const PAYMENT = {
 	id: PAYMENT_ID,
 	receiptNumber: 'PAY-20261018-55555555',
@@ -67,6 +78,7 @@ describe('owner payments HTTP security', () => {
 	const list = jest.fn<OwnerPaymentsService['list']>();
 	const get = jest.fn<OwnerPaymentsService['get']>();
 	const create = jest.fn<OwnerPaymentsService['create']>();
+	const registerPayment = jest.fn<OwnerPaymentsService['registerPayment']>();
 	const voidPayment = jest.fn<OwnerPaymentsService['void']>();
 	const refund = jest.fn<OwnerPaymentsService['refund']>();
 
@@ -93,7 +105,7 @@ describe('owner payments HTTP security', () => {
 				},
 				{
 					provide: OwnerPaymentsService,
-					useValue: { list, get, create, void: voidPayment, refund },
+					useValue: { list, get, create, registerPayment, void: voidPayment, refund },
 				},
 			],
 		}).compile();
@@ -112,6 +124,7 @@ describe('owner payments HTTP security', () => {
 		list.mockResolvedValue({ items: [PAYMENT], nextCursor: null });
 		get.mockResolvedValue(PAYMENT);
 		create.mockResolvedValue(PAYMENT);
+		registerPayment.mockResolvedValue(PAYMENT);
 		voidPayment.mockResolvedValue({ ...PAYMENT, status: OrganizationPaymentStatus.VOIDED });
 		refund.mockResolvedValue({ ...PAYMENT, status: OrganizationPaymentStatus.REFUNDED });
 	});
@@ -125,6 +138,34 @@ describe('owner payments HTTP security', () => {
 			INPUT,
 			KEY,
 		);
+	});
+
+	it('registers a new member and payment under the authenticated gym', async () => {
+		await ownerRequest('post', `${ROOT}/registrations`)
+			.set('Idempotency-Key', KEY)
+			.send(REGISTRATION_INPUT)
+			.expect(201);
+		expect(registerPayment).toHaveBeenCalledWith(
+			expect.objectContaining({ organizationId: ORGANIZATION_ID, actorUserId: USER_ID }),
+			REGISTRATION_INPUT,
+			KEY,
+		);
+	});
+
+	it('rejects forged registration fields, missing CSRF and missing idempotency', async () => {
+		await ownerRequest('post', `${ROOT}/registrations`)
+			.set('Idempotency-Key', KEY)
+			.send({ ...REGISTRATION_INPUT, organizationId: ORGANIZATION_ID })
+			.expect(400);
+		await ownerRequest('post', `${ROOT}/registrations`)
+			.set('x-owner-csrf-token', 'invalid')
+			.set('Idempotency-Key', KEY)
+			.send(REGISTRATION_INPUT)
+			.expect(403);
+		await ownerRequest('post', `${ROOT}/registrations`)
+			.send(REGISTRATION_INPUT)
+			.expect(400);
+		expect(registerPayment).not.toHaveBeenCalled();
 	});
 
 	it('rejects client-controlled tenant and lifecycle fields', async () => {
