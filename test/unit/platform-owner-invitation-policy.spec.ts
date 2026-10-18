@@ -3,7 +3,7 @@ import { OrganizationOwnerInvitationStatus, OrganizationStatus } from '@nexcoder
 import {
 	assertOrganizationCanReceiveOwnerInvitation,
 	assertOwnerInvitationCanBeRevoked,
-} from '../../src/modules/platform-owner-onboarding/platform-owner-invitation-policy.js';
+} from '../../src/modules/platform/owner-onboarding/platform-owner-invitation-policy.js';
 
 describe('owner invitation transition policy', () => {
 	it.each([OrganizationStatus.PENDING, OrganizationStatus.ACTIVE])(
