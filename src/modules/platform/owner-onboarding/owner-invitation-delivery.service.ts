@@ -7,7 +7,7 @@ import {
 	PrismaService,
 } from '@nexcoderw/gym-db';
 
-import { organizationPortalOriginForSlug } from '../../config/organization-portal-origin.js';
+import { organizationPortalOriginForSlug } from '../../../config/organization-portal-origin.js';
 import type {
 	OwnerInvitationDeliveryResponseDto,
 	OwnerInvitationPreviewResponseDto,
