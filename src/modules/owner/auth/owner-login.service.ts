@@ -16,7 +16,7 @@ import type { OwnerLoginDto } from './dto/owner-login.dto.js';
 import { OWNER_AUTH_ERROR } from './owner-auth.constants.js';
 import { OwnerLoginAttemptService } from './owner-login-attempt.service.js';
 import { OwnerSessionService } from './owner-session.service.js';
-import { PlatformPasswordService } from '../platform-auth/platform-password.service.js';
+import { PlatformPasswordService } from '../../platform/auth/platform-password.service.js';
 
 export interface OwnerLoginSuccess extends OwnerAuthenticatedResponseDto {
 	readonly sessionToken: string;
