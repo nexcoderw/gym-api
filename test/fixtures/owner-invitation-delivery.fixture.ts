@@ -12,7 +12,7 @@ import {
 
 import type { EnvironmentVariables } from '../../src/config/environment.types.js';
 import { validateEnvironment } from '../../src/config/environment.validation.js';
-import { OWNER_INVITATION_PERMISSION } from '../../src/modules/platform-owner-onboarding/platform-owner-onboarding.constants.js';
+import { OWNER_INVITATION_PERMISSION } from '../../src/modules/platform/owner-onboarding/platform-owner-onboarding.constants.js';
 import {
 	createPlatformOwnerOnboardingDatabaseFixture,
 	ownerInvitationFixture,
