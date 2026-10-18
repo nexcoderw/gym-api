@@ -1,10 +1,10 @@
-import { PLATFORM_PERMISSION } from '../../src/modules/platform-auth/platform-permission.constants.js';
+import { PLATFORM_PERMISSION } from '../../src/modules/platform/auth/platform-permission.constants.js';
 import {
 	effectivePlatformPermissions,
 	isPlatformSuperadmin,
-} from '../../src/modules/platform-auth/platform-permission-policy.js';
-import { ORGANIZATION_PERMISSION } from '../../src/modules/platform-organizations/platform-organizations.constants.js';
-import { OWNER_INVITATION_PERMISSION } from '../../src/modules/platform-owner-onboarding/platform-owner-onboarding.constants.js';
+} from '../../src/modules/platform/auth/platform-permission-policy.js';
+import { ORGANIZATION_PERMISSION } from '../../src/modules/platform/organizations/platform-organizations.constants.js';
+import { OWNER_INVITATION_PERMISSION } from '../../src/modules/platform/owner-onboarding/platform-owner-onboarding.constants.js';
 
 function role(key: string, isSystem: boolean, permissions: string[] = []) {
 	return {
