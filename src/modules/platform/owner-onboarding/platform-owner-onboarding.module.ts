@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 
-import { PlatformAuthModule } from '../platform-auth/platform-auth.module.js';
+import { PlatformAuthModule } from '../auth/platform-auth.module.js';
 import { OwnerInvitationDeliveryGate } from './owner-invitation-delivery.policy.js';
 import { OwnerInvitationDeliveryService } from './owner-invitation-delivery.service.js';
 import { OwnerInvitationPreviewController } from './owner-invitation-preview.controller.js';
