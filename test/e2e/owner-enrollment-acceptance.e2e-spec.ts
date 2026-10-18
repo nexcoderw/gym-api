@@ -10,17 +10,17 @@ import { configureApplication } from '../../src/app-bootstrap.js';
 import {
 	OWNER_CSRF_COOKIE,
 	OWNER_SESSION_COOKIE,
-} from '../../src/modules/owner-auth/owner-auth.constants.js';
-import { OwnerCookieService } from '../../src/modules/owner-auth/owner-cookie.service.js';
-import { OwnerOriginCsrfGuard } from '../../src/modules/owner-auth/owner-origin-csrf.guard.js';
-import { OwnerSessionGuard } from '../../src/modules/owner-auth/owner-session.guard.js';
-import { OwnerSessionService } from '../../src/modules/owner-auth/owner-session.service.js';
-import { OwnerTokenService } from '../../src/modules/owner-auth/owner-token.service.js';
-import { OwnerAcceptanceService } from '../../src/modules/owner-enrollment/owner-acceptance.service.js';
-import { OwnerEnrollmentController } from '../../src/modules/owner-enrollment/owner-enrollment.controller.js';
-import { OwnerEnrollmentService } from '../../src/modules/owner-enrollment/owner-enrollment.service.js';
-import { OwnerEnrollmentSessionGuard } from '../../src/modules/owner-enrollment/owner-enrollment-session.guard.js';
-import { OwnerPortalController } from '../../src/modules/owner-portal/owner-portal.controller.js';
+} from '../../src/modules/owner/auth/owner-auth.constants.js';
+import { OwnerCookieService } from '../../src/modules/owner/auth/owner-cookie.service.js';
+import { OwnerOriginCsrfGuard } from '../../src/modules/owner/auth/owner-origin-csrf.guard.js';
+import { OwnerSessionGuard } from '../../src/modules/owner/auth/owner-session.guard.js';
+import { OwnerSessionService } from '../../src/modules/owner/auth/owner-session.service.js';
+import { OwnerTokenService } from '../../src/modules/owner/auth/owner-token.service.js';
+import { OwnerAcceptanceService } from '../../src/modules/owner/enrollment/owner-acceptance.service.js';
+import { OwnerEnrollmentController } from '../../src/modules/owner/enrollment/owner-enrollment.controller.js';
+import { OwnerEnrollmentService } from '../../src/modules/owner/enrollment/owner-enrollment.service.js';
+import { OwnerEnrollmentSessionGuard } from '../../src/modules/owner/enrollment/owner-enrollment-session.guard.js';
+import { OwnerPortalController } from '../../src/modules/owner/portal/owner-portal.controller.js';
 
 const SESSION_TOKEN = 'a'.repeat(43);
 const CSRF_TOKEN = 'b'.repeat(43);
