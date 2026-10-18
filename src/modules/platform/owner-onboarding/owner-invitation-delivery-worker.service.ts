@@ -15,8 +15,8 @@ import {
 import {
 	ResendOwnerInvitationEmailService,
 	type InvitationProviderOutcome,
-} from '../../infrastructure/email/resend-owner-invitation-email.service.js';
-import { effectivePlatformPermissions } from '../platform-auth/platform-permission-policy.js';
+} from '../../../infrastructure/email/resend-owner-invitation-email.service.js';
+import { effectivePlatformPermissions } from '../auth/platform-permission-policy.js';
 import {
 	INVITATION_DELIVERY_TRANSACTION,
 	lockInvitationParents,
