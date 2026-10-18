@@ -2,8 +2,8 @@ import { HttpException, Injectable, ServiceUnavailableException } from '@nestjs/
 import { ConfigService } from '@nestjs/config';
 import { PrismaService, type Prisma } from '@nexcoderw/gym-db';
 
-import type { EnvironmentVariables } from '../../config/environment.types.js';
-import type { OwnerInvitationDeliveryEnvironment } from '../../config/owner-invitation-delivery.environment.js';
+import type { EnvironmentVariables } from '../../../config/environment.types.js';
+import type { OwnerInvitationDeliveryEnvironment } from '../../../config/owner-invitation-delivery.environment.js';
 
 export const INVITATION_DELIVERY_TRANSACTION = Object.freeze({ maxWait: 5_000, timeout: 10_000 });
 
