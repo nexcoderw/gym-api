@@ -2,7 +2,7 @@ import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@
 import { ConfigService } from '@nestjs/config';
 import { Reflector } from '@nestjs/core';
 
-import type { EnvironmentVariables } from '../../config/environment.types.js';
+import type { EnvironmentVariables } from '../../../config/environment.types.js';
 import { PLATFORM_CSRF_HEADER } from './platform-auth.constants.js';
 import { PLATFORM_CSRF_REQUIRED_METADATA } from './platform-csrf.decorator.js';
 import { PlatformCookieService } from './platform-cookie.service.js';
