@@ -1,7 +1,7 @@
 import { jest } from '@jest/globals';
 
 import { ResendOwnerInvitationEmailService } from '../../src/infrastructure/email/resend-owner-invitation-email.service.js';
-import { OwnerInvitationTokenService } from '../../src/modules/platform-owner-onboarding/owner-invitation-token.service.js';
+import { OwnerInvitationTokenService } from '../../src/modules/platform/owner-onboarding/owner-invitation-token.service.js';
 import { invitationDeliveryConfig } from '../fixtures/owner-invitation-delivery.fixture.js';
 
 describe('Resend owner invitation adapter (fake transport only)', () => {
