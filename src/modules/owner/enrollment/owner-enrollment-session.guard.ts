@@ -1,10 +1,10 @@
 import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
 
-import { OWNER_AUTH_ERROR } from '../owner-auth/owner-auth.constants.js';
-import { OwnerCookieService } from '../owner-auth/owner-cookie.service.js';
-import type { OwnerRequest } from '../owner-auth/owner-request.js';
-import { OwnerSessionService } from '../owner-auth/owner-session.service.js';
-import { OwnerTokenService } from '../owner-auth/owner-token.service.js';
+import { OWNER_AUTH_ERROR } from '../auth/owner-auth.constants.js';
+import { OwnerCookieService } from '../auth/owner-cookie.service.js';
+import type { OwnerRequest } from '../auth/owner-request.js';
+import { OwnerSessionService } from '../auth/owner-session.service.js';
+import { OwnerTokenService } from '../auth/owner-token.service.js';
 
 /**
  * Authenticates the invitation recipient before their first organization membership exists.
