@@ -166,58 +166,62 @@ export class OwnerPaymentsService {
 			note ?? null,
 		]);
 		try {
-			return await this.tenants.run(context, async (transaction) => {
-				const replay = await paymentReplay(
-					transaction,
-					context.organizationId,
-					idempotencyKey,
-					fingerprint,
-				);
-				if (replay !== null) return paymentResponse(replay);
-				let memberId: string;
-				if (profile === null) {
-					if (input.memberId === undefined) {
-						throw new BadRequestException({ code: 'PAYMENT_MEMBER_REQUIRED' });
-					}
-					memberId = input.memberId;
-				} else {
-					const member = await transaction.organizationMember.create({
-						data: { organizationId: context.organizationId, ...profile },
-						select: { id: true },
-					});
-					memberId = member.id;
-				}
-				const subscription = await registerMemberPlan(
-					transaction,
-					context,
-					memberId,
-					input.subscription,
-					idempotencyKey,
-					fingerprint,
-				);
-				if (subscription.price < 1) {
-					throw paymentConflict(
-						'PAYMENT_FREE_PLAN',
-						'A free membership plan cannot be recorded as a payment.',
-					);
-				}
-				return paymentResponse(
-					await recordPayment(transaction, context, {
-						memberId,
-						subscriptionId: subscription.id,
-						amount: subscription.price,
-						method: input.method,
-						providerReference,
-						note,
-						// The API server is authoritative for registration time. The browser
-						// timestamp is validated above but must not violate the database's
-						// clock-skew guard when a wizard remains open or the client clock drifts.
-						occurredAt: new Date(),
+			return await this.tenants.run(
+				context,
+				async (transaction) => {
+					const replay = await paymentReplay(
+						transaction,
+						context.organizationId,
 						idempotencyKey,
 						fingerprint,
-					}),
-				);
-			}, { maxWait: 5_000, timeout: 20_000 });
+					);
+					if (replay !== null) return paymentResponse(replay);
+					let memberId: string;
+					if (profile === null) {
+						if (input.memberId === undefined) {
+							throw new BadRequestException({ code: 'PAYMENT_MEMBER_REQUIRED' });
+						}
+						memberId = input.memberId;
+					} else {
+						const member = await transaction.organizationMember.create({
+							data: { organizationId: context.organizationId, ...profile },
+							select: { id: true },
+						});
+						memberId = member.id;
+					}
+					const subscription = await registerMemberPlan(
+						transaction,
+						context,
+						memberId,
+						input.subscription,
+						idempotencyKey,
+						fingerprint,
+					);
+					if (subscription.price < 1) {
+						throw paymentConflict(
+							'PAYMENT_FREE_PLAN',
+							'A free membership plan cannot be recorded as a payment.',
+						);
+					}
+					return paymentResponse(
+						await recordPayment(transaction, context, {
+							memberId,
+							subscriptionId: subscription.id,
+							amount: subscription.price,
+							method: input.method,
+							providerReference,
+							note,
+							// The API server is authoritative for registration time. The browser
+							// timestamp is validated above but must not violate the database's
+							// clock-skew guard when a wizard remains open or the client clock drifts.
+							occurredAt: new Date(),
+							idempotencyKey,
+							fingerprint,
+						}),
+					);
+				},
+				{ maxWait: 5_000, timeout: 20_000 },
+			);
 		} catch (error: unknown) {
 			if (databaseErrorCode(error) === 'P2002') {
 				const replay = await this.replayPayment(context, idempotencyKey, fingerprint);
