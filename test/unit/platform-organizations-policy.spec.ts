@@ -2,14 +2,14 @@ import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { OrganizationStatus } from '@nexcoderw/gym-db';
 
-import { CreateOrganizationDto } from '../../src/modules/platform-organizations/dto/create-organization.dto.js';
-import { UpdateOrganizationDto } from '../../src/modules/platform-organizations/dto/update-organization.dto.js';
-import { ListOrganizationsQueryDto } from '../../src/modules/platform-organizations/dto/list-organizations-query.dto.js';
-import { lifecycleStatus } from '../../src/modules/platform-organizations/platform-organization-lifecycle.js';
-import { organizationResponse } from '../../src/modules/platform-organizations/platform-organization-mapping.js';
-import { organizationFailure } from '../../src/modules/platform-organizations/platform-organization-errors.js';
-import { organizationPrecondition } from '../../src/modules/platform-organizations/platform-organization-preconditions.js';
-import { ORGANIZATION_RESERVED_SLUGS } from '../../src/modules/platform-organizations/platform-organizations.constants.js';
+import { CreateOrganizationDto } from '../../src/modules/platform/organizations/dto/create-organization.dto.js';
+import { UpdateOrganizationDto } from '../../src/modules/platform/organizations/dto/update-organization.dto.js';
+import { ListOrganizationsQueryDto } from '../../src/modules/platform/organizations/dto/list-organizations-query.dto.js';
+import { lifecycleStatus } from '../../src/modules/platform/organizations/platform-organization-lifecycle.js';
+import { organizationResponse } from '../../src/modules/platform/organizations/platform-organization-mapping.js';
+import { organizationFailure } from '../../src/modules/platform/organizations/platform-organization-errors.js';
+import { organizationPrecondition } from '../../src/modules/platform/organizations/platform-organization-preconditions.js';
+import { ORGANIZATION_RESERVED_SLUGS } from '../../src/modules/platform/organizations/platform-organizations.constants.js';
 import { organizationFixture } from '../fixtures/platform-organizations-database.fixture.js';
 
 describe('platform organization policies and transport DTOs', () => {
