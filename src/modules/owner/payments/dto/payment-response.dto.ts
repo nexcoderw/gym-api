@@ -12,6 +12,10 @@ export class PaymentAllocationResponseDto {
 	planName!: string;
 	@ApiProperty({ description: 'Whole Rwandan francs.' })
 	amount!: number;
+	@ApiProperty({ format: 'date' })
+	startDate!: string;
+	@ApiProperty({ format: 'date' })
+	endDate!: string;
 }
 
 export class PaymentRefundResponseDto {
