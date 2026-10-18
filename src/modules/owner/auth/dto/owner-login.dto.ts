@@ -5,7 +5,7 @@ import { IsEmail, IsString, MaxLength, MinLength } from 'class-validator';
 import {
 	MAXIMUM_PASSWORD_CHARACTERS,
 	MINIMUM_PASSWORD_CHARACTERS,
-} from '../../platform-auth/platform-password-policy.js';
+} from '../../../platform/auth/platform-password-policy.js';
 
 export class OwnerLoginDto {
 	@ApiProperty({ example: 'owner@example.com', maxLength: 254 })
