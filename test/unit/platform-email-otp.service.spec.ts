@@ -6,8 +6,8 @@ import { PlatformStaffStatus, PrismaService, UserStatus } from '@nexcoderw/gym-d
 import type { EnvironmentVariables } from '../../src/config/environment.types.js';
 import { validateEnvironment } from '../../src/config/environment.validation.js';
 import { ResendEmailService } from '../../src/infrastructure/email/resend-email.service.js';
-import { PlatformEmailOtpService } from '../../src/modules/platform-auth/platform-email-otp.service.js';
-import { PlatformTokenService } from '../../src/modules/platform-auth/platform-token.service.js';
+import { PlatformEmailOtpService } from '../../src/modules/platform/auth/platform-email-otp.service.js';
+import { PlatformTokenService } from '../../src/modules/platform/auth/platform-token.service.js';
 
 describe('PlatformEmailOtpService', () => {
 	const findUnique = jest.fn<() => Promise<unknown>>();
