@@ -162,9 +162,7 @@ describe('owner payments HTTP security', () => {
 			.set('Idempotency-Key', KEY)
 			.send(REGISTRATION_INPUT)
 			.expect(403);
-		await ownerRequest('post', `${ROOT}/registrations`)
-			.send(REGISTRATION_INPUT)
-			.expect(400);
+		await ownerRequest('post', `${ROOT}/registrations`).send(REGISTRATION_INPUT).expect(400);
 		expect(registerPayment).not.toHaveBeenCalled();
 	});
 
