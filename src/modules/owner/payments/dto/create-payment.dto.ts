@@ -34,11 +34,17 @@ export class CreatePaymentDto {
 	@IsEnum(OrganizationPaymentMethod)
 	method!: OrganizationPaymentMethod;
 
-	@ApiProperty({ format: 'date-time', description: 'When the gym received or initiated the payment.' })
+	@ApiProperty({
+		format: 'date-time',
+		description: 'When the gym received or initiated the payment.',
+	})
 	@IsISO8601({ strict: true, strictSeparator: true })
 	occurredAt!: string;
 
-	@ApiPropertyOptional({ maxLength: 120, description: 'Required for externally processed methods.' })
+	@ApiPropertyOptional({
+		maxLength: 120,
+		description: 'Required for externally processed methods.',
+	})
 	@Transform(({ value }: { value: unknown }) =>
 		typeof value === 'string' && value.trim() === '' ? undefined : value,
 	)
