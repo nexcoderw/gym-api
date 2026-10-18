@@ -39,7 +39,10 @@ export function paymentFailure(error: unknown): HttpException {
 		);
 	}
 	return new ServiceUnavailableException(
-		{ code: 'PAYMENT_PERSISTENCE_UNAVAILABLE', message: 'Payment management is temporarily unavailable.' },
+		{
+			code: 'PAYMENT_PERSISTENCE_UNAVAILABLE',
+			message: 'Payment management is temporarily unavailable.',
+		},
 		{ cause: error },
 	);
 }
