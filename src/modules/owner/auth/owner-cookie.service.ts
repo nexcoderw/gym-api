@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { parse } from 'cookie';
 import type { Request, Response } from 'express';
 
-import type { EnvironmentVariables } from '../../config/environment.types.js';
+import type { EnvironmentVariables } from '../../../config/environment.types.js';
 import {
 	LOCAL_OWNER_CSRF_COOKIE,
 	LOCAL_OWNER_SESSION_COOKIE,
