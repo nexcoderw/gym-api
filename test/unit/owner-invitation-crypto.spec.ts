@@ -2,8 +2,8 @@ import { createHmac, randomBytes } from 'node:crypto';
 
 import { parseOwnerInvitationDeliveryEnvironment } from '../../src/config/owner-invitation-delivery.environment.js';
 import { validateOwnerInvitationWorkerEnvironment } from '../../src/config/owner-invitation-worker.environment.js';
-import { OwnerInvitationTokenEnvelopeService } from '../../src/modules/platform-owner-onboarding/owner-invitation-token-envelope.service.js';
-import { OwnerInvitationTokenService } from '../../src/modules/platform-owner-onboarding/owner-invitation-token.service.js';
+import { OwnerInvitationTokenEnvelopeService } from '../../src/modules/platform/owner-onboarding/owner-invitation-token-envelope.service.js';
+import { OwnerInvitationTokenService } from '../../src/modules/platform/owner-onboarding/owner-invitation-token.service.js';
 import {
 	invitationDeliveryConfig,
 	invitationDeliveryInput,
