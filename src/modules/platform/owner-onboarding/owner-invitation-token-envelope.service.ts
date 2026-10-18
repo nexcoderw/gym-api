@@ -3,7 +3,7 @@ import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
-import type { EnvironmentVariables } from '../../config/environment.types.js';
+import type { EnvironmentVariables } from '../../../config/environment.types.js';
 import { OWNER_INVITATION_TOKEN_PURPOSE } from './owner-invitation-token.service.js';
 
 export interface InvitationEnvelopeIdentity {
