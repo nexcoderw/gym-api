@@ -17,7 +17,10 @@ export function ownerMemberContext(request: OwnerRequest): OwnerMemberContext {
 		organization?.status !== OrganizationStatus.ACTIVE ||
 		!organization.roles.includes('owner')
 	) {
-		throw new ForbiddenException({ code: 'MEMBER_ACCESS_DENIED', message: 'Active gym owner access is required.' });
+		throw new ForbiddenException({
+			code: 'MEMBER_ACCESS_DENIED',
+			message: 'Active gym owner access is required.',
+		});
 	}
 	return { organizationId: organization.organizationId, actorUserId: principal.userId };
 }
