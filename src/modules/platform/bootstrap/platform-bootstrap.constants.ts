@@ -1,7 +1,7 @@
 import {
 	PLATFORM_PERMISSION,
 	PLATFORM_SUPERADMIN_ROLE_KEY,
-} from '../platform-auth/platform-permission.constants.js';
+} from '../auth/platform-permission.constants.js';
 
 export const PLATFORM_OWNER_ROLE = Object.freeze({
 	key: PLATFORM_SUPERADMIN_ROLE_KEY,
