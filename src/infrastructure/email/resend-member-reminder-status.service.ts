@@ -45,7 +45,10 @@ export class ResendMemberReminderStatusService {
 				value.to[0].toLowerCase() !== recipient.toLowerCase() ||
 				!('from' in value) ||
 				typeof value.from !== 'string' ||
-				!senderMatches(value.from, this.config.get('MEMBER_REMINDER_FROM_EMAIL', { infer: true })) ||
+				!senderMatches(
+					value.from,
+					this.config.get('MEMBER_REMINDER_FROM_EMAIL', { infer: true }),
+				) ||
 				!('last_event' in value) ||
 				typeof value.last_event !== 'string'
 			) {
@@ -83,7 +86,10 @@ function senderMatches(value: string, sender: string): boolean {
 }
 
 async function boundedJson(response: Response): Promise<unknown> {
-	if (response.body === null || !response.headers.get('content-type')?.includes('application/json')) {
+	if (
+		response.body === null ||
+		!response.headers.get('content-type')?.includes('application/json')
+	) {
 		await response.body?.cancel();
 		return null;
 	}
