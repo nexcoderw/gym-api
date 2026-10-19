@@ -31,7 +31,9 @@
 		"scheduler:member-reminders": "node --env-file=.env.local dist/cli/member-reminder-scheduler.js",
 		"scheduler:member-reminders:managed": "node dist/cli/member-reminder-scheduler.js",
 		"worker:member-reminders": "node --env-file=.env.local dist/cli/member-reminder-delivery.js",
-		"worker:member-reminders:managed": "node dist/cli/member-reminder-delivery.js"
+		"worker:member-reminders:managed": "node dist/cli/member-reminder-delivery.js",
+		"reconcile:member-reminders": "node --env-file=.env.reminder-reconciler.local dist/cli/member-reminder-reconciler.js",
+		"reconcile:member-reminders:managed": "node dist/cli/member-reminder-reconciler.js"
 	},
 	"engines": {
 		"node": "^20.19.0 || ^22.12.0 || >=24.0.0",
