@@ -15,7 +15,10 @@ import { ApiErrorResponseDto } from '../../../common/dto/api-error-response.dto.
 import { OwnerOriginCsrfGuard } from '../auth/owner-origin-csrf.guard.js';
 import type { OwnerRequest } from '../auth/owner-request.js';
 import { OwnerSessionGuard } from '../auth/owner-session.guard.js';
-import { ReminderActivityQueryDto, ReminderActivityResponseDto } from './dto/reminder-activity.dto.js';
+import {
+	ReminderActivityQueryDto,
+	ReminderActivityResponseDto,
+} from './dto/reminder-activity.dto.js';
 import { OwnerReminderActivityService } from './owner-reminder-activity.service.js';
 import { ownerReminderOrganizationId } from './owner-reminder-context.js';
 
