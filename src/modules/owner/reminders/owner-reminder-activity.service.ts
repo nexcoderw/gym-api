@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import {
 	OrganizationMemberReminderStatus as ReminderStatus,
 	PrismaService,
@@ -27,22 +27,32 @@ export class OwnerReminderActivityService {
 		organizationId: string,
 		query: ReminderActivityQueryDto,
 	): Promise<ReminderActivityResponseDto> {
-		const rows = await this.prisma.organizationMemberReminderDelivery.findMany({
-			where: { organizationId, status: { in: [...VISIBLE_STATUSES] } },
-			select: {
-				id: true,
-				memberId: true,
-				kind: true,
-				status: true,
-				dueDate: true,
-				acceptedAt: true,
-				deliveredAt: true,
-				member: { select: { name: true } },
-				subscription: { select: { planName: true, endDate: true } },
-			},
-			orderBy: [{ dueDate: 'desc' }, { id: 'desc' }],
-			take: query.limit,
-		});
+		const rows = await this.prisma.organizationMemberReminderDelivery
+			.findMany({
+				where: { organizationId, status: { in: [...VISIBLE_STATUSES] } },
+				select: {
+					id: true,
+					memberId: true,
+					kind: true,
+					status: true,
+					dueDate: true,
+					acceptedAt: true,
+					deliveredAt: true,
+					member: { select: { name: true } },
+					subscription: { select: { planName: true, endDate: true } },
+				},
+				orderBy: [{ dueDate: 'desc' }, { id: 'desc' }],
+				take: query.limit,
+			})
+			.catch((error: unknown) => {
+				throw new ServiceUnavailableException(
+					{
+						code: 'REMINDER_ACTIVITY_UNAVAILABLE',
+						message: 'Reminder activity is temporarily unavailable.',
+					},
+					{ cause: error },
+				);
+			});
 		return {
 			items: rows.map((row): ReminderActivityItemDto => ({
 				id: row.id,
