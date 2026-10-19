@@ -29,7 +29,9 @@
 		"worker:owner-invitations": "OWNER_INVITATION_WORKER_ID=local-owner-invitation-worker node --env-file=.env.local dist/cli/owner-invitation-delivery-worker.js",
 		"worker:owner-invitations:managed": "node dist/cli/owner-invitation-delivery-worker.js",
 		"scheduler:member-reminders": "node --env-file=.env.local dist/cli/member-reminder-scheduler.js",
-		"scheduler:member-reminders:managed": "node dist/cli/member-reminder-scheduler.js"
+		"scheduler:member-reminders:managed": "node dist/cli/member-reminder-scheduler.js",
+		"worker:member-reminders": "node --env-file=.env.local dist/cli/member-reminder-delivery.js",
+		"worker:member-reminders:managed": "node dist/cli/member-reminder-delivery.js"
 	},
 	"engines": {
 		"node": "^20.19.0 || ^22.12.0 || >=24.0.0",
