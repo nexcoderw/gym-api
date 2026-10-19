@@ -13,7 +13,7 @@ const MEMBER_ID = '22222222-2222-4222-8222-222222222222';
 const SUBSCRIPTION_ID = '33333333-3333-4333-8333-333333333333';
 const NOW = new Date('2026-10-18T22:05:00.000Z'); // 00:05 on 19 October in Kigali.
 
-type CandidateRow = {
+interface CandidateRow {
 	id: string;
 	organizationId: string;
 	memberId: string;
@@ -26,9 +26,9 @@ type CandidateRow = {
 		reminderEmailOptedOutAt: Date | null;
 		reminderEmailSuppressedAt: Date | null;
 	};
-};
+}
 
-type ReservationInput = {
+interface ReservationInput {
 	data: {
 		id: string;
 		providerIdempotencyKey: string;
@@ -37,7 +37,7 @@ type ReservationInput = {
 		memberSubscriptionId: string;
 	}[];
 	skipDuplicates: boolean;
-};
+}
 
 const candidate: CandidateRow = {
 	id: SUBSCRIPTION_ID,
