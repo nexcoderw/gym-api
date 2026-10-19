@@ -61,7 +61,9 @@ describe('Resend member reminder email adapter', () => {
 		const request = fetchFake.mock.calls[0];
 		expect(request?.[0]).toBe('https://api.resend.com/emails');
 		expect(request?.[1]?.headers).toMatchObject({ 'Idempotency-Key': message.idempotencyKey });
-		const payload: unknown = JSON.parse(String(request?.[1]?.body));
+		const body = request?.[1]?.body;
+		if (typeof body !== 'string') throw new Error('Missing provider request body.');
+		const payload: unknown = JSON.parse(body);
 		expect(payload).toMatchObject({
 			from: 'Soho Gym via Mucyora <reminders@notify.example.invalid>',
 			to: ['member@example.com'],
