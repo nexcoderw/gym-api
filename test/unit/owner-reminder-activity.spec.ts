@@ -1,4 +1,5 @@
 import { jest } from '@jest/globals';
+import { ServiceUnavailableException } from '@nestjs/common';
 import {
 	OrganizationMemberReminderStatus as ReminderStatus,
 	OrganizationStatus,
@@ -60,6 +61,24 @@ describe('owner reminder activity', () => {
 		expect(JSON.stringify(result)).not.toMatch(
 			/recipientEmail|providerMessageId|member@example.com/u,
 		);
+	});
+
+	it('reports persistence failures without exposing database details', async () => {
+		findMany.mockRejectedValueOnce({ code: 'P2039', message: 'private database detail' });
+		let failure: unknown;
+		try {
+			await service.list(ORGANIZATION_ID, { limit: 10 });
+		} catch (error: unknown) {
+			failure = error;
+		}
+		expect(failure).toBeInstanceOf(ServiceUnavailableException);
+		if (!(failure instanceof ServiceUnavailableException)) return;
+		expect(failure.getStatus()).toBe(503);
+		expect(failure.getResponse()).toEqual({
+			code: 'REMINDER_ACTIVITY_UNAVAILABLE',
+			message: 'Reminder activity is temporarily unavailable.',
+		});
+		expect(JSON.stringify(failure.getResponse())).not.toContain('private database detail');
 	});
 
 	it('requires one active gym owner membership', () => {
