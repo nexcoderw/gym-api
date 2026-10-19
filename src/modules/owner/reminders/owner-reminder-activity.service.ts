@@ -1,5 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { OrganizationMemberReminderStatus as ReminderStatus, PrismaService } from '@nexcoderw/gym-db';
+import {
+	OrganizationMemberReminderStatus as ReminderStatus,
+	PrismaService,
+} from '@nexcoderw/gym-db';
 
 import {
 	ReminderActivityQueryDto,
