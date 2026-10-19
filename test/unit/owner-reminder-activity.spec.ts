@@ -2,8 +2,8 @@ import { jest } from '@jest/globals';
 import {
 	OrganizationMemberReminderStatus as ReminderStatus,
 	OrganizationStatus,
-	PrismaService,
 } from '@nexcoderw/gym-db';
+import type { PrismaService } from '@nexcoderw/gym-db';
 
 import type { OwnerRequest } from '../../src/modules/owner/auth/owner-request.js';
 import { OwnerReminderActivityService } from '../../src/modules/owner/reminders/owner-reminder-activity.service.js';
@@ -57,7 +57,9 @@ describe('owner reminder activity', () => {
 			endDate: '2026-10-22',
 			deliveredAt: null,
 		});
-		expect(JSON.stringify(result)).not.toMatch(/recipientEmail|providerMessageId|member@example.com/u);
+		expect(JSON.stringify(result)).not.toMatch(
+			/recipientEmail|providerMessageId|member@example.com/u,
+		);
 	});
 
 	it('requires one active gym owner membership', () => {
