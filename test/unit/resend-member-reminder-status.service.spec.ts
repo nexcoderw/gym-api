@@ -70,7 +70,12 @@ describe('Resend member reminder status adapter', () => {
 		);
 		expect(await service.get(ID, RECIPIENT)).toEqual({ kind: 'unavailable' });
 		fetchFake.mockResolvedValueOnce(
-			Response.json({ id: ID, to: [RECIPIENT], from: 'Other <attacker@example.com>', last_event: 'delivered' }),
+			Response.json({
+				id: ID,
+				to: [RECIPIENT],
+				from: 'Other <attacker@example.com>',
+				last_event: 'delivered',
+			}),
 		);
 		expect(await service.get(ID, RECIPIENT)).toEqual({ kind: 'unavailable' });
 	});
