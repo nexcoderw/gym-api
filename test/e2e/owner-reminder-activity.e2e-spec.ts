@@ -75,9 +75,7 @@ describe('owner reminder activity HTTP security', () => {
 		await ownerRequest(ROOT).expect(200).expect('Cache-Control', 'no-store');
 		expect(list).toHaveBeenCalledWith(ORGANIZATION_ID, { limit: 20 });
 		await ownerRequest(`${ROOT}?limit=51`).expect(400);
-		await ownerRequest(`${ROOT}?organizationId=99999999-9999-4999-8999-999999999999`).expect(
-			400,
-		);
+		await ownerRequest(`${ROOT}?organizationId=99999999-9999-4999-8999-999999999999`).expect(400);
 		expect(list).toHaveBeenCalledTimes(1);
 	});
 
