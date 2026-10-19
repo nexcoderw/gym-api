@@ -1,6 +1,9 @@
 import { jest } from '@jest/globals';
 import { Test, type TestingModule } from '@nestjs/testing';
-import { OrganizationMemberReminderStatus as ReminderStatus, PrismaService } from '@nexcoderw/gym-db';
+import {
+	OrganizationMemberReminderStatus as ReminderStatus,
+	PrismaService,
+} from '@nexcoderw/gym-db';
 
 import { validateMemberReminderReconcilerEnvironment } from '../../src/config/member-reminder-reconciler.environment.js';
 import { ResendMemberReminderStatusService } from '../../src/infrastructure/email/resend-member-reminder-status.service.js';
@@ -33,9 +36,8 @@ describe('member reminder reconciler', () => {
 	const findMany = jest.fn<(input: unknown) => Promise<unknown[]>>();
 	const preflight = jest.fn<(input: unknown) => Promise<{ ready: boolean }[]>>();
 	const get = jest.fn<(messageId: string, recipient: string) => Promise<unknown>>();
-	const transaction = jest.fn<(
-		callback: (client: Transaction) => Promise<boolean>,
-	) => Promise<boolean>>();
+	const transaction =
+		jest.fn<(callback: (client: Transaction) => Promise<boolean>) => Promise<boolean>>();
 
 	beforeEach(async () => {
 		jest.resetAllMocks();
@@ -93,15 +95,18 @@ describe('member reminder reconciler', () => {
 	it.each([
 		{ event: 'bounced', reason: 'BOUNCE', status: ReminderStatus.BOUNCED },
 		{ event: 'complained', reason: 'COMPLAINT', status: ReminderStatus.FAILED },
-	])('suppresses the same tenant and current email after $event', async ({ event, reason, status }) => {
-		get.mockResolvedValueOnce({ kind: event });
-		await service.runOnce(NOW);
-		expect(updateMany.mock.calls[0]?.[0]).toMatchObject({ data: { status } });
-		expect(suppress.mock.calls[0]?.[0]).toMatchObject({
-			where: { id: MEMBER_ID, organizationId: ORGANIZATION_ID, email: 'member@example.com' },
-			data: { reminderEmailSuppressionReason: reason, reminderEmailSuppressedAt: NOW },
-		});
-	});
+	])(
+		'suppresses the same tenant and current email after $event',
+		async ({ event, reason, status }) => {
+			get.mockResolvedValueOnce({ kind: event });
+			await service.runOnce(NOW);
+			expect(updateMany.mock.calls[0]?.[0]).toMatchObject({ data: { status } });
+			expect(suppress.mock.calls[0]?.[0]).toMatchObject({
+				where: { id: MEMBER_ID, organizationId: ORGANIZATION_ID, email: 'member@example.com' },
+				data: { reminderEmailSuppressionReason: reason, reminderEmailSuppressedAt: NOW },
+			});
+		},
+	);
 
 	it('does not suppress when a competing reconciliation already changed the outbox', async () => {
 		get.mockResolvedValueOnce({ kind: 'bounced' });
