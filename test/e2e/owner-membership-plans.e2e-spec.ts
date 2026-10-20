@@ -108,8 +108,17 @@ describe('owner membership plan HTTP security (e2e)', () => {
 			.expect(200)
 			.expect({ items: [PLAN], nextCursor: null });
 		expect(list).toHaveBeenCalledWith(ORGANIZATION_ID, {
-			limit: 20,
+			limit: 24,
 			status: 'ACTIVE',
+			order: 'PRICE_ASC',
+		});
+		await ownerRequest('get', `${ROOT}?limit=25`).expect(400);
+		await ownerRequest('get', `${ROOT}?status=ARCHIVED&order=NAME_ASC&search=bronze`).expect(200);
+		expect(list).toHaveBeenLastCalledWith(ORGANIZATION_ID, {
+			limit: 24,
+			status: 'ARCHIVED',
+			order: 'NAME_ASC',
+			search: 'bronze',
 		});
 	});
 
