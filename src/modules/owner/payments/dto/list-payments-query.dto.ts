@@ -22,7 +22,7 @@ export class ListPaymentsQueryDto {
 
 	@ApiPropertyOptional({ format: 'uuid' })
 	@IsOptional()
-	@IsUUID()
+	@IsUUID('loose')
 	cursor?: string;
 
 	@ApiPropertyOptional({ enum: OrganizationPaymentStatus })
@@ -37,7 +37,7 @@ export class ListPaymentsQueryDto {
 
 	@ApiPropertyOptional({ format: 'uuid' })
 	@IsOptional()
-	@IsUUID()
+	@IsUUID('loose')
 	memberId?: string;
 
 	@ApiPropertyOptional({ enum: PaymentOrder, default: PaymentOrder.NEWEST })
