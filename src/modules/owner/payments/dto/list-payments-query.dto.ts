@@ -1,17 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { OrganizationPaymentMethod, OrganizationPaymentStatus } from '@nexcoderw/gym-db';
 import { Transform } from 'class-transformer';
-import {
-	IsEnum,
-	IsInt,
-	IsOptional,
-	IsString,
-	IsUUID,
-	Matches,
-	Max,
-	MaxLength,
-	Min,
-} from 'class-validator';
+import { IsEnum, IsInt, IsOptional, IsUUID, Matches, Max, Min } from 'class-validator';
 
 export enum PaymentOrder {
 	NEWEST = 'NEWEST',
@@ -53,15 +43,6 @@ export class ListPaymentsQueryDto {
 	@ApiPropertyOptional({ enum: PaymentOrder, default: PaymentOrder.NEWEST })
 	@IsEnum(PaymentOrder)
 	order: PaymentOrder = PaymentOrder.NEWEST;
-
-	@ApiPropertyOptional({
-		maxLength: 80,
-		description: 'Match receipt, member name or provider reference.',
-	})
-	@IsOptional()
-	@IsString()
-	@MaxLength(80)
-	search?: string;
 
 	@ApiPropertyOptional({ example: '2026-01-01', description: 'Payment date in Africa/Kigali.' })
 	@IsOptional()
