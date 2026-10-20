@@ -88,9 +88,9 @@ describe('owner member numbered pagination', () => {
 	});
 
 	it('rejects mixing page and cursor modes', async () => {
-		await expect(service.list(CONTEXT, { ...QUERY, page: 2, cursor: MEMBER.id })).rejects.toBeInstanceOf(
-			BadRequestException,
-		);
+		await expect(
+			service.list(CONTEXT, { ...QUERY, page: 2, cursor: MEMBER.id }),
+		).rejects.toBeInstanceOf(BadRequestException);
 		expect(count).not.toHaveBeenCalled();
 	});
 });
