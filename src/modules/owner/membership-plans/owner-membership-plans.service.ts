@@ -39,11 +39,9 @@ export class OwnerMembershipPlansService {
 		try {
 			return await this.tenants.run({ organizationId }, async (transaction) => {
 				const lifecycle = membershipPlanLifecycleFilter(query.status);
-				const search = query.search?.trim();
 				const where: Prisma.OrganizationMembershipPlanWhereInput = {
 					organizationId,
 					...lifecycle,
-					...(search ? { name: { contains: search, mode: 'insensitive' } } : {}),
 				};
 				if (query.cursor !== undefined) {
 					const cursor = await transaction.organizationMembershipPlan.findFirst({
