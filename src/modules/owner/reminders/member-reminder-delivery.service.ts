@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import {
 	OrganizationMemberReminderChannel as ReminderChannel,
+	OrganizationMemberReminderKind as ReminderKind,
 	OrganizationMemberReminderStatus as ReminderStatus,
 	OrganizationStatus,
 	PrismaService,
@@ -94,23 +95,33 @@ export class MemberReminderDeliveryService {
 				throw new Error('Reminder lease changed before submission.');
 			}
 			const today = memberToday(now);
+			const candidate = {
+				email: row.member.email,
+				memberArchivedAt: row.member.archivedAt,
+				emailOptedOutAt: row.member.reminderEmailOptedOutAt,
+				emailSuppressedAt: row.member.reminderEmailSuppressedAt,
+				subscriptionCancelledAt: row.subscription.cancelledAt,
+				startDate: row.subscription.startDate.toISOString().slice(0, 10),
+				endDate: row.subscription.endDate.toISOString().slice(0, 10),
+			};
 			const eligible =
 				row.organization.status === OrganizationStatus.ACTIVE &&
 				row.recipientEmail !== null &&
 				row.member.email?.toLowerCase() === row.recipientEmail.toLowerCase() &&
-				row.dueDate.toISOString().slice(0, 10) === today &&
-				dueEmailReminder(
-					{
-						email: row.member.email,
-						memberArchivedAt: row.member.archivedAt,
-						emailOptedOutAt: row.member.reminderEmailOptedOutAt,
-						emailSuppressedAt: row.member.reminderEmailSuppressedAt,
-						subscriptionCancelledAt: row.subscription.cancelledAt,
-						startDate: row.subscription.startDate.toISOString().slice(0, 10),
-						endDate: row.subscription.endDate.toISOString().slice(0, 10),
-					},
-					today,
-				) === row.kind;
+				(row.kind === ReminderKind.MANUAL
+					? row.dueDate.toISOString().slice(0, 10) <= today
+					: row.dueDate.toISOString().slice(0, 10) === today) &&
+				(row.kind === ReminderKind.MANUAL
+					? candidate.email !== null &&
+						candidate.email.trim() !== '' &&
+						candidate.memberArchivedAt === null &&
+						candidate.emailOptedOutAt === null &&
+						candidate.emailSuppressedAt === null &&
+						candidate.subscriptionCancelledAt === null &&
+						candidate.startDate <= today &&
+						candidate.endDate >= today &&
+						candidate.endDate <= addDays(today, 14)
+					: dueEmailReminder(candidate, today) === row.kind);
 			if (!eligible || row.recipientEmail === null) {
 				await this.finalize(row, lease, {
 					status: ReminderStatus.SKIPPED,
@@ -186,4 +197,10 @@ export class MemberReminderDeliveryService {
 		`;
 		if (rows[0]?.ready !== true) throw new Error('Reminder delivery database is not ready.');
 	}
+}
+
+function addDays(day: string, count: number): string {
+	const value = new Date(`${day}T00:00:00.000Z`);
+	value.setUTCDate(value.getUTCDate() + count);
+	return value.toISOString().slice(0, 10);
 }
