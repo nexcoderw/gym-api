@@ -2,6 +2,7 @@ import { jest } from '@jest/globals';
 import { ServiceUnavailableException } from '@nestjs/common';
 import { Test, type TestingModule } from '@nestjs/testing';
 import {
+	OrganizationPaymentMethod,
 	OrganizationPaymentRefundStatus,
 	OrganizationPaymentStatus,
 	TenantTransactionService,
@@ -15,6 +16,16 @@ const CONTEXT = {
 	requestId: '33333333-3333-4333-8333-333333333333',
 };
 const QUERY = { fromDate: '2026-01-01', toDate: '2026-01-31' };
+const PAYMENT = {
+	id: '44444444-4444-4444-8444-444444444444',
+	receiptNumber: 'PAY-20260101-EXAMPLE',
+	amountRwf: 15_000n,
+	method: OrganizationPaymentMethod.CASH,
+	status: OrganizationPaymentStatus.CONFIRMED,
+	occurredAt: new Date('2026-01-01T09:00:00.000Z'),
+	member: { name: 'Example Member' },
+	refunds: [{ amountRwf: 2_000n }],
+};
 
 describe('owner payment report summary', () => {
 	let module: TestingModule | undefined;
@@ -29,8 +40,11 @@ describe('owner payment report summary', () => {
 		>
 	>();
 	const aggregate = jest.fn<() => Promise<{ _sum: { amountRwf: bigint | null } }>>();
+	const findUnique = jest.fn<() => Promise<{ name: string } | null>>();
+	const findMany = jest.fn<() => Promise<(typeof PAYMENT)[]>>();
 	const transaction = {
-		organizationPayment: { groupBy },
+		organization: { findUnique },
+		organizationPayment: { groupBy, findMany },
 		organizationPaymentRefund: { aggregate },
 	};
 	const run =
@@ -57,6 +71,8 @@ describe('owner payment report summary', () => {
 			},
 		]);
 		aggregate.mockResolvedValue({ _sum: { amountRwf: 5_000n } });
+		findUnique.mockResolvedValue({ name: 'Soho Gym' });
+		findMany.mockResolvedValue([PAYMENT]);
 		module = await Test.createTestingModule({
 			providers: [
 				OwnerPaymentReportsService,
@@ -128,5 +144,58 @@ describe('owner payment report summary', () => {
 		await expect(service.summary(CONTEXT, QUERY)).rejects.toBeInstanceOf(
 			ServiceUnavailableException,
 		);
+	});
+
+	it('exports all selected rows with confirmed refunds and tenant-scoped batches', async () => {
+		const buffer = await service.pdf(CONTEXT, QUERY);
+		expect(buffer.subarray(0, 5).toString()).toBe('%PDF-');
+		expect(run).toHaveBeenCalledWith(
+			CONTEXT,
+			expect.any(Function),
+			{ maxWait: 5_000, timeout: 60_000 },
+		);
+		expect(findUnique).toHaveBeenCalledWith({
+			where: { id: CONTEXT.organizationId },
+			select: { name: true },
+		});
+		expect(findMany).toHaveBeenCalledWith({
+			where: {
+				organizationId: CONTEXT.organizationId,
+				occurredAt: {
+					gte: new Date('2025-12-31T22:00:00.000Z'),
+					lt: new Date('2026-01-31T22:00:00.000Z'),
+				},
+			},
+			select: expect.objectContaining({
+				refunds: {
+					where: { status: OrganizationPaymentRefundStatus.CONFIRMED },
+					select: { amountRwf: true },
+				},
+			}),
+			orderBy: [{ occurredAt: 'asc' }, { id: 'asc' }],
+			take: 201,
+		});
+	});
+
+	it('continues the PDF export past an internal database batch', async () => {
+		const firstBatch = Array.from({ length: 201 }, (_, index) => ({
+			...PAYMENT,
+			id: `payment-${index}`,
+			receiptNumber: `PAY-20260101-${index}`,
+		}));
+		findMany.mockResolvedValueOnce(firstBatch).mockResolvedValueOnce([firstBatch[200] ?? PAYMENT]);
+		const buffer = await service.pdf(CONTEXT, QUERY);
+		expect(buffer.subarray(0, 5).toString()).toBe('%PDF-');
+		expect(findMany).toHaveBeenCalledTimes(2);
+		expect(findMany).toHaveBeenLastCalledWith(
+			expect.objectContaining({ cursor: { id: 'payment-199' }, skip: 1 }),
+		);
+	});
+
+	it('rejects an oversized export without returning a truncated PDF', async () => {
+		findMany.mockResolvedValue(
+			Array.from({ length: 201 }, (_, index) => ({ ...PAYMENT, id: `payment-${index}` })),
+		);
+		await expect(service.pdf(CONTEXT, QUERY)).rejects.toMatchObject({ status: 413 });
 	});
 });
