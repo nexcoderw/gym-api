@@ -1,7 +1,7 @@
-import type { MemberReminderSchedulerEnvironment } from './member-reminder-scheduler.environment.js';
-import { validateMemberReminderSchedulerEnvironment } from './member-reminder-scheduler.environment.js';
+import type { MemberReminderDatabaseEnvironment } from './member-reminder-database.environment.js';
+import { validateMemberReminderDatabaseEnvironment } from './member-reminder-database.environment.js';
 
-export interface MemberReminderReconcilerEnvironment extends MemberReminderSchedulerEnvironment {
+export interface MemberReminderReconcilerEnvironment extends MemberReminderDatabaseEnvironment {
 	readonly MEMBER_REMINDER_RECONCILIATION_ENABLED: true;
 	readonly RESEND_REMINDER_RECONCILER_API_KEY: string;
 	readonly MEMBER_REMINDER_FROM_EMAIL: string;
@@ -11,7 +11,7 @@ export interface MemberReminderReconcilerEnvironment extends MemberReminderSched
 export function validateMemberReminderReconcilerEnvironment(
 	input: Record<string, unknown>,
 ): MemberReminderReconcilerEnvironment {
-	const database = validateMemberReminderSchedulerEnvironment(input);
+	const database = validateMemberReminderDatabaseEnvironment(input);
 	if (input.MEMBER_REMINDER_RECONCILIATION_ENABLED !== 'true') {
 		throw new Error('Member reminder reconciliation must be explicitly enabled.');
 	}
