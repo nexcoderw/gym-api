@@ -67,10 +67,14 @@ export function renderPaymentReportPdf(input: PaymentReportPdfInput): Promise<Bu
 				const cells = rowCells(row);
 				const rowHeight = Math.max(
 					29,
-					...cells.map((value, column) =>
-						document.font('Helvetica').fontSize(8).heightOfString(value, {
-							width: (COLUMNS[column]?.width ?? 68) - 10,
-						}) + 12,
+					...cells.map(
+						(value, column) =>
+							document
+								.font('Helvetica')
+								.fontSize(8)
+								.heightOfString(value, {
+									width: (COLUMNS[column]?.width ?? 68) - 10,
+								}) + 12,
 					),
 				);
 				if (y + rowHeight > document.page.height - 55) {
@@ -171,13 +175,19 @@ function drawRow(
 		x += column.width;
 	}
 	document.strokeColor('#E5ECF6').lineWidth(0.5);
-	document.moveTo(LEFT, y + height).lineTo(LEFT + TABLE_WIDTH, y + height).stroke();
+	document
+		.moveTo(LEFT, y + height)
+		.lineTo(LEFT + TABLE_WIDTH, y + height)
+		.stroke();
 }
 
 function drawFooter(document: PDFKit.PDFDocument, page: number): void {
 	const y = document.page.height - 35;
 	document.strokeColor('#D3DFEC').lineWidth(0.7);
-	document.moveTo(LEFT, y - 8).lineTo(LEFT + TABLE_WIDTH, y - 8).stroke();
+	document
+		.moveTo(LEFT, y - 8)
+		.lineTo(LEFT + TABLE_WIDTH, y - 8)
+		.stroke();
 	document.font('Helvetica').fontSize(8).fillColor('#52627A');
 	document.text('Confidential - gym owner financial report', LEFT, y);
 	document.text(`Page ${page}`, LEFT + 675, y, { width: 95, align: 'right' });
@@ -217,7 +227,10 @@ function money(value: bigint): string {
 }
 
 function label(value: string): string {
-	return value.replaceAll('_', ' ').toLowerCase().replace(/^\w/u, (letter) => letter.toUpperCase());
+	return value
+		.replaceAll('_', ' ')
+		.toLowerCase()
+		.replace(/^\w/u, (letter) => letter.toUpperCase());
 }
 
 function clean(value: string): string {
