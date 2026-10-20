@@ -1,9 +1,10 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { TenantTransactionService } from '@nexcoderw/gym-db';
+import { TenantTransactionService, type Prisma } from '@nexcoderw/gym-db';
 
 import type { CreateMembershipPlanDto } from './dto/create-membership-plan.dto.js';
 import {
 	MembershipPlanStatusFilter,
+	MembershipPlanOrder,
 	type ListMembershipPlansQueryDto,
 } from './dto/list-membership-plans-query.dto.js';
 import type { MembershipPlanListResponseDto } from './dto/membership-plan-list-response.dto.js';
@@ -38,7 +39,12 @@ export class OwnerMembershipPlansService {
 		try {
 			return await this.tenants.run({ organizationId }, async (transaction) => {
 				const lifecycle = membershipPlanLifecycleFilter(query.status);
-				const where = { organizationId, ...lifecycle };
+				const search = query.search?.trim();
+				const where: Prisma.OrganizationMembershipPlanWhereInput = {
+					organizationId,
+					...lifecycle,
+					...(search ? { name: { contains: search, mode: 'insensitive' } } : {}),
+				};
 				if (query.cursor !== undefined) {
 					const cursor = await transaction.organizationMembershipPlan.findFirst({
 						where: { ...where, id: query.cursor },
@@ -53,7 +59,7 @@ export class OwnerMembershipPlansService {
 				}
 				const rows = await transaction.organizationMembershipPlan.findMany({
 					where,
-					orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
+					orderBy: membershipPlanOrder(query.order),
 					take: query.limit + 1,
 					...(query.cursor === undefined ? {} : { cursor: { id: query.cursor }, skip: 1 }),
 					select: MEMBERSHIP_PLAN_SELECT,
@@ -189,6 +195,15 @@ export class OwnerMembershipPlansService {
 			throw membershipPlanFailure(error);
 		}
 	}
+}
+
+function membershipPlanOrder(
+	order: MembershipPlanOrder,
+): Prisma.OrganizationMembershipPlanOrderByWithRelationInput[] {
+	if (order === MembershipPlanOrder.PRICE_DESC) return [{ priceRwf: 'desc' }, { id: 'asc' }];
+	if (order === MembershipPlanOrder.NAME_ASC) return [{ name: 'asc' }, { id: 'asc' }];
+	if (order === MembershipPlanOrder.NEWEST) return [{ createdAt: 'desc' }, { id: 'asc' }];
+	return [{ priceRwf: 'asc' }, { id: 'asc' }];
 }
 
 function membershipPlanLifecycleFilter(status: MembershipPlanStatusFilter) {
