@@ -75,7 +75,7 @@ export class OwnerMembersController {
 	@ApiOperation({
 		summary: 'List gym members',
 		description:
-			'Active gym owners only. Tenant-scoped bounded cursor pagination; archived profiles are excluded by default.',
+			'Active gym owners only. Tenant-scoped bounded cursor or numbered pagination; archived profiles are excluded by default. Numbered pages contain at most 20 members and include the matching total.',
 	})
 	@ApiOkResponse({ type: MemberListResponseDto })
 	list(
