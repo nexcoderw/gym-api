@@ -49,12 +49,34 @@ export class OwnerMembersService {
 	): Promise<MemberListResponseDto> {
 		try {
 			return await this.tenants.run(context, async (transaction) => {
+				if (query.page !== undefined && query.cursor !== undefined) {
+					throw new BadRequestException('Choose either page or cursor pagination.');
+				}
 				const dateRange = listDateRange(query.fromDate, query.toDate);
 				const where: Prisma.OrganizationMemberWhereInput = {
 					organizationId: context.organizationId,
 					archivedAt: query.status === MemberStatusFilter.ARCHIVED ? { not: null } : null,
 					...(Object.keys(dateRange).length ? { createdAt: dateRange } : {}),
 				};
+				const totalItems = await transaction.organizationMember.count({ where });
+				const totalPages = Math.ceil(totalItems / query.limit);
+				if (query.page !== undefined) {
+					const page = Math.min(query.page, Math.max(1, totalPages));
+					const rows = await transaction.organizationMember.findMany({
+						where,
+						select: MEMBER_SELECT,
+						orderBy: memberOrder(query.order),
+						take: query.limit,
+						skip: (page - 1) * query.limit,
+					});
+					return {
+						items: rows.map(memberResponse),
+						nextCursor: null,
+						totalItems,
+						totalPages,
+						page,
+					};
+				}
 				if (query.cursor !== undefined) {
 					const cursor = await transaction.organizationMember.findFirst({
 						where: { ...where, id: query.cursor },
@@ -73,6 +95,9 @@ export class OwnerMembersService {
 				return {
 					items: page.map(memberResponse),
 					nextCursor: rows.length > query.limit ? (page.at(-1)?.id ?? null) : null,
+					totalItems,
+					totalPages,
+					page: null,
 				};
 			});
 		} catch (error: unknown) {
