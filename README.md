@@ -955,7 +955,10 @@ requires cancelling any unexpired registrations first and retains name/phone res
 Routes under `/api/v1/owner/members` provide list/create, read/update/archive by member ID, paginated
 registration history, registration/renewal and explicit subscription cancellation. Swagger describes
 the request/response contracts and security headers. Member, registration-history and payment lists
-return at most 24 rows per cursor page; cursors must belong to the same organization and filter.
+return at most 24 rows per cursor page for registration history and payments. The member-profile
+list returns at most 20 rows and supports either a cursor or a numbered page (never both). Numbered
+pages include the filtered total and page count so a manager can jump directly to the last page;
+cursors must belong to the same organization and filter.
 Membership-plan lists support active/archived status and price/name/newest ordering. Member lists
 support active/archived status, registration-date range and newest/oldest/name ordering. Payment lists
 support status, method, member, transaction-date range and newest/oldest/amount ordering. Date ranges
