@@ -64,6 +64,19 @@ export class ReminderActivityResponseDto {
 }
 
 export class UpcomingReminderQueryDto {
+	@ApiPropertyOptional({
+		minLength: 3,
+		maxLength: 80,
+		description: 'Search expiring member or plan names in this gym.',
+	})
+	@Transform(({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value))
+	@IsOptional()
+	@IsString()
+	@MinLength(3)
+	@MaxLength(80)
+	@Matches(/^[^\p{Cc}\p{Cf}]+$/u)
+	search?: string;
+
 	@ApiPropertyOptional({ default: 24, minimum: 1, maximum: 24 })
 	@Transform(({ value }: { value: unknown }) =>
 		typeof value === 'string' && /^[1-9][0-9]*$/u.test(value) ? Number(value) : value,
