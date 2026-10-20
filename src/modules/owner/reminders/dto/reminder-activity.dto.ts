@@ -4,7 +4,7 @@ import {
 	OrganizationMemberReminderKind as ReminderKind,
 	OrganizationMemberReminderStatus as ReminderStatus,
 } from '@nexcoderw/gym-db';
-import { IsInt, Max, Min } from 'class-validator';
+import { IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
 
 export class ReminderActivityQueryDto {
 	@ApiPropertyOptional({ default: 20, minimum: 1, maximum: 50 })
@@ -51,4 +51,52 @@ export class ReminderActivityItemDto {
 export class ReminderActivityResponseDto {
 	@ApiProperty({ type: [ReminderActivityItemDto] })
 	items!: ReminderActivityItemDto[];
+}
+
+export class UpcomingReminderQueryDto {
+	@ApiPropertyOptional({ default: 24, minimum: 1, maximum: 24 })
+	@Transform(({ value }: { value: unknown }) =>
+		typeof value === 'string' && /^[1-9][0-9]*$/u.test(value) ? Number(value) : value,
+	)
+	@IsInt()
+	@Min(1)
+	@Max(24)
+	limit = 24;
+	@ApiPropertyOptional({ format: 'uuid', description: 'Cursor from the previous page.' })
+	@IsOptional()
+	@IsUUID()
+	cursor?: string;
+}
+
+export class UpcomingReminderItemDto {
+	@ApiProperty({ format: 'uuid' })
+	subscriptionId!: string;
+	@ApiProperty({ format: 'uuid' })
+	memberId!: string;
+	@ApiProperty()
+	memberName!: string;
+	@ApiProperty()
+	planName!: string;
+	@ApiProperty({ format: 'date' })
+	endDate!: string;
+	@ApiProperty({ minimum: 0, maximum: 14 })
+	daysRemaining!: number;
+	@ApiProperty()
+	canSend!: boolean;
+	@ApiProperty({ enum: ReminderStatus, nullable: true })
+	manualStatus!: ReminderStatus | null;
+}
+
+export class UpcomingReminderResponseDto {
+	@ApiProperty({ type: [UpcomingReminderItemDto] })
+	items!: UpcomingReminderItemDto[];
+	@ApiProperty({ format: 'uuid', nullable: true })
+	nextCursor!: string | null;
+}
+
+export class QueuedReminderResponseDto {
+	@ApiProperty({ format: 'uuid' })
+	id!: string;
+	@ApiProperty({ enum: [ReminderStatus.QUEUED] })
+	status!: ReminderStatus.QUEUED;
 }
