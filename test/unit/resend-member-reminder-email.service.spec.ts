@@ -1,7 +1,6 @@
 import { jest } from '@jest/globals';
 import { ConfigService } from '@nestjs/config';
 import { Test, type TestingModule } from '@nestjs/testing';
-import { OrganizationMemberReminderKind as ReminderKind } from '@nexcoderw/gym-db';
 
 import { ResendMemberReminderEmailService } from '../../src/infrastructure/email/resend-member-reminder-email.service.js';
 
@@ -9,9 +8,8 @@ const MESSAGE_ID = '55555555-5555-4555-8555-555555555555';
 const message = {
 	recipient: 'member@example.com',
 	organizationName: 'Soho Gym',
-	planName: 'Monthly fitness',
-	endDate: '2026-10-22',
-	kind: ReminderKind.THREE_DAYS_BEFORE,
+	subject: 'Your membership ends soon',
+	body: 'Hello, please renew your membership.',
 	idempotencyKey: 'a'.repeat(64),
 };
 
@@ -67,6 +65,8 @@ describe('Resend member reminder email adapter', () => {
 		expect(payload).toMatchObject({
 			from: 'Soho Gym via Mucyora <reminders@notify.example.invalid>',
 			to: ['member@example.com'],
+			subject: message.subject,
+			text: message.body,
 		});
 	});
 
@@ -84,15 +84,10 @@ describe('Resend member reminder email adapter', () => {
 		});
 	});
 
-	it('uses accurate copy for a manually queued early reminder', async () => {
-		fetchFake.mockResolvedValueOnce(new Response(JSON.stringify({ id: MESSAGE_ID }), {
-			status: 200,
-			headers: { 'content-type': 'application/json' },
-		}));
-		await service.send({ ...message, kind: ReminderKind.MANUAL });
-		const body = fetchFake.mock.calls[0]?.[1]?.body;
-		if (typeof body !== 'string') throw new Error('Missing provider request body.');
-		const payload: unknown = JSON.parse(body);
-		expect(payload).toMatchObject({ subject: 'Your Soho Gym membership ends soon' });
+	it('rejects a subject containing header-injection characters before calling Resend', async () => {
+		expect(await service.send({ ...message, subject: 'Invalid\nSubject' })).toMatchObject({
+			kind: 'rejected',
+		});
+		expect(fetchFake).not.toHaveBeenCalled();
 	});
 });
