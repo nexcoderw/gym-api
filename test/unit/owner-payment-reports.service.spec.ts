@@ -149,11 +149,10 @@ describe('owner payment report summary', () => {
 	it('exports all selected rows with confirmed refunds and tenant-scoped batches', async () => {
 		const buffer = await service.pdf(CONTEXT, QUERY);
 		expect(buffer.subarray(0, 5).toString()).toBe('%PDF-');
-		expect(run).toHaveBeenCalledWith(
-			CONTEXT,
-			expect.any(Function),
-			{ maxWait: 5_000, timeout: 60_000 },
-		);
+		expect(run).toHaveBeenCalledWith(CONTEXT, expect.any(Function), {
+			maxWait: 5_000,
+			timeout: 60_000,
+		});
 		expect(findUnique).toHaveBeenCalledWith({
 			where: { id: CONTEXT.organizationId },
 			select: { name: true },
