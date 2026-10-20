@@ -1,17 +1,17 @@
-import type { MemberReminderSchedulerEnvironment } from './member-reminder-scheduler.environment.js';
-import { validateMemberReminderSchedulerEnvironment } from './member-reminder-scheduler.environment.js';
+import type { MemberReminderDatabaseEnvironment } from './member-reminder-database.environment.js';
+import { validateMemberReminderDatabaseEnvironment } from './member-reminder-database.environment.js';
 
-export interface MemberReminderWorkerEnvironment extends MemberReminderSchedulerEnvironment {
+export interface MemberReminderWorkerEnvironment extends MemberReminderDatabaseEnvironment {
 	readonly MEMBER_REMINDER_DELIVERY_ENABLED: true;
 	readonly RESEND_API_KEY: string;
 	readonly MEMBER_REMINDER_FROM_EMAIL: string;
 }
 
-/** A separate opt-in gate prevents a scheduler deployment from enabling delivery accidentally. */
+/** Delivery is opt-in and processes only owner-created manual reminders. */
 export function validateMemberReminderWorkerEnvironment(
 	input: Record<string, unknown>,
 ): MemberReminderWorkerEnvironment {
-	const database = validateMemberReminderSchedulerEnvironment(input);
+	const database = validateMemberReminderDatabaseEnvironment(input);
 	if (input.MEMBER_REMINDER_DELIVERY_ENABLED !== 'true') {
 		throw new Error('Member reminder delivery must be explicitly enabled.');
 	}
