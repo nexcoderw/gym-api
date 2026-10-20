@@ -4,9 +4,11 @@ import { BadRequestException, ConflictException, Injectable } from '@nestjs/comm
 import { TenantTransactionService, type Prisma } from '@nexcoderw/gym-db';
 
 import { databaseErrorCode } from '../../../common/errors/database-error-code.js';
+import { listDateRange } from '../list-date-range.js';
 import type { CreateMemberDto } from './dto/create-member.dto.js';
 import {
 	MemberStatusFilter,
+	MemberOrder,
 	type ListMembersQueryDto,
 	type MemberPageQueryDto,
 } from './dto/list-members.dto.js';
@@ -47,9 +49,21 @@ export class OwnerMembersService {
 	): Promise<MemberListResponseDto> {
 		try {
 			return await this.tenants.run(context, async (transaction) => {
-				const where = {
+				const search = query.search?.trim();
+				const dateRange = listDateRange(query.fromDate, query.toDate);
+				const where: Prisma.OrganizationMemberWhereInput = {
 					organizationId: context.organizationId,
 					archivedAt: query.status === MemberStatusFilter.ARCHIVED ? { not: null } : null,
+					...(search
+						? {
+								OR: [
+									{ name: { contains: search, mode: 'insensitive' } },
+									{ phoneNumber: { contains: search } },
+									{ email: { contains: search, mode: 'insensitive' } },
+								],
+							}
+						: {}),
+					...(Object.keys(dateRange).length ? { createdAt: dateRange } : {}),
 				};
 				if (query.cursor !== undefined) {
 					const cursor = await transaction.organizationMember.findFirst({
@@ -61,7 +75,7 @@ export class OwnerMembersService {
 				const rows = await transaction.organizationMember.findMany({
 					where,
 					select: MEMBER_SELECT,
-					orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
+					orderBy: memberOrder(query.order),
 					take: query.limit + 1,
 					...(query.cursor === undefined ? {} : { cursor: { id: query.cursor }, skip: 1 }),
 				});
@@ -342,6 +356,13 @@ export class OwnerMembersService {
 			throw memberFailure(error);
 		}
 	}
+}
+
+function memberOrder(order: MemberOrder): Prisma.OrganizationMemberOrderByWithRelationInput[] {
+	if (order === MemberOrder.OLDEST) return [{ createdAt: 'asc' }, { id: 'asc' }];
+	if (order === MemberOrder.NAME_ASC) return [{ name: 'asc' }, { id: 'asc' }];
+	if (order === MemberOrder.NAME_DESC) return [{ name: 'desc' }, { id: 'asc' }];
+	return [{ createdAt: 'desc' }, { id: 'asc' }];
 }
 
 async function registrationReplay(
