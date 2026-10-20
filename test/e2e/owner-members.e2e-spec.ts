@@ -186,7 +186,10 @@ describe('owner members HTTP security', () => {
 		await ownerRequest('get', ROOT).expect(200).expect('Cache-Control', 'no-store');
 		expect(list).toHaveBeenCalledWith(CONTEXT, { limit: 24, status: 'ACTIVE', order: 'NEWEST' });
 		await ownerRequest('get', `${ROOT}?limit=25`).expect(400);
-		await ownerRequest('get', `${ROOT}?search=member&order=NAME_ASC&fromDate=2026-10-01&toDate=2026-10-20`).expect(200);
+		await ownerRequest(
+			'get',
+			`${ROOT}?search=member&order=NAME_ASC&fromDate=2026-10-01&toDate=2026-10-20`,
+		).expect(200);
 		expect(list).toHaveBeenLastCalledWith(CONTEXT, {
 			limit: 24,
 			status: 'ACTIVE',
