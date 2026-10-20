@@ -40,6 +40,7 @@ export class OwnerPaymentReportsController {
 		description:
 			'Active gym owners only. Dates are inclusive Africa/Kigali payment days. ' +
 			'Gross includes settled payments; net subtracts confirmed refunds linked to those payments. ' +
+			'Plan totals show settled allocations before refunds, grouped by the plan name saved at registration. ' +
 			'Pending, failed and voided payments are counted but contribute no settled value.',
 	})
 	@ApiOkResponse({ type: PaymentReportSummaryDto })
