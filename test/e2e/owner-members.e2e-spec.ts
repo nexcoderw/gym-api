@@ -118,7 +118,13 @@ describe('owner members HTTP security', () => {
 	beforeEach(() => {
 		jest.clearAllMocks();
 		authenticate.mockResolvedValue(principal());
-		list.mockResolvedValue({ items: [MEMBER], nextCursor: null });
+		list.mockResolvedValue({
+			items: [MEMBER],
+			nextCursor: null,
+			totalItems: 1,
+			totalPages: 1,
+			page: null,
+		});
 		get.mockResolvedValue(MEMBER);
 		create.mockResolvedValue({ member: MEMBER, subscription: SUBSCRIPTION });
 		update.mockResolvedValue(MEMBER);
@@ -184,14 +190,21 @@ describe('owner members HTTP security', () => {
 	it('bounds pagination and scopes history and commands to the authenticated gym', async () => {
 		await ownerRequest('get', `${ROOT}?limit=51`).expect(400);
 		await ownerRequest('get', ROOT).expect(200).expect('Cache-Control', 'no-store');
-		expect(list).toHaveBeenCalledWith(CONTEXT, { limit: 24, status: 'ACTIVE', order: 'NEWEST' });
-		await ownerRequest('get', `${ROOT}?limit=25`).expect(400);
+		expect(list).toHaveBeenCalledWith(CONTEXT, { limit: 20, status: 'ACTIVE', order: 'NEWEST' });
+		await ownerRequest('get', `${ROOT}?limit=21`).expect(400);
+		await ownerRequest('get', `${ROOT}?page=17&limit=20`).expect(200);
+		expect(list).toHaveBeenLastCalledWith(CONTEXT, {
+			limit: 20,
+			page: 17,
+			status: 'ACTIVE',
+			order: 'NEWEST',
+		});
 		await ownerRequest(
 			'get',
 			`${ROOT}?order=NAME_ASC&fromDate=2026-10-01&toDate=2026-10-20`,
 		).expect(200);
 		expect(list).toHaveBeenLastCalledWith(CONTEXT, {
-			limit: 24,
+			limit: 20,
 			status: 'ACTIVE',
 			order: 'NAME_ASC',
 			fromDate: '2026-10-01',
