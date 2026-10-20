@@ -113,13 +113,13 @@ describe('owner membership plan HTTP security (e2e)', () => {
 			order: 'PRICE_ASC',
 		});
 		await ownerRequest('get', `${ROOT}?limit=25`).expect(400);
-		await ownerRequest('get', `${ROOT}?status=ARCHIVED&order=NAME_ASC&search=bronze`).expect(200);
+		await ownerRequest('get', `${ROOT}?status=ARCHIVED&order=NAME_ASC`).expect(200);
 		expect(list).toHaveBeenLastCalledWith(ORGANIZATION_ID, {
 			limit: 24,
 			status: 'ARCHIVED',
 			order: 'NAME_ASC',
-			search: 'bronze',
 		});
+		await ownerRequest('get', `${ROOT}?search=bronze`).expect(400);
 	});
 
 	it('creates a plan with only required name and price fields', async () => {
