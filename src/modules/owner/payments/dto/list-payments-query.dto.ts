@@ -1,7 +1,18 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { OrganizationPaymentMethod, OrganizationPaymentStatus } from '@nexcoderw/gym-db';
 import { Transform } from 'class-transformer';
-import { IsEnum, IsInt, IsOptional, IsUUID, Matches, Max, Min } from 'class-validator';
+import {
+	IsEnum,
+	IsInt,
+	IsOptional,
+	IsString,
+	IsUUID,
+	Matches,
+	Max,
+	MaxLength,
+	Min,
+	MinLength,
+} from 'class-validator';
 
 export enum PaymentOrder {
 	NEWEST = 'NEWEST',
@@ -11,6 +22,19 @@ export enum PaymentOrder {
 }
 
 export class ListPaymentsQueryDto {
+	@ApiPropertyOptional({
+		minLength: 3,
+		maxLength: 80,
+		description: 'Search member name, receipt or provider reference in this gym.',
+	})
+	@Transform(({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value))
+	@IsOptional()
+	@IsString()
+	@MinLength(3)
+	@MaxLength(80)
+	@Matches(/^[^\p{Cc}\p{Cf}]+$/u)
+	search?: string;
+
 	@ApiPropertyOptional({ default: 24, minimum: 1, maximum: 24 })
 	@Transform(({ value }: { value: unknown }) =>
 		typeof value === 'string' && /^[1-9][0-9]*$/u.test(value) ? Number(value) : value,
