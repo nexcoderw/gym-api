@@ -206,7 +206,10 @@ describe('owner payments HTTP security', () => {
 			{ limit: 24, order: PaymentOrder.NEWEST },
 		);
 		await ownerRequest('get', `${ROOT}?limit=25`).expect(400);
-		await ownerRequest('get', `${ROOT}?search=soho&fromDate=2026-01-01&toDate=2026-10-19&order=AMOUNT_LOW`).expect(200);
+		await ownerRequest(
+			'get',
+			`${ROOT}?search=soho&fromDate=2026-01-01&toDate=2026-10-19&order=AMOUNT_LOW`,
+		).expect(200);
 		expect(list).toHaveBeenLastCalledWith(
 			expect.objectContaining({ organizationId: ORGANIZATION_ID }),
 			{
