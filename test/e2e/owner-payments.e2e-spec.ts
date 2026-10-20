@@ -219,7 +219,12 @@ describe('owner payments HTTP security', () => {
 				toDate: '2026-10-19',
 			},
 		);
-		await ownerRequest('get', `${ROOT}?search=soho`).expect(400);
+		await ownerRequest('get', `${ROOT}?search=soho`).expect(200);
+		expect(list).toHaveBeenLastCalledWith(
+			expect.objectContaining({ organizationId: ORGANIZATION_ID }),
+			{ limit: 24, order: PaymentOrder.NEWEST, search: 'soho' },
+		);
+		await ownerRequest('get', `${ROOT}?search=so`).expect(400);
 		await ownerRequest('post', ROOT).send(INPUT).expect(400);
 		await ownerRequest('post', `${ROOT}/${PAYMENT_ID}/voids`)
 			.send({ reason: 'Incorrect entry' })
