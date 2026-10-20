@@ -7,6 +7,7 @@ import { OwnerMembersModule } from './members/owner-members.module.js';
 import { OwnerPaymentsModule } from './payments/owner-payments.module.js';
 import { OwnerPortalModule } from './portal/owner-portal.module.js';
 import { OwnerReminderActivityModule } from './reminders/owner-reminder-activity.module.js';
+import { OwnerPaymentReportsModule } from './reports/owner-payment-reports.module.js';
 
 @Module({
 	imports: [
@@ -17,6 +18,7 @@ import { OwnerReminderActivityModule } from './reminders/owner-reminder-activity
 		OwnerPaymentsModule,
 		OwnerPortalModule,
 		OwnerReminderActivityModule,
+		OwnerPaymentReportsModule,
 	],
 })
 export class OwnerModule {}
