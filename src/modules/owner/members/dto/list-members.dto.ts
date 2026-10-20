@@ -30,7 +30,38 @@ export class MemberPageQueryDto {
 	cursor?: string;
 }
 
-export class ListMembersQueryDto extends MemberPageQueryDto {
+export class ListMembersQueryDto {
+	@ApiPropertyOptional({ default: 20, minimum: 1, maximum: 20 })
+	@Transform(({ value }: { value: unknown }) =>
+		typeof value === 'string' && /^[1-9][0-9]*$/u.test(value) ? Number(value) : value,
+	)
+	@IsInt()
+	@Min(1)
+	@Max(20)
+	limit = 20;
+
+	@ApiPropertyOptional({
+		format: 'uuid',
+		description: 'Cursor pagination; cannot be combined with page.',
+	})
+	@IsOptional()
+	@IsUUID('loose')
+	cursor?: string;
+
+	@ApiPropertyOptional({
+		minimum: 1,
+		maximum: 100_000,
+		description: 'Numbered page; cannot be combined with cursor.',
+	})
+	@Transform(({ value }: { value: unknown }) =>
+		typeof value === 'string' && /^[1-9][0-9]*$/u.test(value) ? Number(value) : value,
+	)
+	@IsOptional()
+	@IsInt()
+	@Min(1)
+	@Max(100_000)
+	page?: number;
+
 	@ApiPropertyOptional({ enum: MemberStatusFilter, default: MemberStatusFilter.ACTIVE })
 	@IsEnum(MemberStatusFilter)
 	status: MemberStatusFilter = MemberStatusFilter.ACTIVE;
