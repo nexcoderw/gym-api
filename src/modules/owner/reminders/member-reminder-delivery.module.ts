@@ -9,7 +9,7 @@ import {
 import { ResendMemberReminderEmailService } from '../../../infrastructure/email/resend-member-reminder-email.service.js';
 import { MemberReminderDeliveryService } from './member-reminder-delivery.service.js';
 
-/** Isolated run-once sender: never starts with the API or scheduler process. */
+/** Isolated run-once sender: only owner-queued reminders, never an API startup side effect. */
 @Module({
 	imports: [
 		ConfigModule.forRoot({
