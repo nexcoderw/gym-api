@@ -31,6 +31,13 @@ const SUMMARY = {
 	grossRwf: '15000',
 	refundedRwf: '0',
 	netRwf: '15000',
+	planTotals: [
+		{
+			planId: '33333333-3333-4333-8333-333333333333',
+			planName: 'Gold Plan',
+			grossRwf: '15000',
+		},
+	],
 	generatedAt: '2026-02-01T08:00:00.000Z',
 };
 
