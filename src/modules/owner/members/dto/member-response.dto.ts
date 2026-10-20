@@ -76,6 +76,20 @@ export class MemberListResponseDto {
 	items!: MemberResponseDto[];
 	@ApiProperty({ type: String, nullable: true, format: 'uuid' })
 	nextCursor!: string | null;
+	@ApiProperty({
+		minimum: 0,
+		description: 'Members matching the tenant, status, and date filters.',
+	})
+	totalItems!: number;
+	@ApiProperty({ minimum: 0, description: 'Number of pages at the requested limit.' })
+	totalPages!: number;
+	@ApiProperty({
+		type: Number,
+		nullable: true,
+		minimum: 1,
+		description: 'Resolved numbered page, or null for cursor pagination.',
+	})
+	page!: number | null;
 }
 
 export class MemberSubscriptionListResponseDto {
