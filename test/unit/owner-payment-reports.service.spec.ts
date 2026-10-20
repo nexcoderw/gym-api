@@ -42,7 +42,9 @@ describe('owner payment report summary', () => {
 	const aggregate = jest.fn<() => Promise<{ _sum: { amountRwf: bigint | null } }>>();
 	const findUnique = jest.fn<() => Promise<{ name: string } | null>>();
 	const findMany = jest.fn<() => Promise<(typeof PAYMENT)[]>>();
-	const queryRaw = jest.fn<() => Promise<{ planId: string | null; planName: string; grossRwf: bigint }[]>>();
+	const queryRaw = jest.fn<
+		() => Promise<{ planId: string | null; planName: string; grossRwf: bigint }[]>
+	>();
 	const transaction = {
 		organization: { findUnique },
 		organizationPayment: { groupBy, findMany },
