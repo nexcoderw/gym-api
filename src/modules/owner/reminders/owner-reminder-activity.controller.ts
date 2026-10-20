@@ -1,4 +1,16 @@
-import { Controller, Get, Header, HttpCode, Param, ParseUUIDPipe, Post, Query, Req, UseGuards } from '@nestjs/common';
+import {
+	Body,
+	Controller,
+	Get,
+	Header,
+	HttpCode,
+	Param,
+	ParseUUIDPipe,
+	Post,
+	Query,
+	Req,
+	UseGuards,
+} from '@nestjs/common';
 import {
 	ApiAcceptedResponse,
 	ApiBadRequestResponse,
@@ -24,6 +36,7 @@ import {
 	ReminderActivityQueryDto,
 	ReminderActivityResponseDto,
 	QueuedReminderResponseDto,
+	SendManualReminderDto,
 	UpcomingReminderQueryDto,
 	UpcomingReminderResponseDto,
 } from './dto/reminder-activity.dto.js';
@@ -78,15 +91,16 @@ export class OwnerReminderActivityController {
 	@ApiConflictResponse({ type: ApiErrorResponseDto })
 	@ApiNotFoundResponse({ type: ApiErrorResponseDto })
 	@ApiOperation({
-		summary: 'Queue one manual email reminder for an expiring membership',
+		summary: 'Queue one owner-composed email reminder for an expiring membership',
 		description:
 			'The owner session determines the gym. Consent and expiry are rechecked before queuing and again before delivery. Repeated requests cannot queue another manual reminder for the same subscription.',
 	})
 	@ApiAcceptedResponse({ type: QueuedReminderResponseDto })
 	queueManual(
 		@Param('subscriptionId', new ParseUUIDPipe()) subscriptionId: string,
+		@Body() input: SendManualReminderDto,
 		@Req() request: OwnerRequest,
 	): Promise<QueuedReminderResponseDto> {
-		return this.activity.queueManual(ownerReminderOrganizationId(request), subscriptionId);
+		return this.activity.queueManual(ownerReminderOrganizationId(request), subscriptionId, input);
 	}
 }
