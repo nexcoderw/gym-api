@@ -2,7 +2,7 @@ import { jest } from '@jest/globals';
 import { ConfigService } from '@nestjs/config';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Test } from '@nestjs/testing';
-import { OrganizationStatus } from '@nexcoderw/gym-db';
+import { OrganizationMemberReminderStatus as ReminderStatus, OrganizationStatus } from '@nexcoderw/gym-db';
 import request from 'supertest';
 
 import { configureApplication } from '../../src/app-bootstrap.js';
@@ -19,6 +19,9 @@ import { OwnerReminderActivityController } from '../../src/modules/owner/reminde
 import { OwnerReminderActivityService } from '../../src/modules/owner/reminders/owner-reminder-activity.service.js';
 
 const ROOT = '/api/v1/owner/reminders/activity';
+const UPCOMING = '/api/v1/owner/reminders/upcoming';
+const SUBSCRIPTION_ID = '77777777-7777-4777-8777-777777777777';
+const MANUAL = `/api/v1/owner/reminders/subscriptions/${SUBSCRIPTION_ID}/deliveries`;
 const ORIGIN = 'https://soho.mucyora.rw';
 const OTHER_ORIGIN = 'https://othergym.mucyora.rw';
 const ORGANIZATION_ID = '11111111-1111-4111-8111-111111111111';
@@ -29,6 +32,8 @@ describe('owner reminder activity HTTP security', () => {
 	let application: NestExpressApplication | undefined;
 	const authenticate = jest.fn<OwnerSessionService['authenticate']>();
 	const list = jest.fn<OwnerReminderActivityService['list']>();
+	const upcoming = jest.fn<OwnerReminderActivityService['upcoming']>();
+	const queueManual = jest.fn<OwnerReminderActivityService['queueManual']>();
 
 	beforeAll(async () => {
 		const values = new Map<string, unknown>([
@@ -51,7 +56,7 @@ describe('owner reminder activity HTTP security', () => {
 						isValid: (value: string) => value === TOKEN,
 					},
 				},
-				{ provide: OwnerReminderActivityService, useValue: { list } },
+				{ provide: OwnerReminderActivityService, useValue: { list, upcoming, queueManual } },
 			],
 		}).compile();
 		application = module.createNestApplication<NestExpressApplication>();
@@ -67,6 +72,8 @@ describe('owner reminder activity HTTP security', () => {
 		jest.clearAllMocks();
 		authenticate.mockResolvedValue(principal());
 		list.mockResolvedValue({ items: [] });
+		upcoming.mockResolvedValue({ items: [], nextCursor: null });
+		queueManual.mockResolvedValue({ id: '88888888-8888-4888-8888-888888888888', status: ReminderStatus.QUEUED });
 	});
 
 	afterAll(async () => application?.close());
@@ -92,6 +99,24 @@ describe('owner reminder activity HTTP security', () => {
 		expect(list).not.toHaveBeenCalled();
 	});
 
+	it('lists only the authenticated gym upcoming expiries with a bounded page', async () => {
+		await ownerRequest(UPCOMING).expect(200).expect('Cache-Control', 'no-store');
+		expect(upcoming).toHaveBeenCalledWith(ORGANIZATION_ID, { limit: 24 });
+		await ownerRequest(`${UPCOMING}?limit=25`).expect(400);
+		await ownerRequest(`${UPCOMING}?organizationId=${ORGANIZATION_ID}`).expect(400);
+		await request(app().getHttpServer()).get(UPCOMING).set('Origin', ORIGIN).expect(401);
+		await ownerRequest(UPCOMING).set('Origin', OTHER_ORIGIN).expect(401);
+	});
+
+	it('requires owner session, tenant origin and CSRF for manual email queueing', async () => {
+		await request(app().getHttpServer()).post(MANUAL).set('Origin', ORIGIN).expect(401);
+		await manualRequest().set('x-owner-csrf-token', 'invalid').expect(403);
+		await manualRequest().set('Origin', OTHER_ORIGIN).set('x-owner-csrf-token', CSRF).expect(401);
+		expect(queueManual).not.toHaveBeenCalled();
+		await manualRequest().set('x-owner-csrf-token', CSRF).expect(202);
+		expect(queueManual).toHaveBeenCalledWith(ORGANIZATION_ID, SUBSCRIPTION_ID);
+	});
+
 	function app(): NestExpressApplication {
 		if (application === undefined) throw new Error('Reminder activity test app is unavailable.');
 		return application;
@@ -100,6 +125,13 @@ describe('owner reminder activity HTTP security', () => {
 	function ownerRequest(path: string): request.Test {
 		return request(app().getHttpServer())
 			.get(path)
+			.set('Origin', ORIGIN)
+			.set('Cookie', `${OWNER_SESSION_COOKIE}=${TOKEN}; ${OWNER_CSRF_COOKIE}=${CSRF}`);
+	}
+
+	function manualRequest(): request.Test {
+		return request(app().getHttpServer())
+			.post(MANUAL)
 			.set('Origin', ORIGIN)
 			.set('Cookie', `${OWNER_SESSION_COOKIE}=${TOKEN}; ${OWNER_CSRF_COOKIE}=${CSRF}`);
 	}
