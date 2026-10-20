@@ -22,6 +22,15 @@ export class PaymentReportQueryDto {
 }
 
 /** Whole-RWF amounts are decimal strings so large report totals never lose integer precision. */
+export class PaymentReportPlanTotalDto {
+	@ApiProperty({ type: String, nullable: true, format: 'uuid' })
+	planId!: string | null;
+	@ApiProperty({ example: 'Gold Plan' })
+	planName!: string;
+	@ApiProperty({ type: String, pattern: '^[0-9]+$' })
+	grossRwf!: string;
+}
+
 export class PaymentReportSummaryDto {
 	@ApiProperty({ format: 'date' })
 	fromDate!: string;
@@ -47,6 +56,12 @@ export class PaymentReportSummaryDto {
 	refundedRwf!: string;
 	@ApiProperty({ type: String, pattern: '^[0-9]+$', description: 'Gross less confirmed refunds.' })
 	netRwf!: string;
+	@ApiProperty({
+		type: [PaymentReportPlanTotalDto],
+		description:
+			'Settled payment allocations by registered plan, before refunds. At most 24 plans are listed individually; the remainder is grouped as Other plans.',
+	})
+	planTotals!: PaymentReportPlanTotalDto[];
 	@ApiProperty({ format: 'date-time' })
 	generatedAt!: string;
 }
