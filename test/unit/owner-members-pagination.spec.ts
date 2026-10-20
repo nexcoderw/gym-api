@@ -87,6 +87,23 @@ describe('owner member numbered pagination', () => {
 		expect(findMany).toHaveBeenCalledWith(expect.objectContaining({ skip: 20, take: 20 }));
 	});
 
+	it('counts and pages only tenant members matching the search', async () => {
+		count.mockResolvedValue(1);
+		const response = await service.list(CONTEXT, { ...QUERY, search: 'Example' });
+		expect(response.totalItems).toBe(1);
+		const where = {
+			organizationId: CONTEXT.organizationId,
+			archivedAt: null,
+			OR: [
+				{ name: { contains: 'Example', mode: 'insensitive' } },
+				{ phoneNumber: { contains: 'Example', mode: 'insensitive' } },
+				{ email: { contains: 'Example', mode: 'insensitive' } },
+			],
+		};
+		expect(count).toHaveBeenCalledWith({ where });
+		expect(findMany).toHaveBeenCalledWith(expect.objectContaining({ where }));
+	});
+
 	it('rejects mixing page and cursor modes', async () => {
 		await expect(
 			service.list(CONTEXT, { ...QUERY, page: 2, cursor: MEMBER.id }),
