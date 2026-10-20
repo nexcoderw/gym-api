@@ -37,4 +37,23 @@ For example, a fictional Soho Gym report may return:
 }
 ```
 
-The full-list PDF export is not part of this endpoint and remains a later task.
+## PDF export
+
+`GET /api/v1/owner/reports/payments/pdf?fromDate=2026-01-01&toDate=2026-01-31`
+
+The PDF uses the same required, inclusive Kigali payment dates and owner-session authorization as
+the summary endpoint. It downloads as `payments-2026-01-01-to-2026-01-31.pdf` with
+`Content-Type: application/pdf`, `Content-Disposition: attachment` and `Cache-Control: no-store`.
+No `page`, `cursor` or `limit` parameter is accepted. The backend reads the selected gym's rows in
+small database batches, but the PDF includes the entire selected list in chronological order.
+
+Each row shows the Kigali payment time, receipt, member name, method, status, original amount,
+confirmed refund amount and current net value. The totals in the PDF are calculated from those
+same rows; pending, failed and voided rows are present for audit context but have zero settled net
+value. The export does not include email addresses, phone numbers, provider references or internal
+payment identifiers.
+
+An export exceeding 10,000 payments returns `413 PAYMENT_REPORT_TOO_LARGE` before sending any PDF
+bytes. Select a shorter date range to obtain complete, non-truncated exports. Database or PDF
+generation failures return a safe `503 PAYMENT_REPORT_UNAVAILABLE` response. Generated PDFs are
+returned directly to the authorized caller and are not stored by the API.
