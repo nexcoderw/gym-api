@@ -210,7 +210,14 @@ describe('owner members HTTP security', () => {
 			fromDate: '2026-10-01',
 			toDate: '2026-10-20',
 		});
-		await ownerRequest('get', `${ROOT}?search=member`).expect(400);
+		await ownerRequest('get', `${ROOT}?search=member`).expect(200);
+		expect(list).toHaveBeenLastCalledWith(CONTEXT, {
+			limit: 20,
+			status: 'ACTIVE',
+			order: 'NEWEST',
+			search: 'member',
+		});
+		await ownerRequest('get', `${ROOT}?search=me`).expect(400);
 		await ownerRequest('get', `${ROOT}/${MEMBER_ID}/subscriptions`).expect(200);
 		expect(subscriptions).toHaveBeenCalledWith(CONTEXT, MEMBER_ID, { limit: 24 });
 		await ownerRequest('post', `${ROOT}/${MEMBER_ID}/subscriptions`)
