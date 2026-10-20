@@ -1,10 +1,12 @@
-import { Controller, Get, Header, Query, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, Header, Query, Req, StreamableFile, UseGuards } from '@nestjs/common';
 import {
 	ApiBadRequestResponse,
 	ApiCookieAuth,
 	ApiForbiddenResponse,
 	ApiOkResponse,
 	ApiOperation,
+	ApiPayloadTooLargeResponse,
+	ApiProduces,
 	ApiServiceUnavailableResponse,
 	ApiTags,
 	ApiTooManyRequestsResponse,
@@ -46,5 +48,28 @@ export class OwnerPaymentReportsController {
 		@Req() request: OwnerRequest,
 	): Promise<PaymentReportSummaryDto> {
 		return this.reports.summary(ownerPaymentContext(request), query);
+	}
+
+	@Get('pdf')
+	@Header('Cache-Control', 'no-store')
+	@ApiProduces('application/pdf')
+	@ApiOperation({
+		summary: 'Download the full gym payment report as PDF',
+		description:
+			'Active gym owners only. Includes every payment in the selected inclusive Kigali date range, ' +
+			'with no client pagination. Exports above 10,000 payments require a shorter date range.',
+	})
+	@ApiOkResponse({ schema: { type: 'string', format: 'binary' } })
+	@ApiPayloadTooLargeResponse({ type: ApiErrorResponseDto })
+	async pdf(
+		@Query() query: PaymentReportQueryDto,
+		@Req() request: OwnerRequest,
+	): Promise<StreamableFile> {
+		const pdf = await this.reports.pdf(ownerPaymentContext(request), query);
+		return new StreamableFile(pdf, {
+			type: 'application/pdf',
+			disposition: `attachment; filename="payments-${query.fromDate}-to-${query.toDate}.pdf"`,
+			length: pdf.length,
+		});
 	}
 }
