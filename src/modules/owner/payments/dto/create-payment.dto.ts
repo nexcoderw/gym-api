@@ -17,11 +17,11 @@ import {
 
 export class CreatePaymentDto {
 	@ApiProperty({ format: 'uuid' })
-	@IsUUID()
+	@IsUUID('loose')
 	memberId!: string;
 
 	@ApiProperty({ format: 'uuid', description: 'A registration belonging to this member and gym.' })
-	@IsUUID()
+	@IsUUID('loose')
 	subscriptionId!: string;
 
 	@ApiProperty({ minimum: 1, maximum: 1_000_000_000, description: 'Whole Rwandan francs.' })
