@@ -74,7 +74,11 @@ const PAYMENT = {
 		{
 			memberSubscriptionId: SUBSCRIPTION_ID,
 			amountRwf: 30_000n,
-			memberSubscription: { planName: 'Monthly access' },
+			memberSubscription: {
+				planName: SUBSCRIPTION.planName,
+				startDate: SUBSCRIPTION.startDate,
+				endDate: SUBSCRIPTION.endDate,
+			},
 		},
 	],
 	refunds: [],
