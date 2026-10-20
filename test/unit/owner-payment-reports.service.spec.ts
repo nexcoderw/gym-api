@@ -42,10 +42,12 @@ describe('owner payment report summary', () => {
 	const aggregate = jest.fn<() => Promise<{ _sum: { amountRwf: bigint | null } }>>();
 	const findUnique = jest.fn<() => Promise<{ name: string } | null>>();
 	const findMany = jest.fn<() => Promise<(typeof PAYMENT)[]>>();
+	const queryRaw = jest.fn<() => Promise<{ planId: string | null; planName: string; grossRwf: bigint }[]>>();
 	const transaction = {
 		organization: { findUnique },
 		organizationPayment: { groupBy, findMany },
 		organizationPaymentRefund: { aggregate },
+		$queryRaw: queryRaw,
 	};
 	const run =
 		jest.fn<
@@ -71,6 +73,13 @@ describe('owner payment report summary', () => {
 			},
 		]);
 		aggregate.mockResolvedValue({ _sum: { amountRwf: 5_000n } });
+		queryRaw.mockResolvedValue([
+			{
+				planId: '55555555-5555-4555-8555-555555555555',
+				planName: 'Gold Plan',
+				grossRwf: 20_000n,
+			},
+		]);
 		findUnique.mockResolvedValue({ name: 'Soho Gym' });
 		findMany.mockResolvedValue([PAYMENT]);
 		module = await Test.createTestingModule({
@@ -106,6 +115,7 @@ describe('owner payment report summary', () => {
 			},
 			_sum: { amountRwf: true },
 		});
+		expect(queryRaw).toHaveBeenCalledTimes(1);
 		expect(result).toMatchObject({
 			...QUERY,
 			currency: 'RWF',
@@ -114,6 +124,13 @@ describe('owner payment report summary', () => {
 			grossRwf: '30000',
 			refundedRwf: '5000',
 			netRwf: '25000',
+			planTotals: [
+				{
+					planId: '55555555-5555-4555-8555-555555555555',
+					planName: 'Gold Plan',
+					grossRwf: '20000',
+				},
+			],
 		});
 		expect(Number.isNaN(Date.parse(result.generatedAt))).toBe(false);
 	});
@@ -121,12 +138,14 @@ describe('owner payment report summary', () => {
 	it('returns zero totals for an empty date range', async () => {
 		groupBy.mockResolvedValue([]);
 		aggregate.mockResolvedValue({ _sum: { amountRwf: null } });
+		queryRaw.mockResolvedValue([]);
 		await expect(service.summary(CONTEXT, QUERY)).resolves.toMatchObject({
 			paymentCount: 0,
 			settledPaymentCount: 0,
 			grossRwf: '0',
 			refundedRwf: '0',
 			netRwf: '0',
+			planTotals: [],
 		});
 	});
 
@@ -141,6 +160,13 @@ describe('owner payment report summary', () => {
 
 	it('hides database failures behind a stable unavailable response', async () => {
 		groupBy.mockRejectedValue(new Error('private database detail'));
+		await expect(service.summary(CONTEXT, QUERY)).rejects.toBeInstanceOf(
+			ServiceUnavailableException,
+		);
+	});
+
+	it('does not expose a failed plan aggregate as an incomplete report', async () => {
+		queryRaw.mockRejectedValue(new Error('private database detail'));
 		await expect(service.summary(CONTEXT, QUERY)).rejects.toBeInstanceOf(
 			ServiceUnavailableException,
 		);
