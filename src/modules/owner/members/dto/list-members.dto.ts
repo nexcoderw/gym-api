@@ -1,16 +1,6 @@
 import { Transform } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import {
-	IsEnum,
-	IsInt,
-	IsOptional,
-	IsString,
-	IsUUID,
-	Matches,
-	Max,
-	MaxLength,
-	Min,
-} from 'class-validator';
+import { IsEnum, IsInt, IsOptional, IsUUID, Matches, Max, Min } from 'class-validator';
 
 export enum MemberOrder {
 	NEWEST = 'NEWEST',
@@ -48,12 +38,6 @@ export class ListMembersQueryDto extends MemberPageQueryDto {
 	@ApiPropertyOptional({ enum: MemberOrder, default: MemberOrder.NEWEST })
 	@IsEnum(MemberOrder)
 	order: MemberOrder = MemberOrder.NEWEST;
-
-	@ApiPropertyOptional({ maxLength: 80 })
-	@IsOptional()
-	@IsString()
-	@MaxLength(80)
-	search?: string;
 
 	@ApiPropertyOptional({
 		example: '2026-01-01',
