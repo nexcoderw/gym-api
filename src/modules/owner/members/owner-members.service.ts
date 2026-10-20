@@ -49,20 +49,10 @@ export class OwnerMembersService {
 	): Promise<MemberListResponseDto> {
 		try {
 			return await this.tenants.run(context, async (transaction) => {
-				const search = query.search?.trim();
 				const dateRange = listDateRange(query.fromDate, query.toDate);
 				const where: Prisma.OrganizationMemberWhereInput = {
 					organizationId: context.organizationId,
 					archivedAt: query.status === MemberStatusFilter.ARCHIVED ? { not: null } : null,
-					...(search
-						? {
-								OR: [
-									{ name: { contains: search, mode: 'insensitive' } },
-									{ phoneNumber: { contains: search } },
-									{ email: { contains: search, mode: 'insensitive' } },
-								],
-							}
-						: {}),
 					...(Object.keys(dateRange).length ? { createdAt: dateRange } : {}),
 				};
 				if (query.cursor !== undefined) {
