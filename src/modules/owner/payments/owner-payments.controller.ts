@@ -61,7 +61,8 @@ export class OwnerPaymentsController {
 	@Header('Cache-Control', 'no-store')
 	@ApiOperation({
 		summary: 'List gym payments',
-		description: 'Tenant-scoped payment ledger with bounded cursor pagination and stable ordering.',
+		description:
+			'Tenant-scoped payment ledger with bounded cursor pagination, stable ordering and optional member, receipt or reference search.',
 	})
 	@ApiOkResponse({ type: PaymentListResponseDto })
 	list(
