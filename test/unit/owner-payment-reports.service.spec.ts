@@ -165,12 +165,19 @@ describe('owner payment report summary', () => {
 					lt: new Date('2026-01-31T22:00:00.000Z'),
 				},
 			},
-			select: expect.objectContaining({
+			select: {
+				id: true,
+				receiptNumber: true,
+				amountRwf: true,
+				method: true,
+				status: true,
+				occurredAt: true,
+				member: { select: { name: true } },
 				refunds: {
 					where: { status: OrganizationPaymentRefundStatus.CONFIRMED },
 					select: { amountRwf: true },
 				},
-			}),
+			},
 			orderBy: [{ occurredAt: 'asc' }, { id: 'asc' }],
 			take: 201,
 		});
@@ -179,8 +186,8 @@ describe('owner payment report summary', () => {
 	it('continues the PDF export past an internal database batch', async () => {
 		const firstBatch = Array.from({ length: 201 }, (_, index) => ({
 			...PAYMENT,
-			id: `payment-${index}`,
-			receiptNumber: `PAY-20260101-${index}`,
+			id: `payment-${String(index)}`,
+			receiptNumber: `PAY-20260101-${String(index)}`,
 		}));
 		findMany.mockResolvedValueOnce(firstBatch).mockResolvedValueOnce([firstBatch[200] ?? PAYMENT]);
 		const buffer = await service.pdf(CONTEXT, QUERY);
@@ -193,7 +200,7 @@ describe('owner payment report summary', () => {
 
 	it('rejects an oversized export without returning a truncated PDF', async () => {
 		findMany.mockResolvedValue(
-			Array.from({ length: 201 }, (_, index) => ({ ...PAYMENT, id: `payment-${index}` })),
+			Array.from({ length: 201 }, (_, index) => ({ ...PAYMENT, id: `payment-${String(index)}` })),
 		);
 		await expect(service.pdf(CONTEXT, QUERY)).rejects.toMatchObject({ status: 413 });
 	});
