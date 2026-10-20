@@ -22,10 +22,12 @@ const row = {
 	status: ReminderStatus.PROCESSING,
 	leaseExpiresAt: new Date(NOW.getTime() + 30_000),
 	attemptCount: 1,
-	kind: ReminderKind.THREE_DAYS_BEFORE,
+	kind: ReminderKind.MANUAL,
 	dueDate: new Date('2026-10-19T00:00:00.000Z'),
 	recipientEmail: 'member@example.com',
 	providerIdempotencyKey: 'a'.repeat(64),
+	messageSubject: 'Your membership ends soon',
+	messageBody: 'Hello, please renew.',
 	organization: { name: 'Soho Gym', status: OrganizationStatus.ACTIVE },
 	member: {
 		email: 'member@example.com',
@@ -89,14 +91,18 @@ describe('member reminder delivery', () => {
 		expect(send).toHaveBeenCalledWith({
 			recipient: 'member@example.com',
 			organizationName: 'Soho Gym',
-			planName: 'Monthly fitness',
-			endDate: '2026-10-22',
-			kind: ReminderKind.THREE_DAYS_BEFORE,
+			subject: row.messageSubject,
+			body: row.messageBody,
 			idempotencyKey: 'a'.repeat(64),
 		});
 		expect(updateMany.mock.calls[2]?.[0]).toMatchObject({
 			where: { id: ID, organizationId: ORGANIZATION_ID, status: ReminderStatus.PROCESSING },
-			data: { status: ReminderStatus.ACCEPTED, providerMessageId: MESSAGE_ID },
+			data: {
+				status: ReminderStatus.ACCEPTED,
+				providerMessageId: MESSAGE_ID,
+				messageSubject: null,
+				messageBody: null,
+			},
 		});
 	});
 
@@ -111,6 +117,15 @@ describe('member reminder delivery', () => {
 		expect(send).not.toHaveBeenCalled();
 	});
 
+	it('selects only manual reminders for delivery', async () => {
+		findMany.mockResolvedValueOnce([]);
+		await service.runOnce(NOW);
+		expect(findMany.mock.calls[0]?.[0]).toMatchObject({
+			where: { kind: ReminderKind.MANUAL },
+		});
+		expect(send).not.toHaveBeenCalled();
+	});
+
 	it('delivers a queued manual reminder while still in the 14-day window', async () => {
 		findFirst.mockResolvedValueOnce({
 			...row,
@@ -119,7 +134,7 @@ describe('member reminder delivery', () => {
 			subscription: { ...row.subscription, endDate: new Date('2026-10-30T00:00:00.000Z') },
 		});
 		expect(await service.runOnce(NOW)).toMatchObject({ accepted: 1, skipped: 0 });
-		expect(send.mock.calls[0]?.[0]).toMatchObject({ kind: ReminderKind.MANUAL });
+		expect(send.mock.calls[0]?.[0]).toMatchObject({ subject: row.messageSubject });
 	});
 
 	it('skips a manual reminder when membership expiry is no longer upcoming', async () => {
@@ -143,6 +158,7 @@ describe('member reminder delivery', () => {
 			label: 'recipient changed',
 			change: { member: { ...row.member, email: 'other@example.com' } },
 		},
+		{ label: 'message missing', change: { messageBody: null } },
 	])('skips $label immediately before submission', async ({ change }) => {
 		findFirst.mockResolvedValueOnce({ ...row, ...change });
 		expect(await service.runOnce(NOW)).toEqual({
@@ -207,13 +223,12 @@ describe('member reminder delivery environment', () => {
 	const configuration = {
 		NODE_ENV: 'test',
 		DATABASE_URL: 'postgresql://gym_app:fictional@localhost:5432/gym_test',
-		MEMBER_REMINDER_SCHEDULER_ENABLED: 'true',
 		MEMBER_REMINDER_DELIVERY_ENABLED: 'true',
 		RESEND_API_KEY: 're_fictional',
 		MEMBER_REMINDER_FROM_EMAIL: 'reminders@notify.example.invalid',
 	};
 
-	it('requires both gates and a controlled sender', () => {
+	it('requires the delivery gate and a controlled sender', () => {
 		expect(
 			validateMemberReminderWorkerEnvironment(configuration).MEMBER_REMINDER_DELIVERY_ENABLED,
 		).toBe(true);
