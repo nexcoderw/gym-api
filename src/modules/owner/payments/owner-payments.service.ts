@@ -584,6 +584,15 @@ function paymentWhere(
 	const dateRange = listDateRange(query.fromDate, query.toDate);
 	return {
 		organizationId,
+		...(query.search === undefined
+			? {}
+			: {
+					OR: [
+						{ member: { is: { name: { contains: query.search, mode: 'insensitive' } } } },
+						{ receiptNumber: { contains: query.search, mode: 'insensitive' } },
+						{ providerReference: { contains: query.search, mode: 'insensitive' } },
+					],
+				}),
 		...(query.status === undefined ? {} : { status: query.status }),
 		...(query.method === undefined ? {} : { method: query.method }),
 		...(query.memberId === undefined ? {} : { memberId: query.memberId }),
