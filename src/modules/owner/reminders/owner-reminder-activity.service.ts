@@ -19,6 +19,7 @@ import {
 	type ReminderActivityItemDto,
 	type ReminderActivityResponseDto,
 	QueuedReminderResponseDto,
+	type SendManualReminderDto,
 	UpcomingReminderQueryDto,
 	type UpcomingReminderResponseDto,
 } from './dto/reminder-activity.dto.js';
@@ -46,7 +47,9 @@ export class OwnerReminderActivityService {
 		if (query.cursor !== undefined) {
 			const cursor = await this.prisma.organizationMemberSubscription
 				.findFirst({ where: { id: query.cursor, organizationId }, select: { id: true } })
-				.catch((error: unknown) => { throw reminderUnavailable(error); });
+				.catch((error: unknown) => {
+					throw reminderUnavailable(error);
+				});
 			if (cursor === null) throw new NotFoundException('Reminder page is no longer available.');
 		}
 		const rows = await this.prisma.organizationMemberSubscription
@@ -84,7 +87,9 @@ export class OwnerReminderActivityService {
 				...(query.cursor === undefined ? {} : { cursor: { id: query.cursor }, skip: 1 }),
 				take: query.limit + 1,
 			})
-			.catch((error: unknown) => { throw reminderUnavailable(error); });
+			.catch((error: unknown) => {
+				throw reminderUnavailable(error);
+			});
 		const hasMore = rows.length > query.limit;
 		return {
 			items: rows.slice(0, query.limit).map((row) => ({
@@ -102,13 +107,14 @@ export class OwnerReminderActivityService {
 					row.reminderDeliveries.length === 0,
 				manualStatus: row.reminderDeliveries[0]?.status ?? null,
 			})),
-			nextCursor: hasMore ? rows[query.limit - 1]?.id ?? null : null,
+			nextCursor: hasMore ? (rows[query.limit - 1]?.id ?? null) : null,
 		};
 	}
 
 	async queueManual(
 		organizationId: string,
 		subscriptionId: string,
+		input: SendManualReminderDto,
 		now = new Date(),
 	): Promise<QueuedReminderResponseDto> {
 		const today = memberToday(now);
@@ -131,7 +137,9 @@ export class OwnerReminderActivityService {
 					},
 				},
 			})
-			.catch((error: unknown) => { throw reminderUnavailable(error); });
+			.catch((error: unknown) => {
+				throw reminderUnavailable(error);
+			});
 		if (row === null) throw new NotFoundException('Membership registration not found.');
 		const email = row.member.email?.trim();
 		if (
@@ -149,25 +157,39 @@ export class OwnerReminderActivityService {
 		}
 		const id = randomUUID();
 		const providerIdempotencyKey = createHash('sha256')
-			.update(['member-reminder-v1', organizationId, subscriptionId, ReminderKind.MANUAL, ReminderChannel.EMAIL].join('\x1f'))
+			.update(
+				[
+					'member-reminder-v1',
+					organizationId,
+					subscriptionId,
+					ReminderKind.MANUAL,
+					ReminderChannel.EMAIL,
+				].join('\x1f'),
+			)
 			.digest('hex');
 		const created = await this.prisma.organizationMemberReminderDelivery
 			.createMany({
-				data: [{
-					id,
-					organizationId,
-					memberId: row.memberId,
-					memberSubscriptionId: subscriptionId,
-					kind: ReminderKind.MANUAL,
-					channel: ReminderChannel.EMAIL,
-					dueDate: new Date(`${today}T00:00:00.000Z`),
-					recipientEmail: email,
-					nextAttemptAt: now,
-					providerIdempotencyKey,
-				}],
+				data: [
+					{
+						id,
+						organizationId,
+						memberId: row.memberId,
+						memberSubscriptionId: subscriptionId,
+						kind: ReminderKind.MANUAL,
+						channel: ReminderChannel.EMAIL,
+						dueDate: new Date(`${today}T00:00:00.000Z`),
+						recipientEmail: email,
+						messageSubject: input.subject.trim(),
+						messageBody: input.body.trim(),
+						nextAttemptAt: now,
+						providerIdempotencyKey,
+					},
+				],
 				skipDuplicates: true,
 			})
-			.catch((error: unknown) => { throw reminderUnavailable(error); });
+			.catch((error: unknown) => {
+				throw reminderUnavailable(error);
+			});
 		if (created.count !== 1) {
 			throw new ConflictException('A manual reminder already exists for this membership.');
 		}
@@ -228,12 +250,18 @@ function addDays(day: string, count: number): string {
 }
 
 function daysBetween(start: string, end: string): number {
-	return Math.round((Date.parse(`${end}T00:00:00.000Z`) - Date.parse(`${start}T00:00:00.000Z`)) / 86_400_000);
+	return Math.round(
+		(Date.parse(`${end}T00:00:00.000Z`) - Date.parse(`${start}T00:00:00.000Z`)) /
+			86_400_000,
+	);
 }
 
 function reminderUnavailable(cause: unknown): ServiceUnavailableException {
-	return new ServiceUnavailableException({
-		code: 'REMINDER_ACTIVITY_UNAVAILABLE',
-		message: 'Reminder activity is temporarily unavailable.',
-	}, { cause });
+	return new ServiceUnavailableException(
+		{
+			code: 'REMINDER_ACTIVITY_UNAVAILABLE',
+			message: 'Reminder activity is temporarily unavailable.',
+		},
+		{ cause },
+	);
 }
