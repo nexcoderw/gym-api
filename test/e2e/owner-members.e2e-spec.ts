@@ -184,9 +184,19 @@ describe('owner members HTTP security', () => {
 	it('bounds pagination and scopes history and commands to the authenticated gym', async () => {
 		await ownerRequest('get', `${ROOT}?limit=51`).expect(400);
 		await ownerRequest('get', ROOT).expect(200).expect('Cache-Control', 'no-store');
-		expect(list).toHaveBeenCalledWith(CONTEXT, { limit: 20, status: 'ACTIVE' });
+		expect(list).toHaveBeenCalledWith(CONTEXT, { limit: 24, status: 'ACTIVE', order: 'NEWEST' });
+		await ownerRequest('get', `${ROOT}?limit=25`).expect(400);
+		await ownerRequest('get', `${ROOT}?search=member&order=NAME_ASC&fromDate=2026-10-01&toDate=2026-10-20`).expect(200);
+		expect(list).toHaveBeenLastCalledWith(CONTEXT, {
+			limit: 24,
+			status: 'ACTIVE',
+			order: 'NAME_ASC',
+			search: 'member',
+			fromDate: '2026-10-01',
+			toDate: '2026-10-20',
+		});
 		await ownerRequest('get', `${ROOT}/${MEMBER_ID}/subscriptions`).expect(200);
-		expect(subscriptions).toHaveBeenCalledWith(CONTEXT, MEMBER_ID, { limit: 20 });
+		expect(subscriptions).toHaveBeenCalledWith(CONTEXT, MEMBER_ID, { limit: 24 });
 		await ownerRequest('post', `${ROOT}/${MEMBER_ID}/subscriptions`)
 			.set('Idempotency-Key', KEY)
 			.send(INPUT.subscription)
