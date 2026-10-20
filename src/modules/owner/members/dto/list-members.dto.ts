@@ -19,7 +19,7 @@ export class MemberPageQueryDto {
 
 	@ApiPropertyOptional({ format: 'uuid' })
 	@IsOptional()
-	@IsUUID()
+	@IsUUID('loose')
 	cursor?: string;
 }
 
