@@ -82,10 +82,7 @@ export class OwnerPaymentReportsService {
 			);
 
 			const rows = report.payments.map(pdfRow);
-			const statusTotals = new Map<
-				PdfPayment['status'],
-				{ count: number; amountRwf: bigint }
-			>();
+			const statusTotals = new Map<PdfPayment['status'], { count: number; amountRwf: bigint }>();
 			let confirmedRefundRwf = 0n;
 			for (const row of rows) {
 				const group = statusTotals.get(row.status);
