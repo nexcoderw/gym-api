@@ -61,6 +61,21 @@ describe('owner upcoming reminders', () => {
 		expect(JSON.stringify(result)).not.toContain('member@example.com');
 	});
 
+	it('searches expiring member and plan names within the tenant and date window', async () => {
+		findMany.mockResolvedValueOnce([eligible]);
+		await service.upcoming(ORGANIZATION_ID, { limit: 24, search: 'Gold' }, NOW);
+		expect(findMany.mock.calls[0]?.[0]).toMatchObject({
+			where: {
+				organizationId: ORGANIZATION_ID,
+				cancelledAt: null,
+				OR: [
+					{ member: { is: { name: { contains: 'Gold', mode: 'insensitive' } } } },
+					{ planName: { contains: 'Gold', mode: 'insensitive' } },
+				],
+			},
+		});
+	});
+
 	it('rejects a cursor belonging to another gym', async () => {
 		findFirst.mockResolvedValueOnce(null);
 		await expect(
