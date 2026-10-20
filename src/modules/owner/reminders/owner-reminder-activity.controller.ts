@@ -74,7 +74,10 @@ export class OwnerReminderActivityController {
 
 	@Get('upcoming')
 	@Header('Cache-Control', 'no-store')
-	@ApiOperation({ summary: 'List memberships expiring within 14 Kigali calendar days' })
+	@ApiOperation({
+		summary: 'List memberships expiring within 14 Kigali calendar days',
+		description: 'Tenant-scoped cursor pagination with optional member or plan-name search.',
+	})
 	@ApiOkResponse({ type: UpcomingReminderResponseDto })
 	upcoming(
 		@Query() query: UpcomingReminderQueryDto,
