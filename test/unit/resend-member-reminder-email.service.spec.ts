@@ -83,4 +83,16 @@ describe('Resend member reminder email adapter', () => {
 			code: 'PROVIDER_OUTCOME_UNKNOWN',
 		});
 	});
+
+	it('uses accurate copy for a manually queued early reminder', async () => {
+		fetchFake.mockResolvedValueOnce(new Response(JSON.stringify({ id: MESSAGE_ID }), {
+			status: 200,
+			headers: { 'content-type': 'application/json' },
+		}));
+		await service.send({ ...message, kind: ReminderKind.MANUAL });
+		const body = fetchFake.mock.calls[0]?.[1]?.body;
+		if (typeof body !== 'string') throw new Error('Missing provider request body.');
+		const payload: unknown = JSON.parse(body);
+		expect(payload).toMatchObject({ subject: 'Your Soho Gym membership ends soon' });
+	});
 });
