@@ -136,7 +136,6 @@ describe('member reminder reconciliation environment', () => {
 	const configuration = {
 		NODE_ENV: 'test',
 		DATABASE_URL: 'postgresql://gym_app:fictional@localhost:5432/gym_test',
-		MEMBER_REMINDER_SCHEDULER_ENABLED: 'true',
 		MEMBER_REMINDER_RECONCILIATION_ENABLED: 'true',
 		RESEND_REMINDER_RECONCILER_API_KEY: 're_fictional_full_access',
 		MEMBER_REMINDER_FROM_EMAIL: 'reminders@notify.example.invalid',
