@@ -251,8 +251,7 @@ function addDays(day: string, count: number): string {
 
 function daysBetween(start: string, end: string): number {
 	return Math.round(
-		(Date.parse(`${end}T00:00:00.000Z`) - Date.parse(`${start}T00:00:00.000Z`)) /
-			86_400_000,
+		(Date.parse(`${end}T00:00:00.000Z`) - Date.parse(`${start}T00:00:00.000Z`)) / 86_400_000,
 	);
 }
 
