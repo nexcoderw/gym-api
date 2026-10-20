@@ -67,7 +67,7 @@ export class OwnerMembershipPlansController {
 	@ApiOperation({
 		summary: 'List membership plans for the authenticated gym',
 		description:
-			'Requires an active owner membership for the organization selected by the verified portal origin. Results use bounded cursor pagination and exclude archived plans by default.',
+			'Requires an active owner membership for the organization selected by the verified portal origin. Results use bounded cursor pagination, optional plan-name search and exclude archived plans by default.',
 	})
 	@ApiOkResponse({ type: MembershipPlanListResponseDto })
 	list(
