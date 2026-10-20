@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { OrganizationMemberReminderKind as ReminderKind } from '@nexcoderw/gym-db';
 
 import type { MemberReminderWorkerEnvironment } from '../../config/member-reminder-worker.environment.js';
 
@@ -20,9 +19,8 @@ export type MemberReminderProviderOutcome =
 export interface MemberReminderEmail {
 	readonly recipient: string;
 	readonly organizationName: string;
-	readonly planName: string;
-	readonly endDate: string;
-	readonly kind: ReminderKind;
+	readonly subject: string;
+	readonly body: string;
 	readonly idempotencyKey: string;
 }
 
@@ -35,17 +33,18 @@ export class ResendMemberReminderEmailService {
 		const key = this.config.get('RESEND_API_KEY', { infer: true });
 		const sender = this.config.get('MEMBER_REMINDER_FROM_EMAIL', { infer: true });
 		const organizationName = safeDisplayName(input.organizationName);
-		const planName = safeText(input.planName);
 		if (!/^[0-9a-f]{64}$/u.test(input.idempotencyKey)) {
 			return { kind: 'rejected', code: 'DELIVERY_CONFIGURATION_CHANGED', retryable: false };
 		}
-		const occasion =
-			input.kind === ReminderKind.THREE_DAYS_BEFORE
-				? 'in three days'
-				: input.kind === ReminderKind.EXPIRY_DAY
-					? 'today'
-					: 'soon';
-		const text = `Your ${planName} membership at ${organizationName} ends ${occasion} (${input.endDate}, Africa/Kigali). Contact your gym if you would like to renew. If this is unexpected, contact the gym directly.`;
+		if (
+			input.subject.trim().length === 0 ||
+			input.subject.length > 120 ||
+			/[\r\n\p{Cc}\p{Cf}]/u.test(input.subject) ||
+			input.body.trim().length === 0 ||
+			input.body.length > 2000
+		) {
+			return { kind: 'rejected', code: 'DELIVERY_CONFIGURATION_CHANGED', retryable: false };
+		}
 		try {
 			const response = await fetch('https://api.resend.com/emails', {
 				method: 'POST',
@@ -59,8 +58,8 @@ export class ResendMemberReminderEmailService {
 				body: JSON.stringify({
 					from: `${organizationName} via Mucyora <${sender}>`,
 					to: [input.recipient],
-					subject: `Your ${organizationName} membership ends ${occasion}`,
-					text,
+					subject: input.subject,
+					text: input.body,
 				}),
 			});
 			if (!response.ok) {
@@ -125,15 +124,4 @@ function safeDisplayName(value: string): string {
 		.replace(/\s+/gu, ' ')
 		.trim();
 	return normalized.slice(0, 64) || 'Your gym';
-}
-
-function safeText(value: string): string {
-	return (
-		value
-			.normalize('NFKC')
-			.replace(/[\p{Cc}\p{Cf}]/gu, ' ')
-			.replace(/\s+/gu, ' ')
-			.trim()
-			.slice(0, 100) || 'gym'
-	);
 }
