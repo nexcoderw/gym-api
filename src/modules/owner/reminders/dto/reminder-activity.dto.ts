@@ -4,7 +4,17 @@ import {
 	OrganizationMemberReminderKind as ReminderKind,
 	OrganizationMemberReminderStatus as ReminderStatus,
 } from '@nexcoderw/gym-db';
-import { IsInt, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min, MinLength } from 'class-validator';
+import {
+	IsInt,
+	IsOptional,
+	IsString,
+	IsUUID,
+	Matches,
+	Max,
+	MaxLength,
+	Min,
+	MinLength,
+} from 'class-validator';
 
 export class ReminderActivityQueryDto {
 	@ApiPropertyOptional({ default: 20, minimum: 1, maximum: 50 })
