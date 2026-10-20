@@ -33,6 +33,12 @@ const PDF_PAYMENT_SELECT = {
 
 type PdfPayment = Prisma.OrganizationPaymentGetPayload<{ select: typeof PDF_PAYMENT_SELECT }>;
 
+interface PlanTotalRow {
+	readonly planId: string | null;
+	readonly planName: string;
+	readonly grossRwf: bigint;
+}
+
 @Injectable()
 export class OwnerPaymentReportsService {
 	constructor(private readonly tenants: TenantTransactionService) {}
@@ -138,6 +144,39 @@ export class OwnerPaymentReportsService {
 					},
 					_sum: { amountRwf: true },
 				});
+				// Preserve plan names agreed at registration; a renamed or archived offer must not
+				// rewrite historical reporting. The final bucket bounds the response size.
+				const planRows = await transaction.$queryRaw<PlanTotalRow[]>`
+					WITH plan_totals AS (
+						SELECT
+							s.membership_plan_id AS plan_id,
+							s.plan_name,
+							SUM(a.amount_rwf)::bigint AS gross_rwf
+						FROM public.organization_payment_allocations AS a
+						JOIN public.organization_payments AS p
+							ON p.organization_id = a.organization_id AND p.id = a.payment_id
+						JOIN public.organization_member_subscriptions AS s
+							ON s.organization_id = a.organization_id
+							AND s.id = a.member_subscription_id
+						WHERE a.organization_id = ${context.organizationId}::uuid
+							AND p.occurred_at >= ${occurredAt.gte}
+							AND p.occurred_at < ${occurredAt.lt}
+							AND p.status IN ('confirmed', 'partially_refunded', 'refunded')
+						GROUP BY s.membership_plan_id, s.plan_name
+					), ranked AS (
+						SELECT *, ROW_NUMBER() OVER (ORDER BY gross_rwf DESC, plan_name, plan_id) AS position
+						FROM plan_totals
+					)
+					SELECT
+						CASE WHEN position <= 24 THEN plan_id ELSE NULL END AS "planId",
+						CASE WHEN position <= 24 THEN plan_name ELSE 'Other plans' END AS "planName",
+						SUM(gross_rwf)::bigint AS "grossRwf"
+					FROM ranked
+					GROUP BY
+						CASE WHEN position <= 24 THEN plan_id ELSE NULL END,
+						CASE WHEN position <= 24 THEN plan_name ELSE 'Other plans' END
+					ORDER BY "grossRwf" DESC, "planName"
+				`;
 				const totals = paymentReportTotals(
 					payments.map((payment) => ({
 						status: payment.status,
@@ -152,6 +191,11 @@ export class OwnerPaymentReportsService {
 					toDate: query.toDate,
 					currency: 'RWF' as const,
 					...totals,
+					planTotals: planRows.map((row) => ({
+						planId: row.planId,
+						planName: row.planName,
+						grossRwf: row.grossRwf.toString(),
+					})),
 					generatedAt: new Date().toISOString(),
 				};
 			});
