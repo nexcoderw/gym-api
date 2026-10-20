@@ -51,9 +51,15 @@ export function renderPaymentReportPdf(input: PaymentReportPdfInput): Promise<Bu
 	const chunks: Buffer[] = [];
 
 	return new Promise<Buffer>((resolve, reject) => {
-		document.on('data', (chunk: Buffer) => chunks.push(chunk));
-		document.once('end', () => resolve(Buffer.concat(chunks)));
-		document.once('error', (error: Error) => reject(error));
+		document.on('data', (chunk: Buffer) => {
+			chunks.push(chunk);
+		});
+		document.once('end', () => {
+			resolve(Buffer.concat(chunks));
+		});
+		document.once('error', (error: Error) => {
+			reject(error);
+		});
 
 		try {
 			let page = 1;
@@ -90,7 +96,7 @@ export function renderPaymentReportPdf(input: PaymentReportPdfInput): Promise<Bu
 			drawFooter(document, page);
 			document.end();
 		} catch (error: unknown) {
-			reject(error);
+			reject(error instanceof Error ? error : new Error('Payment report PDF generation failed.'));
 		}
 	});
 }
@@ -139,7 +145,7 @@ function drawContinuationPage(
 	document.font('Helvetica-Bold').fontSize(12).fillColor('#FFFFFF');
 	document.text('PAYMENT REPORT', LEFT, 24);
 	document.font('Helvetica').fontSize(9).fillColor('#D5E7FF');
-	document.text(`${input.fromDate} to ${input.toDate}  |  Page ${page}`, 510, 27, {
+	document.text(`${input.fromDate} to ${input.toDate}  |  Page ${String(page)}`, 510, 27, {
 		width: 296,
 		align: 'right',
 	});
@@ -190,7 +196,7 @@ function drawFooter(document: PDFKit.PDFDocument, page: number): void {
 		.stroke();
 	document.font('Helvetica').fontSize(8).fillColor('#52627A');
 	document.text('Confidential - gym owner financial report', LEFT, y);
-	document.text(`Page ${page}`, LEFT + 675, y, { width: 95, align: 'right' });
+	document.text(`Page ${String(page)}`, LEFT + 675, y, { width: 95, align: 'right' });
 }
 
 function rowCells(row: PaymentReportPdfRow): string[] {
