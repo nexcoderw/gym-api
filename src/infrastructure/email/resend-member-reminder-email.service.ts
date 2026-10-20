@@ -39,7 +39,12 @@ export class ResendMemberReminderEmailService {
 		if (!/^[0-9a-f]{64}$/u.test(input.idempotencyKey)) {
 			return { kind: 'rejected', code: 'DELIVERY_CONFIGURATION_CHANGED', retryable: false };
 		}
-		const occasion = input.kind === ReminderKind.THREE_DAYS_BEFORE ? 'in three days' : 'today';
+		const occasion =
+			input.kind === ReminderKind.THREE_DAYS_BEFORE
+				? 'in three days'
+				: input.kind === ReminderKind.EXPIRY_DAY
+					? 'today'
+					: 'soon';
 		const text = `Your ${planName} membership at ${organizationName} ends ${occasion} (${input.endDate}, Africa/Kigali). Contact your gym if you would like to renew. If this is unexpected, contact the gym directly.`;
 		try {
 			const response = await fetch('https://api.resend.com/emails', {
