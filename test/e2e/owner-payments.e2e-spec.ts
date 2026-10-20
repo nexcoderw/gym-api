@@ -203,7 +203,19 @@ describe('owner payments HTTP security', () => {
 		await ownerRequest('get', ROOT).expect(200).expect('Cache-Control', 'no-store');
 		expect(list).toHaveBeenCalledWith(
 			expect.objectContaining({ organizationId: ORGANIZATION_ID }),
-			{ limit: 20, order: PaymentOrder.NEWEST },
+			{ limit: 24, order: PaymentOrder.NEWEST },
+		);
+		await ownerRequest('get', `${ROOT}?limit=25`).expect(400);
+		await ownerRequest('get', `${ROOT}?search=soho&fromDate=2026-01-01&toDate=2026-10-19&order=AMOUNT_LOW`).expect(200);
+		expect(list).toHaveBeenLastCalledWith(
+			expect.objectContaining({ organizationId: ORGANIZATION_ID }),
+			{
+				limit: 24,
+				order: PaymentOrder.AMOUNT_LOW,
+				search: 'soho',
+				fromDate: '2026-01-01',
+				toDate: '2026-10-19',
+			},
 		);
 		await ownerRequest('post', ROOT).send(INPUT).expect(400);
 		await ownerRequest('post', `${ROOT}/${PAYMENT_ID}/voids`)
