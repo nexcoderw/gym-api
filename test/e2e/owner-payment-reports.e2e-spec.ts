@@ -102,10 +102,10 @@ describe('owner payment report HTTP security', () => {
 		expect(response.headers['content-disposition']).toBe(
 			'attachment; filename="payments-2026-01-01-to-2026-01-31.pdf"',
 		);
-		expect(pdf).toHaveBeenCalledWith(
-			expect.objectContaining({ organizationId: ORGANIZATION_ID }),
-			{ fromDate: '2026-01-01', toDate: '2026-01-31' },
-		);
+		expect(pdf).toHaveBeenCalledWith(expect.objectContaining({ organizationId: ORGANIZATION_ID }), {
+			fromDate: '2026-01-01',
+			toDate: '2026-01-31',
+		});
 		await request(app().getHttpServer())
 			.get(`${PDF_PATH}?fromDate=2026-01-01&toDate=2026-01-31&limit=24`)
 			.set('Origin', ORIGIN)
