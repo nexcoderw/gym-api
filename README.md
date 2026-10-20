@@ -954,8 +954,14 @@ requires cancelling any unexpired registrations first and retains name/phone res
 
 Routes under `/api/v1/owner/members` provide list/create, read/update/archive by member ID, paginated
 registration history, registration/renewal and explicit subscription cancellation. Swagger describes
-the request/response contracts and security headers. List endpoints are bounded to 50 rows and cursors
-must belong to the same organization and filter.
+the request/response contracts and security headers. Member, registration-history and payment lists
+return at most 24 rows per cursor page; cursors must belong to the same organization and filter.
+Membership-plan lists support active/archived status, name search and price/name/newest ordering.
+Member lists support active/archived status, name/phone/email search, registration-date range and
+newest/oldest/name ordering. Payment lists support status, method, member, receipt/member-name/provider
+reference search, transaction-date range and newest/oldest/amount ordering. Date ranges use inclusive
+Africa/Kigali calendar days. Search, sorting and filtering are applied before pagination in the
+tenant-scoped database query, not only to rows already loaded by the browser.
 
 `POST /api/v1/owner/payments/registrations` creates an optional new member profile, a dated plan
 registration and a full-plan-price payment with its allocation and audit event in one tenant
