@@ -14,7 +14,7 @@ export class RegisterPaymentDto extends OmitType(CreatePaymentDto, [
 ] as const) {
 	@ApiPropertyOptional({ format: 'uuid', description: 'An existing active member of this gym.' })
 	@IsOptional()
-	@IsUUID()
+	@IsUUID('loose')
 	memberId?: string;
 
 	@ApiPropertyOptional({ type: MemberProfileDto, description: 'A new gym member profile.' })
