@@ -111,6 +111,27 @@ describe('member reminder delivery', () => {
 		expect(send).not.toHaveBeenCalled();
 	});
 
+	it('delivers a queued manual reminder while still in the 14-day window', async () => {
+		findFirst.mockResolvedValueOnce({
+			...row,
+			kind: ReminderKind.MANUAL,
+			dueDate: new Date('2026-10-18T00:00:00.000Z'),
+			subscription: { ...row.subscription, endDate: new Date('2026-10-30T00:00:00.000Z') },
+		});
+		expect(await service.runOnce(NOW)).toMatchObject({ accepted: 1, skipped: 0 });
+		expect(send.mock.calls[0]?.[0]).toMatchObject({ kind: ReminderKind.MANUAL });
+	});
+
+	it('skips a manual reminder when membership expiry is no longer upcoming', async () => {
+		findFirst.mockResolvedValueOnce({
+			...row,
+			kind: ReminderKind.MANUAL,
+			subscription: { ...row.subscription, endDate: new Date('2026-11-10T00:00:00.000Z') },
+		});
+		expect(await service.runOnce(NOW)).toMatchObject({ accepted: 0, skipped: 1 });
+		expect(send).not.toHaveBeenCalled();
+	});
+
 	it.each([
 		{ label: 'opted out', change: { member: { ...row.member, reminderEmailOptedOutAt: NOW } } },
 		{ label: 'cancelled', change: { subscription: { ...row.subscription, cancelledAt: NOW } } },
