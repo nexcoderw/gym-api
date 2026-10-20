@@ -56,6 +56,15 @@ export class OwnerMembersService {
 				const where: Prisma.OrganizationMemberWhereInput = {
 					organizationId: context.organizationId,
 					archivedAt: query.status === MemberStatusFilter.ARCHIVED ? { not: null } : null,
+					...(query.search === undefined
+						? {}
+						: {
+								OR: [
+									{ name: { contains: query.search, mode: 'insensitive' } },
+									{ phoneNumber: { contains: query.search, mode: 'insensitive' } },
+									{ email: { contains: query.search, mode: 'insensitive' } },
+								],
+							}),
 					...(Object.keys(dateRange).length ? { createdAt: dateRange } : {}),
 				};
 				const totalItems = await transaction.organizationMember.count({ where });
