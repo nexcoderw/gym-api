@@ -11,6 +11,7 @@ import {
 	OrganizationMemberReminderKind as ReminderKind,
 	OrganizationMemberReminderStatus as ReminderStatus,
 	PrismaService,
+	type Prisma,
 } from '@nexcoderw/gym-db';
 
 import { memberToday } from '../members/owner-member-mapping.js';
@@ -44,9 +45,27 @@ export class OwnerReminderActivityService {
 	): Promise<UpcomingReminderResponseDto> {
 		const today = memberToday(now);
 		const end = addDays(today, 14);
+		const where: Prisma.OrganizationMemberSubscriptionWhereInput = {
+			organizationId,
+			cancelledAt: null,
+			startDate: { lte: new Date(`${today}T00:00:00.000Z`) },
+			endDate: {
+				gte: new Date(`${today}T00:00:00.000Z`),
+				lte: new Date(`${end}T00:00:00.000Z`),
+			},
+			member: { is: { archivedAt: null } },
+			...(query.search === undefined
+				? {}
+				: {
+						OR: [
+							{ member: { is: { name: { contains: query.search, mode: 'insensitive' } } } },
+							{ planName: { contains: query.search, mode: 'insensitive' } },
+						],
+					}),
+		};
 		if (query.cursor !== undefined) {
 			const cursor = await this.prisma.organizationMemberSubscription
-				.findFirst({ where: { id: query.cursor, organizationId }, select: { id: true } })
+				.findFirst({ where: { ...where, id: query.cursor }, select: { id: true } })
 				.catch((error: unknown) => {
 					throw reminderUnavailable(error);
 				});
@@ -54,16 +73,7 @@ export class OwnerReminderActivityService {
 		}
 		const rows = await this.prisma.organizationMemberSubscription
 			.findMany({
-				where: {
-					organizationId,
-					cancelledAt: null,
-					startDate: { lte: new Date(`${today}T00:00:00.000Z`) },
-					endDate: {
-						gte: new Date(`${today}T00:00:00.000Z`),
-						lte: new Date(`${end}T00:00:00.000Z`),
-					},
-					member: { is: { archivedAt: null } },
-				},
+				where,
 				select: {
 					id: true,
 					memberId: true,
