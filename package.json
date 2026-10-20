@@ -28,8 +28,6 @@
 		"bootstrap:platform-owner:activate": "node dist/cli/platform-owner-bootstrap.js activate",
 		"worker:owner-invitations": "OWNER_INVITATION_WORKER_ID=local-owner-invitation-worker node --env-file=.env.local dist/cli/owner-invitation-delivery-worker.js",
 		"worker:owner-invitations:managed": "node dist/cli/owner-invitation-delivery-worker.js",
-		"scheduler:member-reminders": "node --env-file=.env.local dist/cli/member-reminder-scheduler.js",
-		"scheduler:member-reminders:managed": "node dist/cli/member-reminder-scheduler.js",
 		"worker:member-reminders": "node --env-file=.env.local dist/cli/member-reminder-delivery.js",
 		"worker:member-reminders:managed": "node dist/cli/member-reminder-delivery.js",
 		"reconcile:member-reminders": "node --env-file=.env.reminder-reconciler.local dist/cli/member-reminder-reconciler.js",
