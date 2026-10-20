@@ -2,7 +2,10 @@ import { jest } from '@jest/globals';
 import { ConfigService } from '@nestjs/config';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Test } from '@nestjs/testing';
-import { OrganizationMemberReminderStatus as ReminderStatus, OrganizationStatus } from '@nexcoderw/gym-db';
+import {
+	OrganizationMemberReminderStatus as ReminderStatus,
+	OrganizationStatus,
+} from '@nexcoderw/gym-db';
 import request from 'supertest';
 
 import { configureApplication } from '../../src/app-bootstrap.js';
@@ -27,6 +30,7 @@ const OTHER_ORIGIN = 'https://othergym.mucyora.rw';
 const ORGANIZATION_ID = '11111111-1111-4111-8111-111111111111';
 const TOKEN = 'a'.repeat(43);
 const CSRF = 'b'.repeat(43);
+const MESSAGE = { subject: 'Your membership ends soon', body: 'Hello, please renew.' };
 
 describe('owner reminder activity HTTP security', () => {
 	let application: NestExpressApplication | undefined;
@@ -73,7 +77,10 @@ describe('owner reminder activity HTTP security', () => {
 		authenticate.mockResolvedValue(principal());
 		list.mockResolvedValue({ items: [] });
 		upcoming.mockResolvedValue({ items: [], nextCursor: null });
-		queueManual.mockResolvedValue({ id: '88888888-8888-4888-8888-888888888888', status: ReminderStatus.QUEUED });
+		queueManual.mockResolvedValue({
+			id: '88888888-8888-4888-8888-888888888888',
+			status: ReminderStatus.QUEUED,
+		});
 	});
 
 	afterAll(async () => application?.close());
@@ -113,8 +120,17 @@ describe('owner reminder activity HTTP security', () => {
 		await manualRequest().set('x-owner-csrf-token', 'invalid').expect(403);
 		await manualRequest().set('Origin', OTHER_ORIGIN).set('x-owner-csrf-token', CSRF).expect(401);
 		expect(queueManual).not.toHaveBeenCalled();
-		await manualRequest().set('x-owner-csrf-token', CSRF).expect(202);
-		expect(queueManual).toHaveBeenCalledWith(ORGANIZATION_ID, SUBSCRIPTION_ID);
+		await manualRequest().set('x-owner-csrf-token', CSRF).send(MESSAGE).expect(202);
+		expect(queueManual).toHaveBeenCalledWith(ORGANIZATION_ID, SUBSCRIPTION_ID, MESSAGE);
+		await manualRequest()
+			.set('x-owner-csrf-token', CSRF)
+			.send({ subject: 'Invalid\nSubject', body: MESSAGE.body })
+			.expect(400);
+		await manualRequest()
+			.set('x-owner-csrf-token', CSRF)
+			.send({ subject: MESSAGE.subject, body: '   ' })
+			.expect(400);
+		expect(queueManual).toHaveBeenCalledTimes(1);
 	});
 
 	function app(): NestExpressApplication {
