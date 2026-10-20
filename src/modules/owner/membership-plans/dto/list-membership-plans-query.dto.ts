@@ -1,5 +1,5 @@
 import { Transform } from 'class-transformer';
-import { IsEnum, IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min } from 'class-validator';
+import { IsEnum, IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 import {
@@ -45,12 +45,6 @@ export class ListMembershipPlansQueryDto {
 	@ApiPropertyOptional({ enum: MembershipPlanOrder, default: MembershipPlanOrder.PRICE_ASC })
 	@IsEnum(MembershipPlanOrder)
 	order: MembershipPlanOrder = MembershipPlanOrder.PRICE_ASC;
-
-	@ApiPropertyOptional({ maxLength: 80, description: 'Case-insensitive plan name search.' })
-	@IsOptional()
-	@IsString()
-	@MaxLength(80)
-	search?: string;
 
 	@ApiPropertyOptional({
 		format: 'uuid',
