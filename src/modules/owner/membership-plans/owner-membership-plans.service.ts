@@ -42,6 +42,11 @@ export class OwnerMembershipPlansService {
 				const where: Prisma.OrganizationMembershipPlanWhereInput = {
 					organizationId,
 					...lifecycle,
+					...(query.search === undefined
+						? {}
+						: {
+								name: { contains: query.search, mode: 'insensitive' },
+							}),
 				};
 				if (query.cursor !== undefined) {
 					const cursor = await transaction.organizationMembershipPlan.findFirst({
