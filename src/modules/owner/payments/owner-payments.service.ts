@@ -11,6 +11,7 @@ import {
 } from '@nexcoderw/gym-db';
 
 import { databaseErrorCode } from '../../../common/errors/database-error-code.js';
+import { listDateRange } from '../list-date-range.js';
 import { memberName, memberPhone } from '../members/member-normalization.js';
 import { memberPeriod } from '../members/member-period.js';
 import { registerMemberPlan } from '../members/member-plan-registration.js';
@@ -576,12 +577,27 @@ async function recordPayment(
 	return payment;
 }
 
-function paymentWhere(organizationId: string, query: ListPaymentsQueryDto) {
+function paymentWhere(
+	organizationId: string,
+	query: ListPaymentsQueryDto,
+): Prisma.OrganizationPaymentWhereInput {
+	const search = query.search?.trim();
+	const dateRange = listDateRange(query.fromDate, query.toDate);
 	return {
 		organizationId,
 		...(query.status === undefined ? {} : { status: query.status }),
 		...(query.method === undefined ? {} : { method: query.method }),
 		...(query.memberId === undefined ? {} : { memberId: query.memberId }),
+		...(search
+			? {
+					OR: [
+						{ receiptNumber: { contains: search, mode: 'insensitive' } },
+						{ providerReference: { contains: search, mode: 'insensitive' } },
+						{ member: { name: { contains: search, mode: 'insensitive' } } },
+					],
+				}
+			: {}),
+		...(Object.keys(dateRange).length ? { occurredAt: dateRange } : {}),
 	};
 }
 
