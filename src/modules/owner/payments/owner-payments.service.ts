@@ -581,22 +581,12 @@ function paymentWhere(
 	organizationId: string,
 	query: ListPaymentsQueryDto,
 ): Prisma.OrganizationPaymentWhereInput {
-	const search = query.search?.trim();
 	const dateRange = listDateRange(query.fromDate, query.toDate);
 	return {
 		organizationId,
 		...(query.status === undefined ? {} : { status: query.status }),
 		...(query.method === undefined ? {} : { method: query.method }),
 		...(query.memberId === undefined ? {} : { memberId: query.memberId }),
-		...(search
-			? {
-					OR: [
-						{ receiptNumber: { contains: search, mode: 'insensitive' } },
-						{ providerReference: { contains: search, mode: 'insensitive' } },
-						{ member: { name: { contains: search, mode: 'insensitive' } } },
-					],
-				}
-			: {}),
 		...(Object.keys(dateRange).length ? { occurredAt: dateRange } : {}),
 	};
 }
