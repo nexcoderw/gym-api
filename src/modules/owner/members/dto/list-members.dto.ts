@@ -1,6 +1,17 @@
 import { Transform } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsInt, IsOptional, IsUUID, Matches, Max, Min } from 'class-validator';
+import {
+	IsEnum,
+	IsInt,
+	IsOptional,
+	IsString,
+	IsUUID,
+	Matches,
+	Max,
+	MaxLength,
+	Min,
+	MinLength,
+} from 'class-validator';
 
 export enum MemberOrder {
 	NEWEST = 'NEWEST',
@@ -31,6 +42,19 @@ export class MemberPageQueryDto {
 }
 
 export class ListMembersQueryDto {
+	@ApiPropertyOptional({
+		minLength: 3,
+		maxLength: 80,
+		description: 'Search member name, phone or email across this gym.',
+	})
+	@Transform(({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value))
+	@IsOptional()
+	@IsString()
+	@MinLength(3)
+	@MaxLength(80)
+	@Matches(/^[^\p{Cc}\p{Cf}]+$/u)
+	search?: string;
+
 	@ApiPropertyOptional({ default: 20, minimum: 1, maximum: 20 })
 	@Transform(({ value }: { value: unknown }) =>
 		typeof value === 'string' && /^[1-9][0-9]*$/u.test(value) ? Number(value) : value,
