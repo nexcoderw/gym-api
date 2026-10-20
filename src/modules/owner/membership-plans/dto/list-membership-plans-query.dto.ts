@@ -1,5 +1,16 @@
 import { Transform } from 'class-transformer';
-import { IsEnum, IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
+import {
+	IsEnum,
+	IsInt,
+	IsOptional,
+	IsString,
+	IsUUID,
+	Matches,
+	Max,
+	MaxLength,
+	Min,
+	MinLength,
+} from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 import {
@@ -21,6 +32,19 @@ export enum MembershipPlanOrder {
 }
 
 export class ListMembershipPlansQueryDto {
+	@ApiPropertyOptional({
+		minLength: 3,
+		maxLength: 80,
+		description: 'Search plan names in this gym.',
+	})
+	@Transform(({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value))
+	@IsOptional()
+	@IsString()
+	@MinLength(3)
+	@MaxLength(80)
+	@Matches(/^[^\p{Cc}\p{Cf}]+$/u)
+	search?: string;
+
 	@ApiPropertyOptional({
 		default: MEMBERSHIP_PLAN_PAGE_DEFAULT,
 		minimum: 1,
