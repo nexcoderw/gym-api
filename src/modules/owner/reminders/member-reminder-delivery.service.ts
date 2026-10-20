@@ -14,7 +14,6 @@ import {
 	type MemberReminderProviderOutcome,
 } from '../../../infrastructure/email/resend-member-reminder-email.service.js';
 import { memberToday } from '../members/owner-member-mapping.js';
-import { dueEmailReminder } from './member-reminder-policy.js';
 
 const BATCH_SIZE = 25;
 const MAX_ATTEMPTS = 3;
@@ -46,10 +45,13 @@ export class MemberReminderDeliveryService {
 				status: ReminderStatus.UNCERTAIN,
 				leaseExpiresAt: null,
 				lastErrorCode: 'WORKER_LEASE_EXPIRED',
+				messageSubject: null,
+				messageBody: null,
 			},
 		});
 		const candidates = await this.prisma.organizationMemberReminderDelivery.findMany({
 			where: {
+				kind: ReminderKind.MANUAL,
 				channel: ReminderChannel.EMAIL,
 				status: { in: [ReminderStatus.QUEUED, ReminderStatus.FAILED] },
 				attemptCount: { lt: MAX_ATTEMPTS },
@@ -95,37 +97,33 @@ export class MemberReminderDeliveryService {
 				throw new Error('Reminder lease changed before submission.');
 			}
 			const today = memberToday(now);
-			const candidate = {
-				email: row.member.email,
-				memberArchivedAt: row.member.archivedAt,
-				emailOptedOutAt: row.member.reminderEmailOptedOutAt,
-				emailSuppressedAt: row.member.reminderEmailSuppressedAt,
-				subscriptionCancelledAt: row.subscription.cancelledAt,
-				startDate: row.subscription.startDate.toISOString().slice(0, 10),
-				endDate: row.subscription.endDate.toISOString().slice(0, 10),
-			};
+			const endDate = row.subscription.endDate.toISOString().slice(0, 10);
 			const eligible =
+				row.kind === ReminderKind.MANUAL &&
 				row.organization.status === OrganizationStatus.ACTIVE &&
 				row.recipientEmail !== null &&
 				row.member.email?.toLowerCase() === row.recipientEmail.toLowerCase() &&
-				(row.kind === ReminderKind.MANUAL
-					? row.dueDate.toISOString().slice(0, 10) <= today
-					: row.dueDate.toISOString().slice(0, 10) === today) &&
-				(row.kind === ReminderKind.MANUAL
-					? candidate.email !== null &&
-						candidate.email.trim() !== '' &&
-						candidate.memberArchivedAt === null &&
-						candidate.emailOptedOutAt === null &&
-						candidate.emailSuppressedAt === null &&
-						candidate.subscriptionCancelledAt === null &&
-						candidate.startDate <= today &&
-						candidate.endDate >= today &&
-						candidate.endDate <= addDays(today, 14)
-					: dueEmailReminder(candidate, today) === row.kind);
-			if (!eligible || row.recipientEmail === null) {
+				row.dueDate.toISOString().slice(0, 10) <= today &&
+				row.member.archivedAt === null &&
+				row.member.reminderEmailOptedOutAt === null &&
+				row.member.reminderEmailSuppressedAt === null &&
+				row.subscription.cancelledAt === null &&
+				row.subscription.startDate.toISOString().slice(0, 10) <= today &&
+				endDate >= today &&
+				endDate <= addDays(today, 14) &&
+				row.messageSubject !== null &&
+				row.messageBody !== null;
+			if (
+				!eligible ||
+				row.recipientEmail === null ||
+				row.messageSubject === null ||
+				row.messageBody === null
+			) {
 				await this.finalize(row, lease, {
 					status: ReminderStatus.SKIPPED,
 					lastErrorCode: 'DELIVERY_INELIGIBLE',
+					messageSubject: null,
+					messageBody: null,
 				});
 				skipped += 1;
 				continue;
@@ -135,9 +133,8 @@ export class MemberReminderDeliveryService {
 				outcome = await this.email.send({
 					recipient: row.recipientEmail,
 					organizationName: row.organization.name,
-					planName: row.subscription.planName,
-					endDate: row.subscription.endDate.toISOString().slice(0, 10),
-					kind: row.kind,
+					subject: row.messageSubject,
+					body: row.messageBody,
 					idempotencyKey: row.providerIdempotencyKey,
 				});
 			} catch {
@@ -149,12 +146,16 @@ export class MemberReminderDeliveryService {
 					providerMessageId: outcome.messageId,
 					acceptedAt: now,
 					lastErrorCode: null,
+					messageSubject: null,
+					messageBody: null,
 				});
 				accepted += 1;
 			} else if (outcome.kind === 'uncertain') {
 				await this.finalize(row, lease, {
 					status: ReminderStatus.UNCERTAIN,
 					lastErrorCode: outcome.code,
+					messageSubject: null,
+					messageBody: null,
 				});
 				uncertain += 1;
 			} else {
@@ -163,6 +164,7 @@ export class MemberReminderDeliveryService {
 					status: ReminderStatus.FAILED,
 					lastErrorCode: outcome.code,
 					nextAttemptAt: retry ? new Date(now.getTime() + 60_000 * 2 ** row.attemptCount) : null,
+					...(retry ? {} : { messageSubject: null, messageBody: null }),
 				});
 			}
 		}
