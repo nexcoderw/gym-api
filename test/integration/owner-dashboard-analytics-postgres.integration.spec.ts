@@ -99,11 +99,10 @@ postgresDescribe('owner dashboard aggregates in disposable PostgreSQL', () => {
 			JOIN pg_catalog.pg_roles AS r ON r.rolname = current_user
 			WHERE d.datname = current_database()
 		`;
-		if (identity.length !== 1) {
-			throw new Error('Connected database failed the disposable test database safety check.');
-		}
-		const connected = identity[0];
+		const connected = identity.at(0);
 		if (
+			identity.length !== 1 ||
+			connected === undefined ||
 			connected.name !== databaseName ||
 			connected.role !== databaseUser ||
 			connected.comment !== `nexcode-gym:disposable-integration-test:${marker}` ||
