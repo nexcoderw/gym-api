@@ -48,13 +48,13 @@ jobs:
           NODE_ENV: production
           DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/gym_ci
         run: |
-          npm ci
+          npm ci --include=dev
           npm run prisma:generate
           npm run build
 
       - name: Install locked API dependencies
         working-directory: api
-        run: npm ci
+        run: npm ci --include=dev
 
       - name: Check formatting
         working-directory: api
