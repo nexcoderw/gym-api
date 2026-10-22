@@ -1,15 +1,15 @@
 # Owner dashboard analytics contract
 
-This document defines the **planned** owner analytics endpoint. The DTO and date policy exist, but
-the database aggregates, HTTP route and manager dashboard are separate follow-up tasks. The existing
-`GET /api/v1/owner/organizations/:organizationId/dashboard` is an owner-identity response, not this
-financial dashboard.
+The backend analytics endpoint is implemented. The manager dashboard will consume it in a later
+task. The existing `GET /api/v1/owner/organizations/:organizationId/dashboard` remains an
+owner-identity response, not this financial dashboard.
 
 ## Request and authorization
 
-Planned route: `GET /api/v1/owner/dashboard/analytics`. It will require an authenticated active gym
-owner and resolve the organization from the verified session and portal origin. No organization ID,
-tenant header or arbitrary sort field is accepted from the browser. Return `Cache-Control: no-store`.
+Route: `GET /api/v1/owner/dashboard/analytics`. It requires an authenticated active gym owner and
+resolves the organization from the verified session and portal origin. No organization ID, tenant
+header or arbitrary sort field is accepted from the browser. Responses use
+`Cache-Control: no-store`.
 
 Optional `fromDate` and `toDate` must be supplied together as valid `YYYY-MM-DD` calendar dates.
 They are inclusive days in `Africa/Kigali`. With neither supplied, use the first day of the current
@@ -59,3 +59,10 @@ or receivables source in the current schema, so visits and outstanding-balance f
 `metrics`, `revenueSeries`, `planTotals`, `methodTotals` and `generatedAt`. A period with no data
 returns zero-valued metrics and empty plan/method breakdowns, never fictional values. The series
 still contains zero-valued buckets for the requested dates.
+
+The backend groups payments by Kigali day and status across the bounded selected and comparison
+ranges before building the displayed buckets; it does not return individual payments. Queries for
+payments, refunds, plan allocations, members and subscriptions all use the authenticated organization
+ID inside a tenant transaction.
+Invalid dates return `400`; an absent session returns `401`; inactive or non-owner access returns
+`403`; an aggregation failure returns `503 DASHBOARD_ANALYTICS_UNAVAILABLE` without partial data.
