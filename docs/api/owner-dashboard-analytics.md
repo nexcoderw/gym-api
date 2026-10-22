@@ -1,0 +1,61 @@
+# Owner dashboard analytics contract
+
+This document defines the **planned** owner analytics endpoint. The DTO and date policy exist, but
+the database aggregates, HTTP route and manager dashboard are separate follow-up tasks. The existing
+`GET /api/v1/owner/organizations/:organizationId/dashboard` is an owner-identity response, not this
+financial dashboard.
+
+## Request and authorization
+
+Planned route: `GET /api/v1/owner/dashboard/analytics`. It will require an authenticated active gym
+owner and resolve the organization from the verified session and portal origin. No organization ID,
+tenant header or arbitrary sort field is accepted from the browser. Return `Cache-Control: no-store`.
+
+Optional `fromDate` and `toDate` must be supplied together as valid `YYYY-MM-DD` calendar dates.
+They are inclusive days in `Africa/Kigali`. With neither supplied, use the first day of the current
+Kigali month through the current Kigali day. The end date cannot be in the future, and a selected
+range cannot exceed 366 days. Database time filters use the first day at Kigali midnight as an
+inclusive UTC bound and midnight following the final day as an exclusive UTC bound.
+
+The comparison is the immediately preceding range with **the same number of calendar days**. It is
+not labelled "last month" unless those dates really are last month. The response includes both
+date pairs so a manager can see exactly what is compared. Time is supplied by the server; no
+client-side date arithmetic determines a financial period.
+
+## Metrics
+
+All money is whole RWF serialized as decimal strings. Counts are non-negative integers. A comparison
+has a direction (`UP`, `DOWN`, `UNCHANGED` or `NEW`) and a signed percentage rounded to one decimal.
+When the previous value is zero and the current value is positive, the direction is `NEW` and the
+percentage is `null`; two zero values are `UNCHANGED` at `0%`.
+
+| Field               | Meaning                                                                                                                                                                                                                                                                                                                                                                 |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `netCollected`      | Original settled value of payments occurring in the range, less confirmed refunds linked to those payments as of generation. This must use the same settled-status and refund policy as payment reports.                                                                                                                                                                |
+| `settledPayments`   | Count of payments occurring in the range currently marked confirmed, partially refunded or refunded. Pending, failed and voided payments are excluded.                                                                                                                                                                                                                  |
+| `newMembers`        | Count of distinct member profiles created in the selected range, whether or not they purchased another plan later.                                                                                                                                                                                                                                                      |
+| `activeSubscribers` | Count of distinct members whose profile was not archived by the end of the range and who had a subscription already registered by then and effective on that day (`startDate <= day <= endDate`, with no cancellation by that day's end). This is a point-in-time count, not the number of sales during the range. The comparison uses the end of the comparison range. |
+
+The revenue series shows selected-period gross, confirmed refunds and net using the same payment
+occurrence-date attribution as `netCollected`. Its points must sum exactly to that metric's current
+value. Use daily buckets for up to 45 days, consecutive seven-day buckets for 46–180 days, and
+calendar-month buckets for 181–366 days; partial edge buckets are allowed. Empty buckets carry
+`"0"` totals.
+
+The plan breakdown uses the immutable plan name captured when a subscription was registered, and
+**gross settled payment allocations before refunds**, matching payment reports. Limit it to the top
+five plans and group the remainder as `Other plans`. Payment-method totals also represent **gross
+settled value before refunds** and settled-payment counts. Neither breakdown should be mistaken for
+the net-collected figure. No member names, email addresses, phone numbers or individual payment rows
+belong in this analytics response.
+
+Historical amounts are a **current-state view**: a later confirmed refund can change an earlier
+period's net value. The response therefore includes `generatedAt` in UTC. There is no attendance
+or receivables source in the current schema, so visits and outstanding-balance figures are omitted.
+
+## Response shape
+
+`OwnerDashboardAnalyticsResponseDto` is the typed response contract. It has `period`, `currency`,
+`metrics`, `revenueSeries`, `planTotals`, `methodTotals` and `generatedAt`. A period with no data
+returns zero-valued metrics and empty plan/method breakdowns, never fictional values. The series
+still contains zero-valued buckets for the requested dates.
