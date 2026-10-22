@@ -116,7 +116,12 @@ describe('owner reminder activity HTTP security', () => {
 	});
 
 	it('requires owner session, tenant origin and CSRF for manual email queueing', async () => {
-		await request(app().getHttpServer()).post(MANUAL).set('Origin', ORIGIN).expect(401);
+		await request(app().getHttpServer())
+			.post(MANUAL)
+			.set('Origin', ORIGIN)
+			.set('Cookie', `${OWNER_CSRF_COOKIE}=${CSRF}`)
+			.set('x-owner-csrf-token', CSRF)
+			.expect(401);
 		await manualRequest().set('x-owner-csrf-token', 'invalid').expect(403);
 		await manualRequest().set('Origin', OTHER_ORIGIN).set('x-owner-csrf-token', CSRF).expect(401);
 		expect(queueManual).not.toHaveBeenCalled();
