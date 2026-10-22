@@ -1,4 +1,4 @@
-import { OrganizationPaymentStatus } from '@nexcoderw/gym-db';
+import type { OrganizationPaymentStatus } from '@nexcoderw/gym-db';
 
 import {
 	isSettledPaymentStatus,
