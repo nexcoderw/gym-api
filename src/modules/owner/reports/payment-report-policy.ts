@@ -17,6 +17,15 @@ export interface PaymentReportTotals {
 	readonly netRwf: string;
 }
 
+/** Shared settled-state rule for reports and dashboard analytics. */
+export function isSettledPaymentStatus(status: OrganizationPaymentStatus): boolean {
+	return (
+		status === OrganizationPaymentStatus.CONFIRMED ||
+		status === OrganizationPaymentStatus.PARTIALLY_REFUNDED ||
+		status === OrganizationPaymentStatus.REFUNDED
+	);
+}
+
 /** Both dates are mandatory; the upper UTC bound excludes midnight after the final Kigali day. */
 export function paymentReportDateRange(fromDate: string, toDate: string): { gte: Date; lt: Date } {
 	if (fromDate === '' || toDate === '') {
@@ -46,11 +55,7 @@ export function paymentReportTotals(
 			throw new Error('Invalid payment report aggregate.');
 		}
 		paymentCount += item.count;
-		if (
-			item.status === OrganizationPaymentStatus.CONFIRMED ||
-			item.status === OrganizationPaymentStatus.PARTIALLY_REFUNDED ||
-			item.status === OrganizationPaymentStatus.REFUNDED
-		) {
+		if (isSettledPaymentStatus(item.status)) {
 			settledPaymentCount += item.count;
 			grossRwf += item.amountRwf;
 		}
