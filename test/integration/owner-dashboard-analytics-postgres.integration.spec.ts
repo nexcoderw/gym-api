@@ -100,12 +100,14 @@ postgresDescribe('owner dashboard aggregates in disposable PostgreSQL', () => {
 			WHERE d.datname = current_database()
 		`;
 		const connected = identity.at(0);
+		if (identity.length !== 1 || connected === undefined) {
+			throw new Error('Connected database failed the disposable test database safety check.');
+		}
 		if (
-			identity.length !== 1 ||
-			connected?.name !== databaseName ||
-			connected?.role !== databaseUser ||
-			connected?.comment !== `nexcode-gym:disposable-integration-test:${marker}` ||
-			connected?.privileged
+			connected.name !== databaseName ||
+			connected.role !== databaseUser ||
+			connected.comment !== `nexcode-gym:disposable-integration-test:${marker}` ||
+			connected.privileged
 		) {
 			throw new Error('Connected database failed the disposable test database safety check.');
 		}
