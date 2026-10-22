@@ -66,3 +66,31 @@ payments, refunds, plan allocations, members and subscriptions all use the authe
 ID inside a tenant transaction.
 Invalid dates return `400`; an absent session returns `401`; inactive or non-owner access returns
 `403`; an aggregation failure returns `503 DASHBOARD_ANALYTICS_UNAVAILABLE` without partial data.
+
+## Database verification and performance gate
+
+`test/integration/owner-dashboard-analytics-postgres.integration.spec.ts` is an explicit opt-in
+test. It refuses to write unless `TEST_DATABASE_URL` points to the restricted `gym_test` role and
+the connected database has the matching disposable-test marker from `TEST_DATABASE_MARKER`.
+It creates only fictional fixtures inside a transaction that always rolls back. Run it only after the
+test migrations and reviewed test-role grants are applied:
+
+```bash
+cd api/api
+OWNER_DASHBOARD_POSTGRES_TESTS=1 npm run test:integration -- --testPathPattern=owner-dashboard-analytics-postgres
+```
+
+The operator must supply `TEST_DATABASE_URL` and `TEST_DATABASE_MARKER` through the dedicated test
+environment; never substitute the development or production URL. The test reconciles dashboard
+net and settled counts with the payment report for both selected and comparison periods. It also
+checks confirmed refunds, pending-payment exclusion, new and active members, chart/breakdown sums,
+and exclusion of another gym's much larger payment.
+
+Before enabling the manager dashboard in production, profile the three raw dashboard SELECTs in
+`owner-dashboard-analytics.service.ts` on a representative **test** database using
+`EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)` with a 366-day range and the same tenant predicate.
+Record cold and warm timings, rows scanned, buffer reads, and whether the payment time/status and
+subscription indexes are used. Also measure end-to-end p50/p95 for default month-to-date and the
+maximum range under expected concurrency. Do not set a latency claim or add an index based only on
+the tiny integration fixture; review the measured plan first. If a query exceeds the API's timeout
+or scans an unbounded cross-tenant set, optimize it before the frontend rollout.
