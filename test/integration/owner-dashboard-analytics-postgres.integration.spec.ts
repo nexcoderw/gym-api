@@ -7,8 +7,8 @@ import {
 	OrganizationPaymentStatus,
 	OrganizationStatus,
 	PrismaService,
-	TenantTransactionService,
 	type Prisma,
+	type TenantTransactionService,
 } from '@nexcoderw/gym-db';
 
 import { OwnerDashboardAnalyticsService } from '../../src/modules/owner/dashboard/owner-dashboard-analytics.service.js';
@@ -24,14 +24,27 @@ postgresDescribe('owner dashboard aggregates in disposable PostgreSQL', () => {
 	const gymId = randomUUID();
 	const otherGymId = randomUUID();
 	const actorId = randomUUID();
-	const memberIds = [randomUUID(), randomUUID(), randomUUID()];
-	const planIds = [randomUUID(), randomUUID(), randomUUID()];
-	const subscriptionIds = [randomUUID(), randomUUID(), randomUUID()];
-	const paymentIds = [randomUUID(), randomUUID(), randomUUID(), randomUUID(), randomUUID()];
-	const allocationIds = [randomUUID(), randomUUID(), randomUUID(), randomUUID(), randomUUID()];
+	const memberIds = [randomUUID(), randomUUID(), randomUUID()] as const;
+	const planIds = [randomUUID(), randomUUID(), randomUUID()] as const;
+	const subscriptionIds = [randomUUID(), randomUUID(), randomUUID()] as const;
+	const paymentIds = [
+		randomUUID(),
+		randomUUID(),
+		randomUUID(),
+		randomUUID(),
+		randomUUID(),
+	] as const;
+	const allocationIds = [
+		randomUUID(),
+		randomUUID(),
+		randomUUID(),
+		randomUUID(),
+		randomUUID(),
+	] as const;
 	const refundId = randomUUID();
 	const context = { organizationId: gymId, actorUserId: actorId, requestId: randomUUID() };
 	let verified = false;
+	let disconnect: (() => Promise<void>) | undefined;
 
 	beforeAll(async () => {
 		const databaseUrl = process.env.TEST_DATABASE_URL;
@@ -67,6 +80,7 @@ postgresDescribe('owner dashboard aggregates in disposable PostgreSQL', () => {
 			poolMax: 3,
 			connectionTimeoutMilliseconds: 30_000,
 		});
+		disconnect = () => prisma.$disconnect();
 		await prisma.$connect();
 		const identity = await prisma.$queryRaw<
 			{
@@ -85,12 +99,15 @@ postgresDescribe('owner dashboard aggregates in disposable PostgreSQL', () => {
 			JOIN pg_catalog.pg_roles AS r ON r.rolname = current_user
 			WHERE d.datname = current_database()
 		`;
+		if (identity.length !== 1) {
+			throw new Error('Connected database failed the disposable test database safety check.');
+		}
+		const connected = identity[0];
 		if (
-			identity.length !== 1 ||
-			identity[0]?.name !== databaseName ||
-			identity[0]?.role !== databaseUser ||
-			identity[0]?.comment !== `nexcode-gym:disposable-integration-test:${marker}` ||
-			identity[0]?.privileged !== false
+			connected.name !== databaseName ||
+			connected.role !== databaseUser ||
+			connected.comment !== `nexcode-gym:disposable-integration-test:${marker}` ||
+			connected.privileged
 		) {
 			throw new Error('Connected database failed the disposable test database safety check.');
 		}
@@ -98,7 +115,7 @@ postgresDescribe('owner dashboard aggregates in disposable PostgreSQL', () => {
 	}, 60_000);
 
 	afterAll(async () => {
-		if (prisma !== undefined) await prisma.$disconnect();
+		await disconnect?.();
 	});
 
 	it('reconciles selected and comparison totals while excluding another gym', async () => {
@@ -186,21 +203,21 @@ postgresDescribe('owner dashboard aggregates in disposable PostgreSQL', () => {
 		await transaction.organizationMembershipPlan.createMany({
 			data: [
 				{
-					id: planIds[0]!,
+					id: planIds[0],
 					organizationId: gymId,
 					name: 'Bronze',
 					normalizedName: 'bronze',
 					priceRwf: 10000n,
 				},
 				{
-					id: planIds[1]!,
+					id: planIds[1],
 					organizationId: gymId,
 					name: 'Gold',
 					normalizedName: 'gold',
 					priceRwf: 20000n,
 				},
 				{
-					id: planIds[2]!,
+					id: planIds[2],
 					organizationId: otherGymId,
 					name: 'Other',
 					normalizedName: 'other',
@@ -215,7 +232,7 @@ postgresDescribe('owner dashboard aggregates in disposable PostgreSQL', () => {
 		await transaction.organizationMember.createMany({
 			data: [
 				{
-					id: memberIds[0]!,
+					id: memberIds[0],
 					organizationId: gymId,
 					name: 'Member One',
 					normalizedName: 'member one',
@@ -224,7 +241,7 @@ postgresDescribe('owner dashboard aggregates in disposable PostgreSQL', () => {
 					updatedAt: september,
 				},
 				{
-					id: memberIds[1]!,
+					id: memberIds[1],
 					organizationId: gymId,
 					name: 'Member Two',
 					normalizedName: 'member two',
@@ -233,7 +250,7 @@ postgresDescribe('owner dashboard aggregates in disposable PostgreSQL', () => {
 					updatedAt: october,
 				},
 				{
-					id: memberIds[2]!,
+					id: memberIds[2],
 					organizationId: otherGymId,
 					name: 'Other Member',
 					normalizedName: 'other member',
@@ -246,9 +263,9 @@ postgresDescribe('owner dashboard aggregates in disposable PostgreSQL', () => {
 		await transaction.organizationMemberSubscription.createMany({
 			data: [
 				{
-					id: subscriptionIds[0]!,
-					memberId: memberIds[0]!,
-					membershipPlanId: planIds[0]!,
+					id: subscriptionIds[0],
+					memberId: memberIds[0],
+					membershipPlanId: planIds[0],
 					planName: 'Bronze',
 					priceRwf: 10000n,
 					startDate: new Date('2026-09-25'),
@@ -257,9 +274,9 @@ postgresDescribe('owner dashboard aggregates in disposable PostgreSQL', () => {
 					updatedAt: september,
 				},
 				{
-					id: subscriptionIds[1]!,
-					memberId: memberIds[1]!,
-					membershipPlanId: planIds[1]!,
+					id: subscriptionIds[1],
+					memberId: memberIds[1],
+					membershipPlanId: planIds[1],
 					planName: 'Gold',
 					priceRwf: 20000n,
 					startDate: new Date('2026-10-02'),
@@ -268,9 +285,9 @@ postgresDescribe('owner dashboard aggregates in disposable PostgreSQL', () => {
 					updatedAt: october,
 				},
 				{
-					id: subscriptionIds[2]!,
-					memberId: memberIds[2]!,
-					membershipPlanId: planIds[2]!,
+					id: subscriptionIds[2],
+					memberId: memberIds[2],
+					membershipPlanId: planIds[2],
 					planName: 'Other',
 					priceRwf: 900000n,
 					startDate: new Date('2026-10-02'),
@@ -290,45 +307,45 @@ postgresDescribe('owner dashboard aggregates in disposable PostgreSQL', () => {
 		});
 		const payments = [
 			{
-				id: paymentIds[0]!,
+				id: paymentIds[0],
 				organizationId: gymId,
-				memberId: memberIds[0]!,
+				memberId: memberIds[0],
 				amountRwf: 5000n,
 				method: OrganizationPaymentMethod.CASH,
 				status: OrganizationPaymentStatus.CONFIRMED,
 				occurredAt: new Date('2026-09-28T08:00:00Z'),
 			},
 			{
-				id: paymentIds[1]!,
+				id: paymentIds[1],
 				organizationId: gymId,
-				memberId: memberIds[0]!,
+				memberId: memberIds[0],
 				amountRwf: 10000n,
 				method: OrganizationPaymentMethod.CASH,
 				status: OrganizationPaymentStatus.PARTIALLY_REFUNDED,
 				occurredAt: new Date('2026-10-03T08:00:00Z'),
 			},
 			{
-				id: paymentIds[2]!,
+				id: paymentIds[2],
 				organizationId: gymId,
-				memberId: memberIds[1]!,
+				memberId: memberIds[1],
 				amountRwf: 20000n,
 				method: OrganizationPaymentMethod.MOBILE_MONEY,
 				status: OrganizationPaymentStatus.CONFIRMED,
 				occurredAt: new Date('2026-10-04T08:00:00Z'),
 			},
 			{
-				id: paymentIds[3]!,
+				id: paymentIds[3],
 				organizationId: otherGymId,
-				memberId: memberIds[2]!,
+				memberId: memberIds[2],
 				amountRwf: 900000n,
 				method: OrganizationPaymentMethod.CASH,
 				status: OrganizationPaymentStatus.CONFIRMED,
 				occurredAt: new Date('2026-10-05T08:00:00Z'),
 			},
 			{
-				id: paymentIds[4]!,
+				id: paymentIds[4],
 				organizationId: gymId,
-				memberId: memberIds[1]!,
+				memberId: memberIds[1],
 				amountRwf: 7000n,
 				method: OrganizationPaymentMethod.CASH,
 				status: OrganizationPaymentStatus.PENDING,
@@ -354,38 +371,38 @@ postgresDescribe('owner dashboard aggregates in disposable PostgreSQL', () => {
 		await transaction.organizationPaymentAllocation.createMany({
 			data: [
 				{
-					id: allocationIds[0]!,
-					paymentId: paymentIds[0]!,
-					memberId: memberIds[0]!,
-					memberSubscriptionId: subscriptionIds[0]!,
+					id: allocationIds[0],
+					paymentId: paymentIds[0],
+					memberId: memberIds[0],
+					memberSubscriptionId: subscriptionIds[0],
 					amountRwf: 5000n,
 				},
 				{
-					id: allocationIds[1]!,
-					paymentId: paymentIds[1]!,
-					memberId: memberIds[0]!,
-					memberSubscriptionId: subscriptionIds[0]!,
+					id: allocationIds[1],
+					paymentId: paymentIds[1],
+					memberId: memberIds[0],
+					memberSubscriptionId: subscriptionIds[0],
 					amountRwf: 10000n,
 				},
 				{
-					id: allocationIds[2]!,
-					paymentId: paymentIds[2]!,
-					memberId: memberIds[1]!,
-					memberSubscriptionId: subscriptionIds[1]!,
+					id: allocationIds[2],
+					paymentId: paymentIds[2],
+					memberId: memberIds[1],
+					memberSubscriptionId: subscriptionIds[1],
 					amountRwf: 20000n,
 				},
 				{
-					id: allocationIds[3]!,
-					paymentId: paymentIds[3]!,
-					memberId: memberIds[2]!,
-					memberSubscriptionId: subscriptionIds[2]!,
+					id: allocationIds[3],
+					paymentId: paymentIds[3],
+					memberId: memberIds[2],
+					memberSubscriptionId: subscriptionIds[2],
 					amountRwf: 900000n,
 				},
 				{
-					id: allocationIds[4]!,
-					paymentId: paymentIds[4]!,
-					memberId: memberIds[1]!,
-					memberSubscriptionId: subscriptionIds[1]!,
+					id: allocationIds[4],
+					paymentId: paymentIds[4],
+					memberId: memberIds[1],
+					memberSubscriptionId: subscriptionIds[1],
 					amountRwf: 7000n,
 				},
 			].map((allocation, index) => ({
@@ -397,8 +414,8 @@ postgresDescribe('owner dashboard aggregates in disposable PostgreSQL', () => {
 			data: {
 				id: refundId,
 				organizationId: gymId,
-				paymentId: paymentIds[1]!,
-				memberId: memberIds[0]!,
+				paymentId: paymentIds[1],
+				memberId: memberIds[0],
 				amountRwf: 2000n,
 				status: OrganizationPaymentRefundStatus.CONFIRMED,
 				reason: 'Fictional test adjustment',
