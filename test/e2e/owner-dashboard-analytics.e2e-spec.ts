@@ -94,9 +94,9 @@ describe('owner dashboard analytics HTTP security', () => {
 	beforeEach(() => {
 		jest.clearAllMocks();
 		authenticate.mockResolvedValue(principal());
-		get.mockImplementation(async (_context, query: OwnerDashboardAnalyticsQueryDto) => {
+		get.mockImplementation((_context, query: OwnerDashboardAnalyticsQueryDto) => {
 			resolveDashboardPeriod(query, new Date('2026-10-22T08:00:00.000Z'));
-			return RESPONSE;
+			return Promise.resolve(RESPONSE);
 		});
 	});
 
@@ -122,8 +122,9 @@ describe('owner dashboard analytics HTTP security', () => {
 	it('rejects unpaired, malformed and client-supplied tenant query fields', async () => {
 		await ownerRequest('?fromDate=2026-01-01').expect(400);
 		await ownerRequest('?fromDate=2026-02-30&toDate=2026-03-01').expect(400);
+		expect(get).toHaveBeenCalledTimes(2);
 		await ownerRequest('?organizationId=another-gym').expect(400);
-		expect(get).not.toHaveBeenCalled();
+		expect(get).toHaveBeenCalledTimes(2);
 	});
 
 	it('requires a valid owner session and matching portal origin', async () => {
