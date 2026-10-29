@@ -15,6 +15,9 @@ import { ApiErrorResponseDto } from '../../../common/dto/api-error-response.dto.
 import { OwnerOriginCsrfGuard } from '../auth/owner-origin-csrf.guard.js';
 import type { OwnerRequest } from '../auth/owner-request.js';
 import { OwnerSessionGuard } from '../auth/owner-session.guard.js';
+import { OwnerEntitlementGuard } from '../entitlements/owner-entitlement.guard.js';
+import { OWNER_OPERATION_ENTITLEMENTS } from '../entitlements/owner-operation-entitlements.js';
+import { RequireOwnerEntitlements } from '../entitlements/require-owner-entitlements.decorator.js';
 import { ownerPaymentContext } from '../payments/owner-payment-context.js';
 import {
 	OwnerDashboardAnalyticsQueryDto,
@@ -29,17 +32,18 @@ import { OwnerDashboardAnalyticsService } from './owner-dashboard-analytics.serv
 @ApiForbiddenResponse({ type: ApiErrorResponseDto })
 @ApiTooManyRequestsResponse({ type: ApiErrorResponseDto })
 @ApiServiceUnavailableResponse({ type: ApiErrorResponseDto })
-@UseGuards(OwnerOriginCsrfGuard, OwnerSessionGuard)
+@UseGuards(OwnerOriginCsrfGuard, OwnerSessionGuard, OwnerEntitlementGuard)
 @Controller('owner/dashboard/analytics')
 export class OwnerDashboardAnalyticsController {
 	constructor(private readonly analytics: OwnerDashboardAnalyticsService) {}
 
 	@Get()
+	@RequireOwnerEntitlements(...OWNER_OPERATION_ENTITLEMENTS.dashboardAnalyticsRead)
 	@Header('Cache-Control', 'no-store')
 	@ApiOperation({
 		summary: 'Read this gym’s financial and membership dashboard',
 		description:
-			'Active gym owners only. Defaults to the current Africa/Kigali month through today. ' +
+			'Requires organization.dashboard.read. Defaults to the current Africa/Kigali month through today. ' +
 			'Optional dates are inclusive and compared with the preceding equal-length period. ' +
 			'Money uses the same settled-payment and confirmed-refund rules as payment reports; ' +
 			'plan and method breakdowns show gross settled value before refunds.',
