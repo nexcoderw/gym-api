@@ -41,6 +41,9 @@ import { OwnerOriginCsrfGuard } from '../auth/owner-origin-csrf.guard.js';
 import type { OwnerRequest } from '../auth/owner-request.js';
 import { OwnerSessionGuard } from '../auth/owner-session.guard.js';
 import { RequireOwnerCsrf } from '../auth/owner-csrf.decorator.js';
+import { OwnerEntitlementGuard } from '../entitlements/owner-entitlement.guard.js';
+import { OWNER_OPERATION_ENTITLEMENTS } from '../entitlements/owner-operation-entitlements.js';
+import { RequireOwnerEntitlements } from '../entitlements/require-owner-entitlements.decorator.js';
 import { CreateMembershipPlanDto } from './dto/create-membership-plan.dto.js';
 import { ListMembershipPlansQueryDto } from './dto/list-membership-plans-query.dto.js';
 import { MembershipPlanListResponseDto } from './dto/membership-plan-list-response.dto.js';
@@ -57,17 +60,18 @@ import { OwnerMembershipPlansService } from './owner-membership-plans.service.js
 @ApiForbiddenResponse({ type: ApiErrorResponseDto })
 @ApiTooManyRequestsResponse({ type: ApiErrorResponseDto })
 @ApiServiceUnavailableResponse({ type: ApiErrorResponseDto })
-@UseGuards(OwnerOriginCsrfGuard, OwnerSessionGuard)
+@UseGuards(OwnerOriginCsrfGuard, OwnerSessionGuard, OwnerEntitlementGuard)
 @Controller('owner/membership-plans')
 export class OwnerMembershipPlansController {
 	constructor(private readonly plans: OwnerMembershipPlansService) {}
 
 	@Get()
+	@RequireOwnerEntitlements(...OWNER_OPERATION_ENTITLEMENTS.membershipPlansList)
 	@Header('Cache-Control', 'no-store')
 	@ApiOperation({
 		summary: 'List membership plans for the authenticated gym',
 		description:
-			'Requires an active owner membership for the organization selected by the verified portal origin. Results use bounded cursor pagination, optional plan-name search and exclude archived plans by default.',
+			'Requires organization.membership-plans.read and an active owner membership. Results use bounded cursor pagination, optional plan-name search and exclude archived plans by default.',
 	})
 	@ApiOkResponse({ type: MembershipPlanListResponseDto })
 	list(
@@ -78,12 +82,13 @@ export class OwnerMembershipPlansController {
 	}
 
 	@Get(':planId')
+	@RequireOwnerEntitlements(...OWNER_OPERATION_ENTITLEMENTS.membershipPlansGet)
 	@Header('Cache-Control', 'no-store')
 	@ApiParam({ name: 'planId', format: 'uuid' })
 	@ApiOperation({
 		summary: 'Read one membership plan for the authenticated gym',
 		description:
-			'Returns only a plan owned by the organization selected through the authenticated portal session. The updatedAt value is also returned as an ETag.',
+			'Requires organization.membership-plans.read. Returns only a plan owned by the authenticated organization; updatedAt is also returned as an ETag.',
 	})
 	@ApiOkResponse({
 		type: MembershipPlanResponseDto,
@@ -104,13 +109,14 @@ export class OwnerMembershipPlansController {
 	}
 
 	@Post()
+	@RequireOwnerEntitlements(...OWNER_OPERATION_ENTITLEMENTS.membershipPlansCreate)
 	@Header('Cache-Control', 'no-store')
 	@RequireOwnerCsrf()
 	@ApiHeader({ name: 'x-owner-csrf-token', required: true })
 	@ApiOperation({
 		summary: 'Create a membership plan for the authenticated gym',
 		description:
-			'Name and whole-RWF price are required. Description is optional and stores included activities. Organization, currency and lifecycle fields are server-controlled.',
+			'Requires organization.membership-plans.manage. Name and whole-RWF price are required. Organization, currency and lifecycle fields are server-controlled.',
 	})
 	@ApiCreatedResponse({ type: MembershipPlanResponseDto })
 	@ApiConflictResponse({ type: ApiErrorResponseDto })
@@ -122,6 +128,7 @@ export class OwnerMembershipPlansController {
 	}
 
 	@Patch(':planId')
+	@RequireOwnerEntitlements(...OWNER_OPERATION_ENTITLEMENTS.membershipPlansUpdate)
 	@Header('Cache-Control', 'no-store')
 	@RequireOwnerCsrf()
 	@ApiParam({ name: 'planId', format: 'uuid' })
@@ -130,7 +137,7 @@ export class OwnerMembershipPlansController {
 	@ApiOperation({
 		summary: 'Update an active membership plan',
 		description:
-			'Requires the latest quoted updatedAt ETag and at least one mutable field. Archived plans cannot be modified.',
+			'Requires organization.membership-plans.manage, the latest quoted updatedAt ETag and at least one mutable field. Archived plans cannot be modified.',
 	})
 	@ApiOkResponse({ type: MembershipPlanResponseDto })
 	@ApiNotFoundResponse({ type: ApiErrorResponseDto })
@@ -151,6 +158,7 @@ export class OwnerMembershipPlansController {
 	}
 
 	@Delete(':planId')
+	@RequireOwnerEntitlements(...OWNER_OPERATION_ENTITLEMENTS.membershipPlansArchive)
 	@HttpCode(HttpStatus.NO_CONTENT)
 	@Header('Cache-Control', 'no-store')
 	@RequireOwnerCsrf()
@@ -160,7 +168,7 @@ export class OwnerMembershipPlansController {
 	@ApiOperation({
 		summary: 'Archive a membership plan',
 		description:
-			'Soft-archives the plan using optimistic concurrency. The record is retained for future membership history and cannot be modified afterward.',
+			'Requires organization.membership-plans.manage. Soft-archives the plan using optimistic concurrency while retaining membership history.',
 	})
 	@ApiNoContentResponse()
 	@ApiNotFoundResponse({ type: ApiErrorResponseDto })
