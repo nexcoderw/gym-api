@@ -12,6 +12,7 @@ export function createPlatformDashboardDatabaseFixture() {
 	const staffGroupBy = jest.fn<() => Promise<StaffStatusAggregate[]>>().mockResolvedValue([]);
 	const roleCount = jest.fn<() => Promise<number>>().mockResolvedValue(0);
 	const permissionCount = jest.fn<() => Promise<number>>().mockResolvedValue(0);
+	const organizationCount = jest.fn<(args?: unknown) => Promise<number>>().mockResolvedValue(0);
 	const sessionFindUnique = jest.fn<(args: unknown) => Promise<unknown>>().mockResolvedValue(null);
 	const sessionUpdateMany = jest
 		.fn<(args: unknown) => Promise<{ count: number }>>()
@@ -31,6 +32,7 @@ export function createPlatformDashboardDatabaseFixture() {
 		staffGroupBy,
 		roleCount,
 		permissionCount,
+		organizationCount,
 		sessionFindUnique,
 		sessionUpdateMany,
 		runTransaction,
@@ -39,6 +41,7 @@ export function createPlatformDashboardDatabaseFixture() {
 			platformStaff: { groupBy: staffGroupBy },
 			platformRole: { count: roleCount },
 			platformPermission: { count: permissionCount },
+			organization: { count: organizationCount },
 			platformAdminSession: client.platformAdminSession,
 			$transaction: runTransaction,
 		},
