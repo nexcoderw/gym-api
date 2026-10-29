@@ -6,10 +6,11 @@ owner-identity response, not this financial dashboard.
 
 ## Request and authorization
 
-Route: `GET /api/v1/owner/dashboard/analytics`. It requires an authenticated active gym owner and
+Route: `GET /api/v1/owner/dashboard/analytics`. It requires an authenticated active gym owner and an
+active `organization.dashboard.read` entitlement. A missing, disabled, not-yet-active or expired
+entitlement returns `403 ORGANIZATION_FEATURE_DISABLED` before analytics work begins. The endpoint
 resolves the organization from the verified session and portal origin. No organization ID, tenant
-header or arbitrary sort field is accepted from the browser. Responses use
-`Cache-Control: no-store`.
+header or arbitrary sort field is accepted from the browser. Responses use `Cache-Control: no-store`.
 
 Optional `fromDate` and `toDate` must be supplied together as valid `YYYY-MM-DD` calendar dates.
 They are inclusive days in `Africa/Kigali`. With neither supplied, use the first day of the current
