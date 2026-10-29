@@ -1,6 +1,7 @@
-import { Controller, Get, Header, UseGuards } from '@nestjs/common';
+import { Controller, Get, Header, Query, UseGuards } from '@nestjs/common';
 import {
 	ApiCookieAuth,
+	ApiBadRequestResponse,
 	ApiForbiddenResponse,
 	ApiInternalServerErrorResponse,
 	ApiOkResponse,
@@ -16,6 +17,10 @@ import { PlatformPermissionGuard } from '../auth/platform-permission.guard.js';
 import { RequirePlatformPermissions } from '../auth/platform-permissions.decorator.js';
 import { PlatformSessionGuard } from '../auth/platform-session.guard.js';
 import { PLATFORM_PERMISSION } from '../auth/platform-permission.constants.js';
+import {
+	PlatformDashboardMetricsQueryDto,
+	PlatformDashboardMetricsResponseDto,
+} from './dto/platform-dashboard-metrics.dto.js';
 import { PlatformDashboardSummaryDto } from './dto/platform-dashboard-summary.dto.js';
 import { PlatformDashboardService } from './platform-dashboard.service.js';
 
@@ -67,5 +72,45 @@ export class PlatformDashboardController {
 	})
 	async getSummary(): Promise<PlatformDashboardSummaryDto> {
 		return await this.dashboard.getSummary();
+	}
+
+	@Get('metrics')
+	@Header('Cache-Control', 'no-store')
+	@RequirePlatformPermissions(PLATFORM_PERMISSION.dashboardRead)
+	@ApiOperation({
+		summary: 'Read platform dashboard metrics',
+		description:
+			'Requires the live platform.dashboard.read permission. Defaults to organizations registered in the current Africa/Kigali month and compares against the same elapsed portion of the previous month. Custom inclusive dates compare with the immediately preceding equally long range. All-time returns a lifetime count without a percentage baseline.',
+	})
+	@ApiOkResponse({
+		description: 'Aggregate-only organization metrics. Example values are fictional.',
+		type: PlatformDashboardMetricsResponseDto,
+		headers: { 'Cache-Control': { schema: { type: 'string', example: 'no-store' } } },
+	})
+	@ApiBadRequestResponse({
+		description: 'The date range or all-time query combination is invalid.',
+		type: ApiErrorResponseDto,
+	})
+	@ApiUnauthorizedResponse({
+		description: 'The session or administrator eligibility is invalid, expired, or revoked.',
+		type: ApiErrorResponseDto,
+	})
+	@ApiForbiddenResponse({
+		description:
+			'The administrative Origin is not allowed or the session lacks platform.dashboard.read.',
+		type: ApiErrorResponseDto,
+	})
+	@ApiTooManyRequestsResponse({
+		description: 'The caller exceeded the existing global request limit.',
+		type: ApiErrorResponseDto,
+	})
+	@ApiInternalServerErrorResponse({
+		description: 'A safe internal error; no database details or stack traces are returned.',
+		type: ApiErrorResponseDto,
+	})
+	async getMetrics(
+		@Query() query: PlatformDashboardMetricsQueryDto,
+	): Promise<PlatformDashboardMetricsResponseDto> {
+		return await this.dashboard.getMetrics(query);
 	}
 }
