@@ -1,7 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { PlatformStaffStatus, Prisma, PrismaService } from '@nexcoderw/gym-db';
 
+import type {
+	PlatformDashboardMetricsQueryDto,
+	PlatformDashboardMetricsResponseDto,
+} from './dto/platform-dashboard-metrics.dto.js';
 import type { PlatformDashboardSummaryDto } from './dto/platform-dashboard-summary.dto.js';
+import {
+	platformDashboardChange,
+	resolvePlatformDashboardPeriod,
+} from './platform-dashboard-metrics.policy.js';
 
 @Injectable()
 export class PlatformDashboardService {
@@ -54,6 +62,43 @@ export class PlatformDashboardService {
 			},
 			platformRoles: { total: roles },
 			platformPermissions: { total: permissions },
+		};
+	}
+
+	/** Reads only aggregate organization counts from one repeatable-read snapshot. */
+	async getMetrics(
+		query: Readonly<PlatformDashboardMetricsQueryDto>,
+		now = new Date(),
+	): Promise<PlatformDashboardMetricsResponseDto> {
+		const resolved = resolvePlatformDashboardPeriod(query, now);
+		const selected =
+			resolved.selected === null
+				? this.prisma.organization.count()
+				: this.prisma.organization.count({ where: { createdAt: resolved.selected } });
+		const operations =
+			resolved.comparison === null
+				? [selected]
+				: [
+						selected,
+						this.prisma.organization.count({
+							where: { createdAt: resolved.comparison },
+						}),
+					];
+		const counts = await this.prisma.$transaction(operations, {
+			isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead,
+		});
+		const current = counts[0] ?? 0;
+		const previous = counts[1] ?? null;
+		return {
+			generatedAt: now.toISOString(),
+			period: resolved.period,
+			metrics: {
+				organizations: {
+					current,
+					previous,
+					change: platformDashboardChange(current, previous),
+				},
+			},
 		};
 	}
 }
