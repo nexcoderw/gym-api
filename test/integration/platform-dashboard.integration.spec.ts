@@ -76,4 +76,16 @@ describe('PlatformDashboardModule adapter integration (no PostgreSQL)', () => {
 			platformPermissions: { total: 0 },
 		});
 	});
+
+	it('maps organization metrics through the registered controller', async () => {
+		database.organizationCount.mockResolvedValueOnce(7).mockResolvedValueOnce(5);
+		const result = await module
+			.get(PlatformDashboardController)
+			.getMetrics({ fromDate: '2026-10-01', toDate: '2026-10-15' });
+		expect(result.metrics.organizations).toEqual({
+			current: 7,
+			previous: 5,
+			change: { direction: 'UP', percent: 40 },
+		});
+	});
 });
