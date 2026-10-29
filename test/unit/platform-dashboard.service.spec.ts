@@ -97,4 +97,49 @@ describe('PlatformDashboardService', () => {
 		database.runTransaction.mockRejectedValueOnce(failure);
 		await expect(service.getSummary()).rejects.toBe(failure);
 	});
+
+	it('returns current-month organization metrics with a previous-month comparison', async () => {
+		database.organizationCount.mockResolvedValueOnce(12).mockResolvedValueOnce(8);
+		const result = await service.getMetrics({}, new Date('2026-10-29T10:00:00.000Z'));
+		expect(result).toEqual({
+			generatedAt: '2026-10-29T10:00:00.000Z',
+			period: {
+				mode: 'CURRENT_MONTH',
+				fromDate: '2026-10-01',
+				toDate: '2026-10-29',
+				comparisonFromDate: '2026-09-01',
+				comparisonToDate: '2026-09-29',
+				timeZone: 'Africa/Kigali',
+			},
+			metrics: {
+				organizations: {
+					current: 12,
+					previous: 8,
+					change: { direction: 'UP', percent: 50 },
+				},
+			},
+		});
+		expect(database.organizationCount).toHaveBeenNthCalledWith(1, {
+			where: {
+				createdAt: {
+					gte: new Date('2026-09-30T22:00:00.000Z'),
+					lt: new Date('2026-10-29T22:00:00.000Z'),
+				},
+			},
+		});
+	});
+
+	it('returns an all-time total without inventing a comparison', async () => {
+		database.organizationCount.mockResolvedValueOnce(37);
+		const result = await service.getMetrics(
+			{ scope: 'all-time' },
+			new Date('2026-10-29T10:00:00.000Z'),
+		);
+		expect(result.metrics.organizations).toEqual({
+			current: 37,
+			previous: null,
+			change: { direction: 'NOT_APPLICABLE', percent: null },
+		});
+		expect(database.organizationCount).toHaveBeenCalledWith();
+	});
 });
