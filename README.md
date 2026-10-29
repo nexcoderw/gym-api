@@ -21,16 +21,16 @@ platform operations and independently authorized gym organizations and branches 
 - Two-stage, operator-controlled first platform-owner bootstrap with encrypted TOTP enrollment
 - Unit, integration, and e2e foundation tests
 
-Applying entitlement declarations to owner business endpoints, manager capability presentation,
-readiness checks, platform billing, queues, ongoing administrator management, password recovery, and
-general MFA enrollment remain future work.
+Manager capability presentation, readiness checks, platform billing, queued-work revalidation,
+ongoing administrator management, password recovery, and general MFA enrollment remain future work.
 
 The entitlement policy requires a regenerated, built `@nexcoderw/gym-db` package before this API can
 build. The reviewed `add_organization_feature_entitlements` migration must be deployed before any
-business endpoint activates the guard. The policy performs a live organization-scoped lookup without
-a cross-request cache; missing, disabled, not-yet-active and expired rows deny access. Existing owner
-business endpoints are not entitlement-protected until the separate endpoint-mapping rollout is
-completed.
+protected business endpoint can activate the guard. The policy performs a live organization-scoped
+lookup without a cross-request cache; missing, disabled, not-yet-active and expired rows deny access.
+Dashboard analytics, membership plans, members, subscriptions, payments, reminders and reports now
+declare and enforce their reviewed endpoint capabilities. The organization portal identity endpoint
+remains an authenticated bootstrap response rather than a business-feature authorization boundary.
 
 ## Architecture
 
