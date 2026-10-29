@@ -15,6 +15,8 @@ import { OwnerOriginCsrfGuard } from '../../src/modules/owner/auth/owner-origin-
 import { OwnerSessionGuard } from '../../src/modules/owner/auth/owner-session.guard.js';
 import { OwnerSessionService } from '../../src/modules/owner/auth/owner-session.service.js';
 import { OwnerTokenService } from '../../src/modules/owner/auth/owner-token.service.js';
+import { OwnerEntitlementGuard } from '../../src/modules/owner/entitlements/owner-entitlement.guard.js';
+import { OwnerEntitlementService } from '../../src/modules/owner/entitlements/owner-entitlement.service.js';
 import { OwnerMembersController } from '../../src/modules/owner/members/owner-members.controller.js';
 import { OwnerMembersService } from '../../src/modules/owner/members/owner-members.service.js';
 import { MemberPeriodUnit } from '../../src/modules/owner/members/member-period.js';
@@ -70,6 +72,7 @@ const SUBSCRIPTION = {
 describe('owner members HTTP security', () => {
 	let application: NestExpressApplication | undefined;
 	const authenticate = jest.fn<OwnerSessionService['authenticate']>();
+	const hasAllEnabled = jest.fn<OwnerEntitlementService['hasAllEnabled']>();
 	const list = jest.fn<OwnerMembersService['list']>();
 	const get = jest.fn<OwnerMembersService['get']>();
 	const create = jest.fn<OwnerMembersService['create']>();
@@ -91,8 +94,10 @@ describe('owner members HTTP security', () => {
 				OwnerCookieService,
 				OwnerOriginCsrfGuard,
 				OwnerSessionGuard,
+				OwnerEntitlementGuard,
 				{ provide: ConfigService, useValue: { get: (key: string): unknown => values.get(key) } },
 				{ provide: OwnerSessionService, useValue: { authenticate } },
+				{ provide: OwnerEntitlementService, useValue: { hasAllEnabled } },
 				{
 					provide: OwnerTokenService,
 					useValue: {
@@ -118,6 +123,7 @@ describe('owner members HTTP security', () => {
 	beforeEach(() => {
 		jest.clearAllMocks();
 		authenticate.mockResolvedValue(principal());
+		hasAllEnabled.mockResolvedValue(true);
 		list.mockResolvedValue({
 			items: [MEMBER],
 			nextCursor: null,
