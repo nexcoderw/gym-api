@@ -3,6 +3,7 @@ import { Module } from '@nestjs/common';
 import { OwnerAuthModule } from './auth/owner-auth.module.js';
 import { OwnerDashboardAnalyticsModule } from './dashboard/owner-dashboard-analytics.module.js';
 import { OwnerEnrollmentModule } from './enrollment/owner-enrollment.module.js';
+import { OwnerEntitlementsModule } from './entitlements/owner-entitlements.module.js';
 import { OwnerMembershipPlansModule } from './membership-plans/owner-membership-plans.module.js';
 import { OwnerMembersModule } from './members/owner-members.module.js';
 import { OwnerPaymentsModule } from './payments/owner-payments.module.js';
@@ -15,6 +16,7 @@ import { OwnerPaymentReportsModule } from './reports/owner-payment-reports.modul
 		OwnerAuthModule,
 		OwnerDashboardAnalyticsModule,
 		OwnerEnrollmentModule,
+		OwnerEntitlementsModule,
 		OwnerMembershipPlansModule,
 		OwnerMembersModule,
 		OwnerPaymentsModule,
