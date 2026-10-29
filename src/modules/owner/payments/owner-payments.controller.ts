@@ -35,6 +35,9 @@ import { OwnerOriginCsrfGuard } from '../auth/owner-origin-csrf.guard.js';
 import type { OwnerRequest } from '../auth/owner-request.js';
 import { OwnerSessionGuard } from '../auth/owner-session.guard.js';
 import { RequireOwnerCsrf } from '../auth/owner-csrf.decorator.js';
+import { OwnerEntitlementGuard } from '../entitlements/owner-entitlement.guard.js';
+import { OWNER_OPERATION_ENTITLEMENTS } from '../entitlements/owner-operation-entitlements.js';
+import { RequireOwnerEntitlements } from '../entitlements/require-owner-entitlements.decorator.js';
 import { CreatePaymentDto } from './dto/create-payment.dto.js';
 import { ListPaymentsQueryDto } from './dto/list-payments-query.dto.js';
 import { CreatePaymentRefundDto, VoidPaymentDto } from './dto/payment-command.dto.js';
@@ -52,17 +55,18 @@ import { OwnerPaymentsService } from './owner-payments.service.js';
 @ApiConflictResponse({ type: ApiErrorResponseDto })
 @ApiTooManyRequestsResponse({ type: ApiErrorResponseDto })
 @ApiServiceUnavailableResponse({ type: ApiErrorResponseDto })
-@UseGuards(OwnerOriginCsrfGuard, OwnerSessionGuard)
+@UseGuards(OwnerOriginCsrfGuard, OwnerSessionGuard, OwnerEntitlementGuard)
 @Controller('owner/payments')
 export class OwnerPaymentsController {
 	constructor(private readonly payments: OwnerPaymentsService) {}
 
 	@Get()
+	@RequireOwnerEntitlements(...OWNER_OPERATION_ENTITLEMENTS.paymentsList)
 	@Header('Cache-Control', 'no-store')
 	@ApiOperation({
 		summary: 'List gym payments',
 		description:
-			'Tenant-scoped payment ledger with bounded cursor pagination, stable ordering and optional member, receipt or reference search.',
+			'Requires organization.payments.read. Returns a tenant-scoped ledger with bounded pagination and optional member, receipt or reference search.',
 	})
 	@ApiOkResponse({ type: PaymentListResponseDto })
 	list(
@@ -73,6 +77,7 @@ export class OwnerPaymentsController {
 	}
 
 	@Post()
+	@RequireOwnerEntitlements(...OWNER_OPERATION_ENTITLEMENTS.paymentsCreate)
 	@Header('Cache-Control', 'no-store')
 	@RequireOwnerCsrf()
 	@ApiHeader({ name: 'x-owner-csrf-token', required: true })
@@ -84,7 +89,7 @@ export class OwnerPaymentsController {
 	@ApiOperation({
 		summary: 'Record a member payment',
 		description:
-			'Allocates a whole-RWF payment to a registration from the authenticated gym. Cash is confirmed immediately; external methods remain pending until a verified provider workflow confirms them.',
+			'Requires organization.payments.create. Allocates a whole-RWF payment to a registration from the authenticated gym.',
 	})
 	@ApiCreatedResponse({ type: PaymentResponseDto })
 	create(
@@ -96,6 +101,7 @@ export class OwnerPaymentsController {
 	}
 
 	@Post('registrations')
+	@RequireOwnerEntitlements(...OWNER_OPERATION_ENTITLEMENTS.paymentRegistrationCreate)
 	@Header('Cache-Control', 'no-store')
 	@RequireOwnerCsrf()
 	@ApiHeader({ name: 'x-owner-csrf-token', required: true })
@@ -108,7 +114,7 @@ export class OwnerPaymentsController {
 	@ApiOperation({
 		summary: 'Register a member and record the plan payment',
 		description:
-			'Atomically creates a new member when supplied, a dated plan registration, and a full-price payment. An existing active member may instead be selected. The end date and price come from server-authoritative plan terms.',
+			'Requires organization.payments.create, organization.members.create and organization.member-subscriptions.manage. Atomically creates the registration workflow using server-authoritative plan terms.',
 	})
 	@ApiCreatedResponse({ type: PaymentResponseDto })
 	registerPayment(
@@ -124,11 +130,12 @@ export class OwnerPaymentsController {
 	}
 
 	@Get(':paymentId')
+	@RequireOwnerEntitlements(...OWNER_OPERATION_ENTITLEMENTS.paymentsGet)
 	@Header('Cache-Control', 'no-store')
 	@ApiOperation({
 		summary: 'Read a gym payment',
 		description:
-			'Returns payment, allocation, and refund evidence only from the authenticated gym.',
+			'Requires organization.payments.read. Returns payment, allocation and refund evidence only from the authenticated gym.',
 	})
 	@ApiOkResponse({ type: PaymentResponseDto })
 	get(
@@ -139,6 +146,7 @@ export class OwnerPaymentsController {
 	}
 
 	@Post(':paymentId/voids')
+	@RequireOwnerEntitlements(...OWNER_OPERATION_ENTITLEMENTS.paymentsVoid)
 	@HttpCode(200)
 	@Header('Cache-Control', 'no-store')
 	@RequireOwnerCsrf()
@@ -147,7 +155,7 @@ export class OwnerPaymentsController {
 	@ApiOperation({
 		summary: 'Void an incorrect payment',
 		description:
-			'Preserves the original payment and appends audit evidence. Payments with refund history cannot be voided.',
+			'Requires organization.payments.void. Preserves the original payment and appends audit evidence.',
 	})
 	@ApiOkResponse({ type: PaymentResponseDto })
 	void(
@@ -165,6 +173,7 @@ export class OwnerPaymentsController {
 	}
 
 	@Post(':paymentId/refunds')
+	@RequireOwnerEntitlements(...OWNER_OPERATION_ENTITLEMENTS.paymentsRefund)
 	@HttpCode(200)
 	@Header('Cache-Control', 'no-store')
 	@RequireOwnerCsrf()
@@ -173,7 +182,7 @@ export class OwnerPaymentsController {
 	@ApiOperation({
 		summary: 'Record a cash refund',
 		description:
-			'Records a partial or full cash refund without deleting payment evidence. External refunds stay disabled until a verified provider workflow exists.',
+			'Requires organization.payments.refund. Records a partial or full cash refund without deleting payment evidence.',
 	})
 	@ApiOkResponse({ type: PaymentResponseDto })
 	refund(
