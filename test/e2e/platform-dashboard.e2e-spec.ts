@@ -14,6 +14,7 @@ import { PlatformTokenService } from '../../src/modules/platform/auth/platform-t
 import { createPlatformDashboardDatabaseFixture } from '../fixtures/platform-dashboard-database.fixture.js';
 
 const ENDPOINT = '/api/v1/platform/dashboard/summary';
+const METRICS_ENDPOINT = '/api/v1/platform/dashboard/metrics';
 const ADMIN_ORIGIN = 'http://localhost:4000';
 const SESSION_TOKEN = 'fictional-dashboard-session-token-at-least-32-characters';
 const COOKIE = `${LOCAL_PLATFORM_SESSION_COOKIE}=${SESSION_TOKEN}`;
@@ -37,6 +38,7 @@ describe('platform dashboard HTTP API (real session and permission guards)', () 
 			.mockResolvedValue([{ status: PlatformStaffStatus.ACTIVE, _count: { _all: 2 } }]);
 		database.roleCount.mockReset().mockResolvedValue(3);
 		database.permissionCount.mockReset().mockResolvedValue(5);
+		database.organizationCount.mockReset().mockResolvedValue(0);
 		database.runTransaction.mockClear();
 	});
 
@@ -83,6 +85,39 @@ describe('platform dashboard HTTP API (real session and permission guards)', () 
 		expect(database.sessionFindUnique.mock.calls[0]?.[0]).toMatchObject({
 			where: { tokenDigest: app().get(PlatformTokenService).digest(SESSION_TOKEN) },
 		});
+	});
+
+	it('returns guarded, date-filtered organization metrics', async () => {
+		database.organizationCount.mockResolvedValueOnce(9).mockResolvedValueOnce(6);
+		const response = await request(app().getHttpServer())
+			.get(`${METRICS_ENDPOINT}?fromDate=2026-10-01&toDate=2026-10-15`)
+			.set('Origin', ADMIN_ORIGIN)
+			.set('Cookie', COOKIE)
+			.expect(200);
+		expect(response.body).toMatchObject({
+			period: {
+				mode: 'CUSTOM',
+				fromDate: '2026-10-01',
+				toDate: '2026-10-15',
+			},
+			metrics: {
+				organizations: {
+					current: 9,
+					previous: 6,
+					change: { direction: 'UP', percent: 50 },
+				},
+			},
+		});
+		expect(response.get('Cache-Control')).toBe('no-store');
+	});
+
+	it('rejects invalid metric filter combinations before aggregate access', async () => {
+		await request(app().getHttpServer())
+			.get(`${METRICS_ENDPOINT}?scope=all-time&fromDate=2026-10-01&toDate=2026-10-15`)
+			.set('Origin', ADMIN_ORIGIN)
+			.set('Cookie', COOKIE)
+			.expect(400);
+		expect(database.organizationCount).not.toHaveBeenCalled();
 	});
 
 	it('rejects a missing session before reading statistics', async () => {
