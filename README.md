@@ -17,12 +17,20 @@ platform operations and independently authorized gym organizations and branches 
 - Platform-administrator password plus MFA authentication under `/api/v1/platform/auth`
 - Opaque server-side platform sessions in host-only HttpOnly cookies
 - Exact administrative Origin checks, CSRF protection, revocation, idle expiry, and live permissions
+- Default-deny organization entitlement policy with live activation and expiry evaluation
 - Two-stage, operator-controlled first platform-owner bootstrap with encrypted TOTP enrollment
 - Unit, integration, and e2e foundation tests
 
-Tenant authentication, tenant resolution, organization authorization, readiness checks, feature
-entitlements, queues, payments, notifications, ongoing administrator management, password recovery,
-and general MFA enrollment remain future work.
+Applying entitlement declarations to owner business endpoints, manager capability presentation,
+readiness checks, platform billing, queues, ongoing administrator management, password recovery, and
+general MFA enrollment remain future work.
+
+The entitlement policy requires a regenerated, built `@nexcoderw/gym-db` package before this API can
+build. The reviewed `add_organization_feature_entitlements` migration must be deployed before any
+business endpoint activates the guard. The policy performs a live organization-scoped lookup without
+a cross-request cache; missing, disabled, not-yet-active and expired rows deny access. Existing owner
+business endpoints are not entitlement-protected until the separate endpoint-mapping rollout is
+completed.
 
 ## Architecture
 
