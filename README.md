@@ -287,7 +287,7 @@ CLI described in the [platform owner bootstrap runbook](docs/runbooks/platform-o
 See [Platform authentication](docs/security/platform-authentication.md) for configuration, deployment,
 key rotation, and verification details.
 
-## Platform dashboard summary
+## Platform dashboard summary and metrics
 
 `GET /api/v1/platform/dashboard/summary` returns read-only platform identity and authorization
 statistics. Both existing guards are mandatory: the session guard revalidates the live administrator
@@ -324,9 +324,20 @@ business mutation. Permission validation and statistics run in separate transact
 an atomic guarantee against permission revocation occurring during an already authorized request.
 Database failures use the established safe error envelope rather than fabricated zero statistics.
 
-No gym, branch, subscription, payment, membership, or revenue statistics are implemented. Future
-metrics require separately reviewed database-domain changes in `gym-db` and explicit API permission
-design. No schema, migration, dependency, or authentication policy was changed for this endpoint.
+The summary endpoint contains no organization, branch, subscription, payment, membership, or revenue
+statistics. Future summary fields require separately reviewed database-domain changes in `gym-db`
+and explicit API permission design. No schema, migration, dependency, or authentication policy was
+changed for this endpoint.
+
+`GET /api/v1/platform/dashboard/metrics` is the extensible metric contract and currently contains
+only `metrics.organizations`. With no query it counts organizations registered from the first day of
+the current Africa/Kigali month through today, compared with the same elapsed portion of the previous
+month. `fromDate` and `toDate` accept an inclusive custom range of at most 366 days and compare it
+with the immediately preceding equally long range. `scope=all-time` returns the lifetime count with
+no percentage baseline and cannot be combined with dates. The endpoint uses the same live session,
+`platform.dashboard.read`, no-store and safe-error policies as the summary. Counts run in one
+repeatable-read transaction and expose no organization records or personal data. Future metrics must
+be added under `metrics` with separately reviewed authorization, ownership, validation and tests.
 
 Verification from `api/api`:
 
