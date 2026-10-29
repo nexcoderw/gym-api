@@ -99,4 +99,18 @@ describe('OpenAPI integration', () => {
 			}
 		}
 	});
+
+	it('documents the extensible dashboard metrics operation and query', () => {
+		const document = createOpenApiDocument(application);
+		const operation = document.paths['/platform/dashboard/metrics']?.get;
+		expect(operation?.security).toEqual([{ 'platform-session': [] }]);
+		expect(
+			operation?.parameters?.map((parameter) =>
+				'$ref' in parameter ? parameter.$ref : parameter.name,
+			),
+		).toEqual(expect.arrayContaining(['fromDate', 'toDate', 'scope']));
+		expect(operation?.responses['200']).toBeDefined();
+		expect(operation?.responses['401']).toBeDefined();
+		expect(operation?.responses['403']).toBeDefined();
+	});
 });
