@@ -17,6 +17,9 @@ import { ApiErrorResponseDto } from '../../../common/dto/api-error-response.dto.
 import { OwnerOriginCsrfGuard } from '../auth/owner-origin-csrf.guard.js';
 import type { OwnerRequest } from '../auth/owner-request.js';
 import { OwnerSessionGuard } from '../auth/owner-session.guard.js';
+import { OwnerEntitlementGuard } from '../entitlements/owner-entitlement.guard.js';
+import { OWNER_OPERATION_ENTITLEMENTS } from '../entitlements/owner-operation-entitlements.js';
+import { RequireOwnerEntitlements } from '../entitlements/require-owner-entitlements.decorator.js';
 import { ownerPaymentContext } from '../payments/owner-payment-context.js';
 import { PaymentReportQueryDto, PaymentReportSummaryDto } from './dto/payment-report.dto.js';
 import { OwnerPaymentReportsService } from './owner-payment-reports.service.js';
@@ -28,17 +31,18 @@ import { OwnerPaymentReportsService } from './owner-payment-reports.service.js';
 @ApiForbiddenResponse({ type: ApiErrorResponseDto })
 @ApiTooManyRequestsResponse({ type: ApiErrorResponseDto })
 @ApiServiceUnavailableResponse({ type: ApiErrorResponseDto })
-@UseGuards(OwnerOriginCsrfGuard, OwnerSessionGuard)
+@UseGuards(OwnerOriginCsrfGuard, OwnerSessionGuard, OwnerEntitlementGuard)
 @Controller('owner/reports/payments')
 export class OwnerPaymentReportsController {
 	constructor(private readonly reports: OwnerPaymentReportsService) {}
 
 	@Get('summary')
+	@RequireOwnerEntitlements(...OWNER_OPERATION_ENTITLEMENTS.paymentReportsRead)
 	@Header('Cache-Control', 'no-store')
 	@ApiOperation({
 		summary: 'Summarize gym payments in a date range',
 		description:
-			'Active gym owners only. Dates are inclusive Africa/Kigali payment days. ' +
+			'Requires organization.reports.read. Dates are inclusive Africa/Kigali payment days. ' +
 			'Gross includes settled payments; net subtracts confirmed refunds linked to those payments. ' +
 			'Plan totals show settled allocations before refunds, grouped by the plan name saved at registration. ' +
 			'Pending, failed and voided payments are counted but contribute no settled value.',
@@ -52,12 +56,13 @@ export class OwnerPaymentReportsController {
 	}
 
 	@Get('pdf')
+	@RequireOwnerEntitlements(...OWNER_OPERATION_ENTITLEMENTS.paymentReportsExport)
 	@Header('Cache-Control', 'no-store')
 	@ApiProduces('application/pdf')
 	@ApiOperation({
 		summary: 'Download the full gym payment report as PDF',
 		description:
-			'Active gym owners only. Includes every payment in the selected inclusive Kigali date range, ' +
+			'Requires organization.reports.read and organization.reports.export. Includes every payment in the selected inclusive Kigali date range, ' +
 			'with no client pagination. Exports above 10,000 payments require a shorter date range.',
 	})
 	@ApiOkResponse({ schema: { type: 'string', format: 'binary' } })
