@@ -41,6 +41,9 @@ import { RequireOwnerCsrf } from '../auth/owner-csrf.decorator.js';
 import { OwnerOriginCsrfGuard } from '../auth/owner-origin-csrf.guard.js';
 import type { OwnerRequest } from '../auth/owner-request.js';
 import { OwnerSessionGuard } from '../auth/owner-session.guard.js';
+import { OwnerEntitlementGuard } from '../entitlements/owner-entitlement.guard.js';
+import { OWNER_OPERATION_ENTITLEMENTS } from '../entitlements/owner-operation-entitlements.js';
+import { RequireOwnerEntitlements } from '../entitlements/require-owner-entitlements.decorator.js';
 import { CreateMemberDto } from './dto/create-member.dto.js';
 import { ListMembersQueryDto, MemberPageQueryDto } from './dto/list-members.dto.js';
 import {
@@ -65,17 +68,18 @@ import { OwnerMembersService } from './owner-members.service.js';
 @ApiConflictResponse({ type: ApiErrorResponseDto })
 @ApiTooManyRequestsResponse({ type: ApiErrorResponseDto })
 @ApiServiceUnavailableResponse({ type: ApiErrorResponseDto })
-@UseGuards(OwnerOriginCsrfGuard, OwnerSessionGuard)
+@UseGuards(OwnerOriginCsrfGuard, OwnerSessionGuard, OwnerEntitlementGuard)
 @Controller('owner/members')
 export class OwnerMembersController {
 	constructor(private readonly members: OwnerMembersService) {}
 
 	@Get()
+	@RequireOwnerEntitlements(...OWNER_OPERATION_ENTITLEMENTS.membersList)
 	@Header('Cache-Control', 'no-store')
 	@ApiOperation({
 		summary: 'List gym members',
 		description:
-			'Active gym owners only. Tenant-scoped bounded cursor or numbered pagination and optional name, phone or email search; archived profiles are excluded by default. Numbered pages contain at most 20 members and include the matching total.',
+			'Requires organization.members.read. Results are tenant scoped with bounded cursor or numbered pagination and optional search; archived profiles are excluded by default.',
 	})
 	@ApiOkResponse({ type: MemberListResponseDto })
 	list(
@@ -86,6 +90,7 @@ export class OwnerMembersController {
 	}
 
 	@Post()
+	@RequireOwnerEntitlements(...OWNER_OPERATION_ENTITLEMENTS.membersCreateWithSubscription)
 	@Header('Cache-Control', 'no-store')
 	@RequireOwnerCsrf()
 	@ApiHeader({ name: 'x-owner-csrf-token', required: true })
@@ -97,7 +102,7 @@ export class OwnerMembersController {
 	@ApiOperation({
 		summary: 'Register a member with a plan',
 		description:
-			'Atomically creates a gym member and their first plan registration. Name and phone are independently unique within this gym; email is optional. Plan must belong to this gym and be active. End date and historical price/name are server controlled. No provider payment is confirmed by this command.',
+			'Requires organization.members.create and organization.member-subscriptions.manage. Atomically creates a gym member and their first plan registration; plan terms remain server controlled.',
 	})
 	@ApiCreatedResponse({ type: MemberRegistrationResponseDto })
 	create(
@@ -109,11 +114,12 @@ export class OwnerMembersController {
 	}
 
 	@Get(':memberId')
+	@RequireOwnerEntitlements(...OWNER_OPERATION_ENTITLEMENTS.membersGet)
 	@Header('Cache-Control', 'no-store')
 	@ApiOperation({
 		summary: 'Read a gym member',
 		description:
-			'Returns only a member belonging to the authenticated gym. Includes a quoted updatedAt ETag for profile changes.',
+			'Requires organization.members.read. Returns only a member belonging to the authenticated gym and includes an updatedAt ETag.',
 	})
 	@ApiOkResponse({ type: MemberResponseDto, headers: { ETag: { schema: { type: 'string' } } } })
 	async get(
@@ -127,6 +133,7 @@ export class OwnerMembersController {
 	}
 
 	@Patch(':memberId')
+	@RequireOwnerEntitlements(...OWNER_OPERATION_ENTITLEMENTS.membersUpdate)
 	@Header('Cache-Control', 'no-store')
 	@RequireOwnerCsrf()
 	@ApiHeader({ name: 'x-owner-csrf-token', required: true })
@@ -134,7 +141,7 @@ export class OwnerMembersController {
 	@ApiOperation({
 		summary: 'Update a member profile',
 		description:
-			'Only contact/name fields are mutable. Requires the current quoted updatedAt ETag. Archived members cannot be edited.',
+			'Requires organization.members.update. Only contact/name fields are mutable and the current updatedAt ETag is required.',
 	})
 	@ApiPreconditionFailedResponse({ type: ApiErrorResponseDto })
 	@ApiOkResponse({ type: MemberResponseDto })
@@ -153,6 +160,7 @@ export class OwnerMembersController {
 	}
 
 	@Delete(':memberId')
+	@RequireOwnerEntitlements(...OWNER_OPERATION_ENTITLEMENTS.membersArchive)
 	@Header('Cache-Control', 'no-store')
 	@HttpCode(204)
 	@RequireOwnerCsrf()
@@ -161,7 +169,7 @@ export class OwnerMembersController {
 	@ApiOperation({
 		summary: 'Archive a member',
 		description:
-			'Retains history and reserved name/phone uniqueness. Current and future registrations must be cancelled first. Requires the current quoted updatedAt ETag.',
+			'Requires organization.members.archive. Retains history and reserved uniqueness; current and future registrations must be cancelled first.',
 	})
 	@ApiPreconditionFailedResponse({ type: ApiErrorResponseDto })
 	@ApiNoContentResponse()
@@ -178,11 +186,12 @@ export class OwnerMembersController {
 	}
 
 	@Get(':memberId/subscriptions')
+	@RequireOwnerEntitlements(...OWNER_OPERATION_ENTITLEMENTS.memberSubscriptionsList)
 	@Header('Cache-Control', 'no-store')
 	@ApiOperation({
 		summary: 'List a member’s plan registrations',
 		description:
-			'Bounded tenant-scoped history, including cancelled and expired registrations. Status is derived using the current Kigali calendar date; end date is inclusive.',
+			'Requires organization.member-subscriptions.read. Returns bounded tenant-scoped history including cancelled and expired registrations.',
 	})
 	@ApiOkResponse({ type: MemberSubscriptionListResponseDto })
 	subscriptions(
@@ -194,6 +203,7 @@ export class OwnerMembersController {
 	}
 
 	@Post(':memberId/subscriptions')
+	@RequireOwnerEntitlements(...OWNER_OPERATION_ENTITLEMENTS.memberSubscriptionsCreate)
 	@Header('Cache-Control', 'no-store')
 	@RequireOwnerCsrf()
 	@ApiHeader({ name: 'x-owner-csrf-token', required: true })
@@ -201,7 +211,7 @@ export class OwnerMembersController {
 	@ApiOperation({
 		summary: 'Register or renew a member’s plan',
 		description:
-			'Uses an active plan from the same gym, retaining its name and whole-RWF price as snapshots. Rejects overlapping uncancelled date ranges. DAYS/WEEKS use calendar days; MONTHS/YEARS clamp the next anniversary to the last available day, then subtract one day for the inclusive end.',
+			'Requires organization.member-subscriptions.manage. Uses an active plan from the same gym, snapshots its terms, and rejects overlapping uncancelled date ranges.',
 	})
 	@ApiCreatedResponse({ type: MemberSubscriptionResponseDto })
 	renew(
@@ -214,6 +224,7 @@ export class OwnerMembersController {
 	}
 
 	@Post(':memberId/subscriptions/:subscriptionId/cancellations')
+	@RequireOwnerEntitlements(...OWNER_OPERATION_ENTITLEMENTS.memberSubscriptionsCancel)
 	@Header('Cache-Control', 'no-store')
 	@HttpCode(200)
 	@RequireOwnerCsrf()
@@ -221,7 +232,7 @@ export class OwnerMembersController {
 	@ApiOperation({
 		summary: 'Cancel a member’s registration',
 		description:
-			'Idempotent cancellation, preserving the original dates, plan terms and first cancellation actor. Does not process a refund.',
+			'Requires organization.member-subscriptions.manage. Cancellation is idempotent and preserves original terms and audit evidence; it does not refund.',
 	})
 	@ApiOkResponse({ type: MemberSubscriptionResponseDto })
 	cancel(
