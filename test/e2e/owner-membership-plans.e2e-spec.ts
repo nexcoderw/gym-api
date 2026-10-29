@@ -15,6 +15,8 @@ import { OwnerOriginCsrfGuard } from '../../src/modules/owner/auth/owner-origin-
 import { OwnerSessionGuard } from '../../src/modules/owner/auth/owner-session.guard.js';
 import { OwnerSessionService } from '../../src/modules/owner/auth/owner-session.service.js';
 import { OwnerTokenService } from '../../src/modules/owner/auth/owner-token.service.js';
+import { OwnerEntitlementGuard } from '../../src/modules/owner/entitlements/owner-entitlement.guard.js';
+import { OwnerEntitlementService } from '../../src/modules/owner/entitlements/owner-entitlement.service.js';
 import {
 	MembershipPlanStatus,
 	type MembershipPlanResponseDto,
@@ -46,6 +48,7 @@ const PLAN = {
 describe('owner membership plan HTTP security (e2e)', () => {
 	let application: NestExpressApplication | undefined;
 	const authenticate = jest.fn<OwnerSessionService['authenticate']>();
+	const hasAllEnabled = jest.fn<OwnerEntitlementService['hasAllEnabled']>();
 	const list = jest.fn<OwnerMembershipPlansService['list']>();
 	const get = jest.fn<OwnerMembershipPlansService['get']>();
 	const create = jest.fn<OwnerMembershipPlansService['create']>();
@@ -64,6 +67,7 @@ describe('owner membership plan HTTP security (e2e)', () => {
 				OwnerCookieService,
 				OwnerOriginCsrfGuard,
 				OwnerSessionGuard,
+				OwnerEntitlementGuard,
 				{
 					provide: ConfigService,
 					useValue: { get: (key: string): unknown => configValues.get(key) },
@@ -76,6 +80,7 @@ describe('owner membership plan HTTP security (e2e)', () => {
 					},
 				},
 				{ provide: OwnerSessionService, useValue: { authenticate } },
+				{ provide: OwnerEntitlementService, useValue: { hasAllEnabled } },
 				{
 					provide: OwnerMembershipPlansService,
 					useValue: { list, get, create, update, archive },
@@ -94,6 +99,7 @@ describe('owner membership plan HTTP security (e2e)', () => {
 	beforeEach(() => {
 		jest.clearAllMocks();
 		authenticate.mockResolvedValue(ownerPrincipal());
+		hasAllEnabled.mockResolvedValue(true);
 		list.mockResolvedValue({ items: [PLAN], nextCursor: null });
 		get.mockResolvedValue(PLAN);
 		create.mockResolvedValue(PLAN);
