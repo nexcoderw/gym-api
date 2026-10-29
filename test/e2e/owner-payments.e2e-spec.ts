@@ -19,6 +19,8 @@ import { OwnerOriginCsrfGuard } from '../../src/modules/owner/auth/owner-origin-
 import { OwnerSessionGuard } from '../../src/modules/owner/auth/owner-session.guard.js';
 import { OwnerSessionService } from '../../src/modules/owner/auth/owner-session.service.js';
 import { OwnerTokenService } from '../../src/modules/owner/auth/owner-token.service.js';
+import { OwnerEntitlementGuard } from '../../src/modules/owner/entitlements/owner-entitlement.guard.js';
+import { OwnerEntitlementService } from '../../src/modules/owner/entitlements/owner-entitlement.service.js';
 import { PaymentOrder } from '../../src/modules/owner/payments/dto/list-payments-query.dto.js';
 import { OwnerPaymentsController } from '../../src/modules/owner/payments/owner-payments.controller.js';
 import { OwnerPaymentsService } from '../../src/modules/owner/payments/owner-payments.service.js';
@@ -83,6 +85,7 @@ const PAYMENT = {
 describe('owner payments HTTP security', () => {
 	let application: NestExpressApplication | undefined;
 	const authenticate = jest.fn<OwnerSessionService['authenticate']>();
+	const hasAllEnabled = jest.fn<OwnerEntitlementService['hasAllEnabled']>();
 	const list = jest.fn<OwnerPaymentsService['list']>();
 	const get = jest.fn<OwnerPaymentsService['get']>();
 	const create = jest.fn<OwnerPaymentsService['create']>();
@@ -102,8 +105,10 @@ describe('owner payments HTTP security', () => {
 				OwnerCookieService,
 				OwnerOriginCsrfGuard,
 				OwnerSessionGuard,
+				OwnerEntitlementGuard,
 				{ provide: ConfigService, useValue: { get: (key: string): unknown => values.get(key) } },
 				{ provide: OwnerSessionService, useValue: { authenticate } },
+				{ provide: OwnerEntitlementService, useValue: { hasAllEnabled } },
 				{
 					provide: OwnerTokenService,
 					useValue: {
@@ -129,6 +134,7 @@ describe('owner payments HTTP security', () => {
 	beforeEach(() => {
 		jest.clearAllMocks();
 		authenticate.mockResolvedValue(principal());
+		hasAllEnabled.mockResolvedValue(true);
 		list.mockResolvedValue({ items: [PAYMENT], nextCursor: null });
 		get.mockResolvedValue(PAYMENT);
 		create.mockResolvedValue(PAYMENT);
