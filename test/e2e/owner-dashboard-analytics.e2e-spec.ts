@@ -13,6 +13,8 @@ import { OwnerOriginCsrfGuard } from '../../src/modules/owner/auth/owner-origin-
 import { OwnerSessionGuard } from '../../src/modules/owner/auth/owner-session.guard.js';
 import { OwnerSessionService } from '../../src/modules/owner/auth/owner-session.service.js';
 import { OwnerTokenService } from '../../src/modules/owner/auth/owner-token.service.js';
+import { OwnerEntitlementGuard } from '../../src/modules/owner/entitlements/owner-entitlement.guard.js';
+import { OwnerEntitlementService } from '../../src/modules/owner/entitlements/owner-entitlement.service.js';
 import { OwnerDashboardAnalyticsController } from '../../src/modules/owner/dashboard/owner-dashboard-analytics.controller.js';
 import { OwnerDashboardAnalyticsService } from '../../src/modules/owner/dashboard/owner-dashboard-analytics.service.js';
 import type {
@@ -62,6 +64,7 @@ const RESPONSE: OwnerDashboardAnalyticsResponseDto = {
 describe('owner dashboard analytics HTTP security', () => {
 	let application: NestExpressApplication | undefined;
 	const authenticate = jest.fn<OwnerSessionService['authenticate']>();
+	const hasAllEnabled = jest.fn<OwnerEntitlementService['hasAllEnabled']>();
 	const get = jest.fn<OwnerDashboardAnalyticsService['get']>();
 
 	beforeAll(async () => {
@@ -76,8 +79,10 @@ describe('owner dashboard analytics HTTP security', () => {
 				OwnerCookieService,
 				OwnerOriginCsrfGuard,
 				OwnerSessionGuard,
+				OwnerEntitlementGuard,
 				{ provide: ConfigService, useValue: { get: (key: string): unknown => values.get(key) } },
 				{ provide: OwnerSessionService, useValue: { authenticate } },
+				{ provide: OwnerEntitlementService, useValue: { hasAllEnabled } },
 				{ provide: OwnerTokenService, useValue: { isValid: (value: string) => value === TOKEN } },
 				{ provide: OwnerDashboardAnalyticsService, useValue: { get } },
 			],
@@ -94,6 +99,7 @@ describe('owner dashboard analytics HTTP security', () => {
 	beforeEach(() => {
 		jest.clearAllMocks();
 		authenticate.mockResolvedValue(principal());
+		hasAllEnabled.mockResolvedValue(true);
 		get.mockImplementation((_context, query: OwnerDashboardAnalyticsQueryDto) => {
 			resolveDashboardPeriod(query, new Date('2026-10-22T08:00:00.000Z'));
 			return Promise.resolve(RESPONSE);
@@ -130,6 +136,14 @@ describe('owner dashboard analytics HTTP security', () => {
 	it('requires a valid owner session and matching portal origin', async () => {
 		await request(app().getHttpServer()).get(PATH).set('Origin', ORIGIN).expect(401);
 		await ownerRequest('').set('Origin', 'https://another.mucyora.rw').expect(401);
+		expect(get).not.toHaveBeenCalled();
+	});
+
+	it('denies analytics before invoking the service when the feature is disabled', async () => {
+		hasAllEnabled.mockResolvedValue(false);
+		await ownerRequest('').expect(403).expect(({ body }) => {
+			expect(body).toMatchObject({ code: 'ORGANIZATION_FEATURE_DISABLED' });
+		});
 		expect(get).not.toHaveBeenCalled();
 	});
 
