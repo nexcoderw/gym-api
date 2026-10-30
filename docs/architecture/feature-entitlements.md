@@ -57,3 +57,8 @@ organization capability through the protected organization-entitlement endpoints
 dedicated platform permission, CSRF, an optimistic version, a bounded reason, and an atomic append-only
 audit event. Missing rows remain visible as disabled version-zero states and can be provisioned only
 through the conditional update contract.
+
+Deploy and verify the four projects in the compatibility order defined by the
+[organization entitlement rollout runbook](../runbooks/organization-entitlements-rollout.md). The
+runbook also defines the cross-boundary smoke check and rollback rules; UI visibility must never be
+used as release evidence for API authorization.
