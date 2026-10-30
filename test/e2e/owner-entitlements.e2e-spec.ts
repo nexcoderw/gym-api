@@ -114,12 +114,15 @@ describe('owner entitlement policy HTTP behavior (e2e)', () => {
 		const module = await Test.createTestingModule({
 			imports: [AppModule],
 			controllers: [OwnerEntitlementProbeController],
-			providers: [FixtureOwnerPrincipalGuard, FixtureSuspendedOrganizationGuard],
+			providers: [
+				FixtureOwnerPrincipalGuard,
+				FixtureSuspendedOrganizationGuard,
+				OwnerEntitlementGuard,
+				{ provide: OwnerEntitlementService, useValue: { hasAllEnabled } },
+			],
 		})
 			.overrideProvider(PrismaService)
 			.useValue({})
-			.overrideProvider(OwnerEntitlementService)
-			.useValue({ hasAllEnabled })
 			.compile();
 		application = module.createNestApplication<NestExpressApplication>();
 		configureApplication(application, validateEnvironment({ NODE_ENV: 'test' }));
