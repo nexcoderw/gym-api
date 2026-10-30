@@ -43,4 +43,3 @@ export const OWNER_OPERATION_ENTITLEMENTS = {
 		ORGANIZATION_ENTITLEMENT.reportsExport,
 	],
 } as const;
-
