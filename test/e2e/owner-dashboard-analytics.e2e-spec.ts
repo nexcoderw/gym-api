@@ -141,9 +141,13 @@ describe('owner dashboard analytics HTTP security', () => {
 
 	it('denies analytics before invoking the service when the feature is disabled', async () => {
 		hasAllEnabled.mockResolvedValue(false);
-		await ownerRequest('').expect(403).expect(({ body }) => {
-			expect(body).toMatchObject({ code: 'ORGANIZATION_FEATURE_DISABLED' });
-		});
+		await ownerRequest('')
+			.expect(403)
+			.expect(({ body }) => {
+				expect(body).toMatchObject({
+					error: { code: 'ORGANIZATION_FEATURE_DISABLED' },
+				});
+			});
 		expect(get).not.toHaveBeenCalled();
 	});
 
