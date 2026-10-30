@@ -18,6 +18,7 @@ platform operations and independently authorized gym organizations and branches 
 - Opaque server-side platform sessions in host-only HttpOnly cookies
 - Exact administrative Origin checks, CSRF protection, revocation, idle expiry, and live permissions
 - Default-deny organization entitlement policy with live activation and expiry evaluation
+- Audited superadmin organization-entitlement inspection and conditional management endpoints
 - Two-stage, operator-controlled first platform-owner bootstrap with encrypted TOTP enrollment
 - Unit, integration, and e2e foundation tests
 
@@ -45,6 +46,7 @@ Read:
 - [Tenant resolution](docs/architecture/tenant-resolution.md)
 - [Authorization](docs/architecture/authorization.md)
 - [Feature entitlements](docs/architecture/feature-entitlements.md)
+- [Platform organization entitlements](docs/api/platform-organization-entitlements.md)
 - [Security model](docs/security/security-model.md)
 
 ## Prerequisites
