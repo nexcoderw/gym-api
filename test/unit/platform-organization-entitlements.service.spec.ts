@@ -110,24 +110,22 @@ describe('platform organization entitlement service', () => {
 			reason: 'Disable member visibility for the approved organization plan.',
 		});
 		expect(response).toMatchObject({ enabled: false, version: 2, effectiveStatus: 'DISABLED' });
-		expect(entitlementUpdateMany).toHaveBeenCalledWith(
-			expect.objectContaining({
-				where: { organizationId: ORGANIZATION_ID, featureKey: FEATURE_KEY, version: 1 },
-				data: expect.objectContaining({ enabled: false, version: { increment: 1 } }),
-			}),
-		);
-		expect(auditCreate).toHaveBeenCalledWith(
-			expect.objectContaining({
-				data: expect.objectContaining({
-					organizationId: ORGANIZATION_ID,
-					featureKey: FEATURE_KEY,
-					source: 'PLATFORM_ADMIN',
-					actorPlatformStaffId: STAFF_ID,
-					requestId: CONTEXT.requestId,
-					resultingVersion: 2,
-				}),
-			}),
-		);
+		const updateArguments: unknown = entitlementUpdateMany.mock.calls[0]?.[0];
+		expect(updateArguments).toMatchObject({
+			where: { organizationId: ORGANIZATION_ID, featureKey: FEATURE_KEY, version: 1 },
+			data: { enabled: false, version: { increment: 1 } },
+		});
+		const auditArguments: unknown = auditCreate.mock.calls[0]?.[0];
+		expect(auditArguments).toMatchObject({
+			data: {
+				organizationId: ORGANIZATION_ID,
+				featureKey: FEATURE_KEY,
+				source: 'PLATFORM_ADMIN',
+				actorPlatformStaffId: STAFF_ID,
+				requestId: CONTEXT.requestId,
+				resultingVersion: 2,
+			},
+		});
 	});
 
 	it('provisions a missing reviewed key only from version zero', async () => {
@@ -152,15 +150,14 @@ describe('platform organization entitlement service', () => {
 			enabled: true,
 			version: 1,
 		});
-		expect(entitlementCreate).toHaveBeenCalledWith(
-			expect.objectContaining({
-				data: expect.objectContaining({
-					organizationId: ORGANIZATION_ID,
-					featureKey: 'organization.members.create',
-					version: 1,
-				}),
-			}),
-		);
+		const createArguments: unknown = entitlementCreate.mock.calls[0]?.[0];
+		expect(createArguments).toMatchObject({
+			data: {
+				organizationId: ORGANIZATION_ID,
+				featureKey: 'organization.members.create',
+				version: 1,
+			},
+		});
 	});
 
 	it('rejects unknown keys, stale versions, invalid windows and audit failures safely', async () => {
