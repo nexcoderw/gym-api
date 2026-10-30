@@ -43,6 +43,12 @@ requires payment-create. The complete method-level mapping is centralized in
 The authenticated organization-identity bootstrap endpoint is intentionally outside this matrix so a
 manager can enter the portal when dashboard analytics are disabled.
 
+`GET /api/v1/owner/capabilities` is a separate authenticated presentation bootstrap. It requires one
+active organization and a live owner role, then returns the currently enabled, effective reviewed
+keys for that server-established organization with `Cache-Control: no-store`. The manager validates
+the catalog and organization ID before filtering navigation or actions. This snapshot never
+authorizes a business request; guarded endpoints independently query live entitlement state again.
+
 Entitlements do not replace manager permissions. Deployment requires the reviewed database migration
 before guard activation and a regenerated `@nexcoderw/gym-db` package before the API is built.
 
