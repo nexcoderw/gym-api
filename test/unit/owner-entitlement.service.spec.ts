@@ -1,10 +1,7 @@
 import { jest } from '@jest/globals';
 import { ServiceUnavailableException } from '@nestjs/common';
 import { Test, type TestingModule } from '@nestjs/testing';
-import {
-	ORGANIZATION_ENTITLEMENT,
-	TenantTransactionService,
-} from '@nexcoderw/gym-db';
+import { ORGANIZATION_ENTITLEMENT, TenantTransactionService } from '@nexcoderw/gym-db';
 
 import { OwnerEntitlementService } from '../../src/modules/owner/entitlements/owner-entitlement.service.js';
 
