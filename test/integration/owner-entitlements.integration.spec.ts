@@ -2,12 +2,8 @@ import { Test, type TestingModule } from '@nestjs/testing';
 import { PrismaService } from '@nexcoderw/gym-db';
 
 import { AppModule } from '../../src/app.module.js';
-import {
-	OwnerEntitlementGuard,
-} from '../../src/modules/owner/entitlements/owner-entitlement.guard.js';
-import {
-	OwnerEntitlementService,
-} from '../../src/modules/owner/entitlements/owner-entitlement.service.js';
+import { OwnerEntitlementGuard } from '../../src/modules/owner/entitlements/owner-entitlement.guard.js';
+import { OwnerEntitlementService } from '../../src/modules/owner/entitlements/owner-entitlement.service.js';
 
 describe('OwnerEntitlementsModule integration', () => {
 	let module: TestingModule;
