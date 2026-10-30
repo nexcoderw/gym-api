@@ -94,7 +94,7 @@ export class PlatformOrganizationEntitlementsController {
 	@ApiOperation({
 		summary: 'Conditionally change one organization entitlement',
 		description:
-			'Requires platform.organizations.entitlements.manage, admin Origin and CSRF. The reviewed catalog is allowlisted, If-Match prevents lost updates, and state plus append-only audit evidence commit atomically.',
+			'Requires platform.organizations.entitlements.manage, admin Origin and CSRF. The reviewed catalog is allowlisted, If-Match prevents lost updates, and state plus append-only audit evidence commit atomically. Audit persistence failure returns 503 and rolls back the entitlement change.',
 	})
 	@ApiOkResponse({ type: OrganizationEntitlementResponseDto })
 	@ApiConflictResponse({ type: ApiErrorResponseDto })
@@ -114,7 +114,7 @@ export class PlatformOrganizationEntitlementsController {
 			organizationEntitlementPrecondition(precondition),
 			input,
 		);
-		response.setHeader('ETag', `"${result.version}"`);
+		response.setHeader('ETag', `"${String(result.version)}"`);
 		return result;
 	}
 
