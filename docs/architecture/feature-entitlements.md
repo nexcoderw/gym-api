@@ -26,15 +26,15 @@ affects the next request. Missing declarations and missing entitlement rows fail
 
 The following owner business boundaries enforce the reviewed matrix:
 
-| Boundary | Read capability | Mutation capability |
-| --- | --- | --- |
-| Dashboard analytics | `organization.dashboard.read` | — |
-| Membership plans | `organization.membership-plans.read` | `organization.membership-plans.manage` |
-| Members | `organization.members.read` | `organization.members.create`, `.update`, or `.archive` per operation |
-| Member subscriptions | `organization.member-subscriptions.read` | `organization.member-subscriptions.manage` |
-| Payments | `organization.payments.read` | `organization.payments.create`, `.void`, or `.refund` per operation |
-| Reminders | `organization.reminders.read` | `organization.reminders.send` |
-| Payment reports | `organization.reports.read` | exports require both `organization.reports.read` and `organization.reports.export` |
+| Boundary             | Read capability                          | Mutation capability                                                                |
+| -------------------- | ---------------------------------------- | ---------------------------------------------------------------------------------- |
+| Dashboard analytics  | `organization.dashboard.read`            | —                                                                                  |
+| Membership plans     | `organization.membership-plans.read`     | `organization.membership-plans.manage`                                             |
+| Members              | `organization.members.read`              | `organization.members.create`, `.update`, or `.archive` per operation              |
+| Member subscriptions | `organization.member-subscriptions.read` | `organization.member-subscriptions.manage`                                         |
+| Payments             | `organization.payments.read`             | `organization.payments.create`, `.void`, or `.refund` per operation                |
+| Reminders            | `organization.reminders.read`            | `organization.reminders.send`                                                      |
+| Payment reports      | `organization.reports.read`              | exports require both `organization.reports.read` and `organization.reports.export` |
 
 Compound commands require all state-changing capabilities: member creation with an initial
 subscription requires member-create and subscription-manage; registration with payment additionally
@@ -45,3 +45,9 @@ manager can enter the portal when dashboard analytics are disabled.
 
 Entitlements do not replace manager permissions. Deployment requires the reviewed database migration
 before guard activation and a regenerated `@nexcoderw/gym-db` package before the API is built.
+
+Platform superadministrators inspect the complete reviewed catalog and conditionally update one
+organization capability through the protected organization-entitlement endpoints. Updates require a
+dedicated platform permission, CSRF, an optimistic version, a bounded reason, and an atomic append-only
+audit event. Missing rows remain visible as disabled version-zero states and can be provisioned only
+through the conditional update contract.
