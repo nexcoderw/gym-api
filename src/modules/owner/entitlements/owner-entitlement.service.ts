@@ -1,11 +1,18 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import {
+	INITIAL_ORGANIZATION_ENTITLEMENTS,
 	TenantTransactionService,
 	type OrganizationEntitlementKey,
 	type TenantContext,
 } from '@nexcoderw/gym-db';
 
 import { OWNER_ENTITLEMENT_ERROR } from './owner-entitlement.constants.js';
+
+const reviewedEntitlements: ReadonlySet<string> = new Set(INITIAL_ORGANIZATION_ENTITLEMENTS);
+
+function isOrganizationEntitlementKey(value: string): value is OrganizationEntitlementKey {
+	return reviewedEntitlements.has(value);
+}
 
 @Injectable()
 export class OwnerEntitlementService {
@@ -32,7 +39,15 @@ export class OwnerEntitlementService {
 				}),
 			);
 
-			return rows.map(({ featureKey }) => featureKey);
+			const capabilities: OrganizationEntitlementKey[] = [];
+			for (const { featureKey } of rows) {
+				if (!isOrganizationEntitlementKey(featureKey)) {
+					throw new Error('Database returned an unreviewed organization entitlement.');
+				}
+				capabilities.push(featureKey);
+			}
+
+			return capabilities;
 		} catch (error: unknown) {
 			throw new ServiceUnavailableException(OWNER_ENTITLEMENT_ERROR.unavailable, {
 				cause: error,
