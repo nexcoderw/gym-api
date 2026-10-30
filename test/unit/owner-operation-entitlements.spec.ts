@@ -43,10 +43,7 @@ describe('owner operation entitlement declarations', () => {
 		[
 			OwnerMembersController.prototype,
 			'create',
-			[
-				ORGANIZATION_ENTITLEMENT.membersCreate,
-				ORGANIZATION_ENTITLEMENT.memberSubscriptionsManage,
-			],
+			[ORGANIZATION_ENTITLEMENT.membersCreate, ORGANIZATION_ENTITLEMENT.memberSubscriptionsManage],
 		],
 		[OwnerMembersController.prototype, 'update', [ORGANIZATION_ENTITLEMENT.membersUpdate]],
 		[OwnerMembersController.prototype, 'archive', [ORGANIZATION_ENTITLEMENT.membersArchive]],
@@ -79,11 +76,7 @@ describe('owner operation entitlement declarations', () => {
 		],
 		[OwnerPaymentsController.prototype, 'void', [ORGANIZATION_ENTITLEMENT.paymentsVoid]],
 		[OwnerPaymentsController.prototype, 'refund', [ORGANIZATION_ENTITLEMENT.paymentsRefund]],
-		[
-			OwnerReminderActivityController.prototype,
-			'list',
-			[ORGANIZATION_ENTITLEMENT.remindersRead],
-		],
+		[OwnerReminderActivityController.prototype, 'list', [ORGANIZATION_ENTITLEMENT.remindersRead]],
 		[
 			OwnerReminderActivityController.prototype,
 			'upcoming',
@@ -94,11 +87,7 @@ describe('owner operation entitlement declarations', () => {
 			'queueManual',
 			[ORGANIZATION_ENTITLEMENT.remindersSend],
 		],
-		[
-			OwnerPaymentReportsController.prototype,
-			'summary',
-			[ORGANIZATION_ENTITLEMENT.reportsRead],
-		],
+		[OwnerPaymentReportsController.prototype, 'summary', [ORGANIZATION_ENTITLEMENT.reportsRead]],
 		[
 			OwnerPaymentReportsController.prototype,
 			'pdf',
@@ -110,4 +99,3 @@ describe('owner operation entitlement declarations', () => {
 		expect(Reflect.getMetadata(OWNER_ENTITLEMENTS_METADATA, handler as object)).toEqual(expected);
 	});
 });
-
