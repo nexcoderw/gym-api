@@ -1,9 +1,6 @@
 import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import {
-	OrganizationStatus,
-	type OrganizationEntitlementKey,
-} from '@nexcoderw/gym-db';
+import { OrganizationStatus, type OrganizationEntitlementKey } from '@nexcoderw/gym-db';
 
 import type { OwnerRequest } from '../auth/owner-request.js';
 import {
@@ -31,8 +28,7 @@ export class OwnerEntitlementGuard implements CanActivate {
 		const principal = request.ownerPrincipal;
 		const organization = principal?.organizations[0];
 		if (
-			principal === undefined ||
-			principal.organizations.length !== 1 ||
+			principal?.organizations.length !== 1 ||
 			organization?.status !== OrganizationStatus.ACTIVE
 		) {
 			throw new ForbiddenException(OWNER_ENTITLEMENT_ERROR.organizationScopeRequired);
