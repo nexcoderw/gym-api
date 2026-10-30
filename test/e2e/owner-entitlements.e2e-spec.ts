@@ -10,29 +10,17 @@ import {
 } from '@nestjs/common';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Test } from '@nestjs/testing';
-import {
-	ORGANIZATION_ENTITLEMENT,
-	OrganizationStatus,
-	PrismaService,
-} from '@nexcoderw/gym-db';
+import { ORGANIZATION_ENTITLEMENT, OrganizationStatus, PrismaService } from '@nexcoderw/gym-db';
 import request from 'supertest';
 
 import { configureApplication } from '../../src/app-bootstrap.js';
 import { AppModule } from '../../src/app.module.js';
 import { validateEnvironment } from '../../src/config/environment.validation.js';
 import type { OwnerRequest } from '../../src/modules/owner/auth/owner-request.js';
-import {
-	OWNER_ENTITLEMENT_ERROR,
-} from '../../src/modules/owner/entitlements/owner-entitlement.constants.js';
-import {
-	OwnerEntitlementGuard,
-} from '../../src/modules/owner/entitlements/owner-entitlement.guard.js';
-import {
-	OwnerEntitlementService,
-} from '../../src/modules/owner/entitlements/owner-entitlement.service.js';
-import {
-	RequireOwnerEntitlements,
-} from '../../src/modules/owner/entitlements/require-owner-entitlements.decorator.js';
+import { OWNER_ENTITLEMENT_ERROR } from '../../src/modules/owner/entitlements/owner-entitlement.constants.js';
+import { OwnerEntitlementGuard } from '../../src/modules/owner/entitlements/owner-entitlement.guard.js';
+import { OwnerEntitlementService } from '../../src/modules/owner/entitlements/owner-entitlement.service.js';
+import { RequireOwnerEntitlements } from '../../src/modules/owner/entitlements/require-owner-entitlements.decorator.js';
 
 const ORGANIZATION_ID = '11111111-1111-4111-8111-111111111111';
 
@@ -148,10 +136,9 @@ describe('owner entitlement policy HTTP behavior (e2e)', () => {
 		await request(requireApplication(application).getHttpServer())
 			.get('/api/v1/owner/entitlement-probe/declared')
 			.expect(200, { status: 'permitted' });
-		expect(hasAllEnabled).toHaveBeenCalledWith(
-			{ organizationId: ORGANIZATION_ID },
-			[ORGANIZATION_ENTITLEMENT.membersRead],
-		);
+		expect(hasAllEnabled).toHaveBeenCalledWith({ organizationId: ORGANIZATION_ID }, [
+			ORGANIZATION_ENTITLEMENT.membersRead,
+		]);
 	});
 
 	it('returns a stable forbidden error when the organization feature is disabled', async () => {
