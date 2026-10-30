@@ -2,7 +2,7 @@ import { jest } from '@jest/globals';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Test } from '@nestjs/testing';
 import { getOptionsToken } from '@nestjs/throttler';
-import { PrismaService } from '@nexcoderw/gym-db';
+import { ORGANIZATION_ENTITLEMENT, PrismaService } from '@nexcoderw/gym-db';
 import request from 'supertest';
 
 import { configureApplication } from '../../src/app-bootstrap.js';
@@ -14,6 +14,7 @@ import {
 	LOCAL_PLATFORM_SESSION_COOKIE,
 } from '../../src/modules/platform/auth/platform-auth.constants.js';
 import { ORGANIZATION_ENTITLEMENT_PERMISSION } from '../../src/modules/platform/organization-entitlements/platform-organization-entitlements.constants.js';
+import type { OrganizationEntitlementResponseDto } from '../../src/modules/platform/organization-entitlements/dto/organization-entitlement-response.dto.js';
 import { PlatformOrganizationEntitlementsService } from '../../src/modules/platform/organization-entitlements/platform-organization-entitlements.service.js';
 import {
 	createPlatformOrganizationsDatabaseFixture,
@@ -22,11 +23,11 @@ import {
 } from '../fixtures/platform-organizations-database.fixture.js';
 
 const ROOT = `/api/v1/platform/organizations/${ORGANIZATION_ID}/entitlements`;
-const FEATURE_KEY = 'organization.members.read';
+const FEATURE_KEY = ORGANIZATION_ENTITLEMENT.membersRead;
 const SESSION_TOKEN = 'a'.repeat(43);
 const CSRF_TOKEN = 'b'.repeat(43);
 const COOKIE = `${LOCAL_PLATFORM_SESSION_COOKIE}=${SESSION_TOKEN}; ${LOCAL_PLATFORM_CSRF_COOKIE}=${CSRF_TOKEN}`;
-const ENTITLEMENT = {
+const ENTITLEMENT: OrganizationEntitlementResponseDto = {
 	featureKey: FEATURE_KEY,
 	enabled: true,
 	effectiveStatus: 'ENABLED' as const,
@@ -125,7 +126,8 @@ describe('platform organization entitlement HTTP security', () => {
 			.expect(200)
 			.expect('ETag', '"2"')
 			.expect('Cache-Control', 'no-store');
-		expect(response.body).toMatchObject({ featureKey: FEATURE_KEY, enabled: false, version: 2 });
+		const body: unknown = response.body;
+		expect(body).toMatchObject({ featureKey: FEATURE_KEY, enabled: false, version: 2 });
 		expect(update).toHaveBeenCalledWith(
 			expect.objectContaining({
 				actorPlatformStaffId: '33333333-3333-4333-8333-333333333333',
