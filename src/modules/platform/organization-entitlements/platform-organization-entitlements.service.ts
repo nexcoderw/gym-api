@@ -273,7 +273,7 @@ function effectiveStatus(
 	row: OrganizationFeatureEntitlement | undefined,
 	at: Date,
 ): OrganizationEntitlementResponseDto['effectiveStatus'] {
-	if (row === undefined || !row.enabled) return 'DISABLED';
+	if (!row?.enabled) return 'DISABLED';
 	if (row.startsAt !== null && row.startsAt.getTime() > at.getTime()) return 'SCHEDULED';
 	if (row.expiresAt !== null && row.expiresAt.getTime() <= at.getTime()) return 'EXPIRED';
 	return 'ENABLED';
