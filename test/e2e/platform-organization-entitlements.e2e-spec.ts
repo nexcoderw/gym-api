@@ -27,7 +27,7 @@ const FEATURE_KEY = ORGANIZATION_ENTITLEMENT.membersRead;
 const SESSION_TOKEN = 'a'.repeat(43);
 const CSRF_TOKEN = 'b'.repeat(43);
 const COOKIE = `${LOCAL_PLATFORM_SESSION_COOKIE}=${SESSION_TOKEN}; ${LOCAL_PLATFORM_CSRF_COOKIE}=${CSRF_TOKEN}`;
-const ENTITLEMENT: OrganizationEntitlementResponseDto = {
+const ENTITLEMENT = {
 	featureKey: FEATURE_KEY,
 	enabled: true,
 	effectiveStatus: 'ENABLED' as const,
@@ -35,7 +35,7 @@ const ENTITLEMENT: OrganizationEntitlementResponseDto = {
 	expiresAt: null,
 	version: 1,
 	updatedAt: '2026-10-30T08:00:00.000Z',
-};
+} satisfies OrganizationEntitlementResponseDto;
 
 describe('platform organization entitlement HTTP security', () => {
 	let application: NestExpressApplication | undefined;
@@ -128,16 +128,11 @@ describe('platform organization entitlement HTTP security', () => {
 			.expect('Cache-Control', 'no-store');
 		const body: unknown = response.body;
 		expect(body).toMatchObject({ featureKey: FEATURE_KEY, enabled: false, version: 2 });
-		expect(update).toHaveBeenCalledWith(
-			expect.objectContaining({
-				actorPlatformStaffId: '33333333-3333-4333-8333-333333333333',
-				requestId: expect.any(String),
-			}),
-			ORGANIZATION_ID,
-			FEATURE_KEY,
-			1,
-			validBody(),
-		);
+		expect(update).toHaveBeenCalledTimes(1);
+		const call = update.mock.calls[0];
+		expect(call?.[0].actorPlatformStaffId).toBe('33333333-3333-4333-8333-333333333333');
+		expect(typeof call?.[0].requestId).toBe('string');
+		expect(call?.slice(1)).toEqual([ORGANIZATION_ID, FEATURE_KEY, 1, validBody()]);
 	});
 
 	it('documents both entitlement operations and their protected error boundaries', () => {
