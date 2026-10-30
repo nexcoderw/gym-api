@@ -145,7 +145,7 @@ describe('owner dashboard analytics HTTP security', () => {
 			.expect(403)
 			.expect(({ body }) => {
 				expect(body).toMatchObject({
-					error: { code: 'ORGANIZATION_FEATURE_DISABLED' },
+					code: 'ORGANIZATION_FEATURE_DISABLED',
 				});
 			});
 		expect(get).not.toHaveBeenCalled();
