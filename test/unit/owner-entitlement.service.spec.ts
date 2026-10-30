@@ -4,7 +4,6 @@ import { Test, type TestingModule } from '@nestjs/testing';
 import {
 	ORGANIZATION_ENTITLEMENT,
 	TenantTransactionService,
-	type OrganizationEntitlementKey,
 } from '@nexcoderw/gym-db';
 
 import { OwnerEntitlementService } from '../../src/modules/owner/entitlements/owner-entitlement.service.js';
@@ -19,7 +18,7 @@ describe('owner entitlement service', () => {
 	let module: TestingModule | undefined;
 	let service: OwnerEntitlementService;
 	const count = jest.fn<() => Promise<number>>();
-	const findMany = jest.fn<() => Promise<{ featureKey: OrganizationEntitlementKey }[]>>();
+	const findMany = jest.fn<() => Promise<{ featureKey: string }[]>>();
 	const transaction = { organizationFeatureEntitlement: { count, findMany } };
 	const run =
 		jest.fn<
@@ -128,6 +127,16 @@ describe('owner entitlement service', () => {
 
 	it('returns the same safe unavailable error when capability listing fails', async () => {
 		run.mockRejectedValueOnce(new Error('private database detail'));
+		const result = service.listEnabled(CONTEXT, NOW);
+
+		await expect(result).rejects.toMatchObject({
+			response: { code: 'ORGANIZATION_ENTITLEMENT_UNAVAILABLE' },
+		});
+		await expect(result).rejects.toBeInstanceOf(ServiceUnavailableException);
+	});
+
+	it('fails closed when persistence returns an unreviewed capability key', async () => {
+		findMany.mockResolvedValue([{ featureKey: 'organization.unreviewed.read' }]);
 		const result = service.listEnabled(CONTEXT, NOW);
 
 		await expect(result).rejects.toMatchObject({
