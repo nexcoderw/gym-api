@@ -7,6 +7,8 @@ export const PLATFORM_PERMISSION = Object.freeze({
 	organizationsActivate: 'platform.organizations.activate',
 	organizationsSuspend: 'platform.organizations.suspend',
 	organizationsArchive: 'platform.organizations.archive',
+	organizationEntitlementsRead: 'platform.organizations.entitlements.read',
+	organizationEntitlementsManage: 'platform.organizations.entitlements.manage',
 	organizationOwnersInvite: 'platform.organizations.owners.invite',
 	organizationOwnersRead: 'platform.organizations.owners.read',
 	organizationOwnersRevokeInvitation: 'platform.organizations.owners.revoke-invitation',
