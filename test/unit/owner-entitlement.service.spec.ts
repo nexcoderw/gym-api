@@ -1,14 +1,9 @@
 import { jest } from '@jest/globals';
 import { ServiceUnavailableException } from '@nestjs/common';
 import { Test, type TestingModule } from '@nestjs/testing';
-import {
-	ORGANIZATION_ENTITLEMENT,
-	TenantTransactionService,
-} from '@nexcoderw/gym-db';
+import { ORGANIZATION_ENTITLEMENT, TenantTransactionService } from '@nexcoderw/gym-db';
 
-import {
-	OwnerEntitlementService,
-} from '../../src/modules/owner/entitlements/owner-entitlement.service.js';
+import { OwnerEntitlementService } from '../../src/modules/owner/entitlements/owner-entitlement.service.js';
 
 const ORGANIZATION_ID = '11111111-1111-4111-8111-111111111111';
 const NOW = new Date('2026-10-30T08:00:00.000Z');
@@ -21,12 +16,13 @@ describe('owner entitlement service', () => {
 	let service: OwnerEntitlementService;
 	const count = jest.fn<() => Promise<number>>();
 	const transaction = { organizationFeatureEntitlement: { count } };
-	const run = jest.fn<
-		(
-			context: unknown,
-			operation: (value: typeof transaction) => Promise<unknown>,
-		) => Promise<unknown>
-	>();
+	const run =
+		jest.fn<
+			(
+				context: unknown,
+				operation: (value: typeof transaction) => Promise<unknown>,
+			) => Promise<unknown>
+		>();
 
 	beforeEach(async () => {
 		jest.resetAllMocks();
@@ -61,10 +57,7 @@ describe('owner entitlement service', () => {
 			where: {
 				organizationId: ORGANIZATION_ID,
 				featureKey: {
-					in: [
-						ORGANIZATION_ENTITLEMENT.membersRead,
-						ORGANIZATION_ENTITLEMENT.membersCreate,
-					],
+					in: [ORGANIZATION_ENTITLEMENT.membersRead, ORGANIZATION_ENTITLEMENT.membersCreate],
 				},
 				enabled: true,
 				AND: [
@@ -81,10 +74,7 @@ describe('owner entitlement service', () => {
 		await expect(
 			service.hasAllEnabled(
 				CONTEXT,
-				[
-					ORGANIZATION_ENTITLEMENT.membersRead,
-					ORGANIZATION_ENTITLEMENT.membersCreate,
-				],
+				[ORGANIZATION_ENTITLEMENT.membersRead, ORGANIZATION_ENTITLEMENT.membersCreate],
 				NOW,
 			),
 		).resolves.toBe(false);
@@ -98,11 +88,7 @@ describe('owner entitlement service', () => {
 
 	it('returns a safe unavailable error when live entitlement evaluation fails', async () => {
 		run.mockRejectedValueOnce(new Error('private database detail'));
-		const result = service.hasAllEnabled(
-			CONTEXT,
-			[ORGANIZATION_ENTITLEMENT.membersRead],
-			NOW,
-		);
+		const result = service.hasAllEnabled(CONTEXT, [ORGANIZATION_ENTITLEMENT.membersRead], NOW);
 
 		await expect(result).rejects.toMatchObject({
 			response: { code: 'ORGANIZATION_ENTITLEMENT_UNAVAILABLE' },
