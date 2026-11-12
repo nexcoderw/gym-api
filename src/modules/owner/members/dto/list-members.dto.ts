@@ -102,7 +102,7 @@ export class ListMembersQueryDto {
 
 	@ApiPropertyOptional({
 		example: '2026-01-01',
-		description: 'Member registration date in Africa/Kigali.',
+		description: 'Legacy filter on technical createdAt, using inclusive Africa/Kigali dates.',
 	})
 	@IsOptional()
 	@Matches(/^\d{4}-\d{2}-\d{2}$/u)
@@ -110,9 +110,29 @@ export class ListMembersQueryDto {
 
 	@ApiPropertyOptional({
 		example: '2026-10-19',
-		description: 'Inclusive member registration date in Africa/Kigali.',
+		description: 'Inclusive upper bound for the legacy createdAt filter.',
 	})
 	@IsOptional()
 	@Matches(/^\d{4}-\d{2}-\d{2}$/u)
 	toDate?: string;
+
+	@ApiPropertyOptional({
+		format: 'date',
+		example: '2026-10-01',
+		description:
+			'Inclusive lower bound for the member business joining date (joinedOn). Members with a null joinedOn do not match.',
+	})
+	@IsOptional()
+	@Matches(/^\d{4}-\d{2}-\d{2}$/u)
+	joinedOnFrom?: string;
+
+	@ApiPropertyOptional({
+		format: 'date',
+		example: '2026-10-31',
+		description:
+			'Inclusive upper bound for the member business joining date (joinedOn). Members with a null joinedOn do not match.',
+	})
+	@IsOptional()
+	@Matches(/^\d{4}-\d{2}-\d{2}$/u)
+	joinedOnTo?: string;
 }
