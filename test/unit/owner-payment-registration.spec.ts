@@ -97,7 +97,9 @@ describe('owner registration payment', () => {
 		jest.fn<() => Promise<(typeof PAYMENT & { requestFingerprint: string }) | null>>();
 
 	const createMember =
-		jest.fn<(input: { data: { organizationId: string } }) => Promise<{ id: string }>>();
+		jest.fn<
+			(input: { data: { organizationId: string; joinedOn: Date } }) => Promise<{ id: string }>
+		>();
 
 	const createSubscription = jest.fn<
 		(input: {
@@ -220,6 +222,10 @@ describe('owner registration payment', () => {
 
 		expect(memberInput?.data.organizationId).toBe(ORGANIZATION_ID);
 		expect(memberInput?.data).toMatchObject({ gender: 'FEMALE' });
+		expect(memberInput?.data.joinedOn).toBeInstanceOf(Date);
+		expect(memberInput?.data.joinedOn.toISOString()).toMatch(
+			/^\d{4}-\d{2}-\d{2}T00:00:00\.000Z$/u,
+		);
 
 		const subscriptionInput = createSubscription.mock.calls[0]?.[0];
 
@@ -275,31 +281,41 @@ describe('owner registration payment', () => {
 	});
 
 	it('does not create another member or payment for an identical retry', async () => {
-		await service.registerPayment(CONTEXT, INPUT, KEY);
+		jest.useFakeTimers();
+		jest.setSystemTime(new Date('2026-10-18T21:59:59.999Z'));
+		try {
+			await service.registerPayment(CONTEXT, INPUT, KEY);
+			const firstJoinedOn = createMember.mock.calls[0]?.[0].data.joinedOn;
+			expect(firstJoinedOn).toEqual(new Date('2026-10-18T00:00:00.000Z'));
 
-		const firstWrite = createPayment.mock.calls[0]?.[0];
+			const firstWrite = createPayment.mock.calls[0]?.[0];
 
-		if (firstWrite === undefined) {
-			throw new Error('Missing first payment write.');
+			if (firstWrite === undefined) {
+				throw new Error('Missing first payment write.');
+			}
+
+			findPayment.mockResolvedValue({
+				...PAYMENT,
+				requestFingerprint: firstWrite.data.requestFingerprint,
+			});
+
+			jest.setSystemTime(new Date('2026-10-18T22:00:00.001Z'));
+			await service.registerPayment(CONTEXT, INPUT, KEY);
+
+			expect(createMember).toHaveBeenCalledTimes(1);
+			expect(createMember.mock.calls[0]?.[0].data.joinedOn).toEqual(firstJoinedOn);
+			expect(createPayment).toHaveBeenCalledTimes(1);
+
+			await expect(
+				service.registerPayment(CONTEXT, inputWith({ note: 'Changed' }), KEY),
+			).rejects.toMatchObject({
+				response: {
+					code: 'PAYMENT_IDEMPOTENCY_CONFLICT',
+				},
+			});
+		} finally {
+			jest.useRealTimers();
 		}
-
-		findPayment.mockResolvedValue({
-			...PAYMENT,
-			requestFingerprint: firstWrite.data.requestFingerprint,
-		});
-
-		await service.registerPayment(CONTEXT, INPUT, KEY);
-
-		expect(createMember).toHaveBeenCalledTimes(1);
-		expect(createPayment).toHaveBeenCalledTimes(1);
-
-		await expect(
-			service.registerPayment(CONTEXT, inputWith({ note: 'Changed' }), KEY),
-		).rejects.toMatchObject({
-			response: {
-				code: 'PAYMENT_IDEMPOTENCY_CONFLICT',
-			},
-		});
 	});
 
 	it('requires exactly one member selection before opening a transaction', async () => {
