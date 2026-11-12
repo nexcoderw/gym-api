@@ -1,5 +1,12 @@
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import {
+	closeSync,
+	constants as fsConstants,
+	fstatSync,
+	lstatSync,
+	openSync,
+	readFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -15,10 +22,27 @@ export const EXPECTED_DATE_RANGE = Object.freeze({
 });
 export const EXPECTED_BASELINE_MEMBER_COUNT = 1;
 export const EXPECTED_GENERATION_SEED = 'kd-gym-members-2026-11-12-v1';
+export const EXPECTED_FINAL_MEMBER_COUNT = 824;
+export const EXPECTED_PRODUCTION_DATABASE_NAME = 'neondb';
+export const EXPECTED_PRODUCTION_DATABASE_HOST =
+	'ep-rapid-violet-b4txcgks-pooler.c-6.us-east-2.aws.neon.tech';
+export const EXPECTED_BUSINESS_START_DATE = '2025-10-18';
+// gym-db currently has durable email suppression only; synthetic phone suppression is unsupported.
+export const SMS_NOTIFICATION_SUPPRESSION_SUPPORTED = false;
 export const EXPECTED_DATABASE_MIGRATIONS = Object.freeze([
+	'20261019202006_add_member_email_reminder_outbox',
 	'20261112193052_add_organization_member_gender',
 	'20261112212705_add_organization_member_joined_on',
 ]);
+export const PRODUCTION_APPROVAL_DIRECTORY = fileURLToPath(new URL('./private/', import.meta.url));
+export const PRODUCTION_APPROVAL_PATH = join(
+	PRODUCTION_APPROVAL_DIRECTORY,
+	'production-approval.json',
+);
+export const PRODUCTION_BACKUP_ATTESTATION_PATH = join(
+	PRODUCTION_APPROVAL_DIRECTORY,
+	'production-backup-attestation.json',
+);
 
 export class PreflightConfigurationError extends Error {
 	constructor(code, message) {
@@ -68,13 +92,15 @@ export function validateFixtureFiles(directory = OUTPUT_DIRECTORY) {
 	let validation = { valid: false, errors: [], monthlyGenderBreakdown: [] };
 	let csvText = '';
 	let jsonlText = '';
+	let manifestText = '';
 	const failed = (name) => (checks[name] = false);
 	const passed = (name) => (checks[name] = true);
 
 	try {
 		csvText = readFileSync(join(directory, 'members.csv'), 'utf8');
 		jsonlText = readFileSync(join(directory, 'members.jsonl'), 'utf8');
-		manifest = JSON.parse(readFileSync(join(directory, 'manifest.json'), 'utf8'));
+		manifestText = readFileSync(join(directory, 'manifest.json'), 'utf8');
+		manifest = JSON.parse(manifestText);
 		validationReport = JSON.parse(readFileSync(join(directory, 'validation-report.json'), 'utf8'));
 		passed('allExpectedFilesReadable');
 	} catch {
@@ -211,6 +237,7 @@ export function validateFixtureFiles(directory = OUTPUT_DIRECTORY) {
 			male: members.filter((member) => member?.gender === 'MALE').length,
 			female: members.filter((member) => member?.gender === 'FEMALE').length,
 		},
+		manifestSha256: manifestText.length === 0 ? null : sha256(manifestText),
 		dateRange: EXPECTED_DATE_RANGE,
 		monthlyTargets,
 		checks,
@@ -244,16 +271,16 @@ export function resolveDatabaseTarget(arguments_, environment = process.env) {
 		target = candidate;
 		index += 1;
 	}
-	if (!['development', 'staging', 'production'].includes(target)) {
+	if (target !== 'production') {
 		throw new PreflightConfigurationError(
-			'DATABASE_TARGET_REQUIRED',
-			'Database preflight requires an explicit development, staging or production target.',
+			'PRODUCTION_TARGET_REQUIRED',
+			'This historical import workflow is restricted to the production target.',
 		);
 	}
-	if (environment.PREFLIGHT_DATABASE_TARGET !== target) {
+	if (environment.PREFLIGHT_DATABASE_TARGET !== 'production') {
 		throw new PreflightConfigurationError(
 			'DATABASE_TARGET_CONFIRMATION_MISMATCH',
-			'Set PREFLIGHT_DATABASE_TARGET to match the explicit database target.',
+			'Set PREFLIGHT_DATABASE_TARGET=production for this production-only workflow.',
 		);
 	}
 	if (
@@ -280,32 +307,36 @@ export function resolveDatabaseTarget(arguments_, environment = process.env) {
 			'PREFLIGHT_DATABASE_URL must use PostgreSQL.',
 		);
 	}
-	const databaseName = decodeURIComponent(connection.pathname.slice(1));
+	let databaseName;
+	try {
+		databaseName = decodeURIComponent(connection.pathname.slice(1));
+	} catch {
+		throw new PreflightConfigurationError(
+			'PREFLIGHT_DATABASE_URL_INVALID',
+			'PREFLIGHT_DATABASE_URL contains an invalid encoded database name.',
+		);
+	}
 	if (
-		databaseName.length === 0 ||
+		connection.username.length === 0 ||
+		connection.password.length === 0 ||
+		databaseName !== EXPECTED_PRODUCTION_DATABASE_NAME ||
 		databaseName !== environment.PREFLIGHT_EXPECTED_DATABASE_NAME ||
+		connection.hostname.toLowerCase() !== EXPECTED_PRODUCTION_DATABASE_HOST ||
 		connection.hostname.toLowerCase() !==
 			environment.PREFLIGHT_EXPECTED_DATABASE_HOST?.toLowerCase()
 	) {
 		throw new PreflightConfigurationError(
 			'DATABASE_IDENTITY_EXPECTATION_MISMATCH',
-			'Database URL identity does not match the explicitly expected host and database.',
+			'Database URL must identify the approved Neon production endpoint and neondb.',
 		);
 	}
 	if (
-		target === 'production' &&
-		(!allowProductionReadOnly ||
-			environment.PREFLIGHT_PRODUCTION_READ_ONLY_CONFIRMATION !== 'KD-GYM-READ-ONLY-PREFLIGHT')
+		!allowProductionReadOnly ||
+		environment.PREFLIGHT_PRODUCTION_READ_ONLY_CONFIRMATION !== 'KD-GYM-READ-ONLY-PREFLIGHT'
 	) {
 		throw new PreflightConfigurationError(
 			'PRODUCTION_READ_ONLY_CONFIRMATION_REQUIRED',
-			'Production requires the CLI flag and separate read-only confirmation variable.',
-		);
-	}
-	if (allowProductionReadOnly && target !== 'production') {
-		throw new PreflightConfigurationError(
-			'PRODUCTION_FLAG_TARGET_MISMATCH',
-			'--allow-production-read-only is valid only for the production target.',
+			'Production requires the read-only CLI flag and separate confirmation variable.',
 		);
 	}
 	return Object.freeze({
@@ -316,234 +347,469 @@ export function resolveDatabaseTarget(arguments_, environment = process.env) {
 	});
 }
 
-/**
- * The shared tenant helper performs SELECTs before its callback. PostgreSQL requires the read-only
- * transaction setting first, so this uses the public Prisma client and then applies the same fixed
- * organization and branch transaction settings before running any inspection query.
- */
-export async function inspectDatabase(prisma, target, members, datasetReport) {
-	if (!datasetReport.valid || members.length !== EXPECTED_RECORD_COUNT) {
-		throw new Error('Refusing database inspection because fixture validation did not pass.');
+/** Validate the operator's attested production import approval without exposing its contents. */
+export function validateProductionApprovalArtifact(value, manifestSha256) {
+	const valid =
+		isRecord(value) &&
+		value.version === 1 &&
+		value.organizationId === KD_GYM_ORGANIZATION_ID &&
+		isRecord(value.productionDatabase) &&
+		value.productionDatabase.host === EXPECTED_PRODUCTION_DATABASE_HOST &&
+		value.productionDatabase.name === EXPECTED_PRODUCTION_DATABASE_NAME &&
+		isRecord(value.historicalBusinessStartDateAttestation) &&
+		value.historicalBusinessStartDateAttestation.date === EXPECTED_BUSINESS_START_DATE &&
+		value.historicalBusinessStartDateAttestation.operatorAttested === true &&
+		isRecord(value.dateRange) &&
+		value.dateRange.from === EXPECTED_DATE_RANGE.from &&
+		value.dateRange.to === EXPECTED_DATE_RANGE.to &&
+		value.dateRange.timezone === EXPECTED_DATE_RANGE.timezone &&
+		value.datasetManifestSha256 === manifestSha256 &&
+		value.expectedExistingMemberCount === EXPECTED_BASELINE_MEMBER_COUNT &&
+		value.expectedGeneratedMemberCount === EXPECTED_RECORD_COUNT &&
+		value.expectedFinalMemberCount === EXPECTED_FINAL_MEMBER_COUNT &&
+		value.syntheticRecordsAcknowledged === true &&
+		isNonEmptyText(value.approvalReference, 160) &&
+		isNonEmptyText(value.operator, 160) &&
+		isValidTimestamp(value.approvedAt) &&
+		Date.parse(value.approvedAt) <= Date.now();
+	if (!valid) {
+		throw new PreflightConfigurationError(
+			'PRODUCTION_APPROVAL_ARTIFACT_INVALID',
+			'The protected approval artifact does not attest to this production target and dataset.',
+		);
 	}
+	return Object.freeze({
+		approvalReference: value.approvalReference,
+		operator: value.operator,
+		historicalBusinessStartDate: EXPECTED_BUSINESS_START_DATE,
+		approvedAt: value.approvedAt,
+		manifestSha256,
+	});
+}
+
+/** Read the fixed local approval artifact only when its directory and file are owner-only. */
+export function loadProductionApprovalArtifact(manifestSha256) {
+	return validateProductionApprovalArtifact(
+		readProtectedArtifact(PRODUCTION_APPROVAL_PATH, 'approval'),
+		manifestSha256,
+	);
+}
+
+/** Read a separately reviewed backup attestation for the explicit APPLY path. */
+export function loadProductionBackupAttestation() {
+	const value = readProtectedArtifact(PRODUCTION_BACKUP_ATTESTATION_PATH, 'backup');
+	const valid =
+		isRecord(value) &&
+		value.version === 1 &&
+		isRecord(value.productionDatabase) &&
+		value.productionDatabase.host === EXPECTED_PRODUCTION_DATABASE_HOST &&
+		value.productionDatabase.name === EXPECTED_PRODUCTION_DATABASE_NAME &&
+		value.backupVerified === true &&
+		isNonEmptyText(value.backupReference, 200) &&
+		isNonEmptyText(value.verifiedBy, 160) &&
+		isValidTimestamp(value.verifiedAt) &&
+		Date.parse(value.verifiedAt) <= Date.now();
+	if (!valid) {
+		throw new PreflightConfigurationError(
+			'PRODUCTION_BACKUP_ATTESTATION_INVALID',
+			'The protected backup attestation is missing or does not match the approved production database.',
+		);
+	}
+	return Object.freeze({
+		backupReference: value.backupReference,
+		verifiedBy: value.verifiedBy,
+		verifiedAt: value.verifiedAt,
+	});
+}
+
+function readProtectedArtifact(path, artifactKind) {
+	let directoryMetadata;
+	try {
+		directoryMetadata = lstatSync(PRODUCTION_APPROVAL_DIRECTORY);
+	} catch {
+		throw new PreflightConfigurationError(
+			`PRODUCTION_${artifactKind.toUpperCase()}_ARTIFACT_UNAVAILABLE`,
+			'Create the ignored private artifact directory with owner-only permissions.',
+		);
+	}
+	if (
+		!directoryMetadata.isDirectory() ||
+		directoryMetadata.isSymbolicLink() ||
+		(directoryMetadata.mode & 0o777) !== 0o700
+	) {
+		throw new PreflightConfigurationError(
+			`PRODUCTION_${artifactKind.toUpperCase()}_ARTIFACT_UNPROTECTED`,
+			'The ignored private artifact directory must be a real directory with mode 0700.',
+		);
+	}
+	let descriptor;
+	try {
+		if (typeof fsConstants.O_NOFOLLOW !== 'number') throw new Error('unsupported');
+		descriptor = openSync(path, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
+		const metadata = fstatSync(descriptor);
+		if (
+			!metadata.isFile() ||
+			(metadata.mode & 0o777) !== 0o600 ||
+			metadata.size > 16_384
+		) {
+			throw new PreflightConfigurationError(
+				`PRODUCTION_${artifactKind.toUpperCase()}_ARTIFACT_UNPROTECTED`,
+				'The protected artifact must be a regular file no larger than 16 KiB with mode 0600.',
+			);
+		}
+		const text = readFileSync(descriptor, { encoding: 'utf8' });
+		try {
+			return JSON.parse(text);
+		} catch {
+			throw new PreflightConfigurationError(
+				`PRODUCTION_${artifactKind.toUpperCase()}_ARTIFACT_INVALID`,
+				'The protected artifact must contain valid JSON.',
+			);
+		}
+	} catch (error) {
+		if (error instanceof PreflightConfigurationError) throw error;
+		throw new PreflightConfigurationError(
+			`PRODUCTION_${artifactKind.toUpperCase()}_ARTIFACT_UNAVAILABLE`,
+			'Unable to read the protected local artifact; check that it exists and is not a symlink.',
+		);
+	} finally {
+		if (descriptor !== undefined) closeSync(descriptor);
+	}
+}
+
+function isNonEmptyText(value, maximumLength) {
+	return (
+		typeof value === 'string' &&
+		value.trim().length > 0 &&
+		value.length <= maximumLength &&
+		!/[\r\n\p{Cc}]/u.test(value)
+	);
+}
+
+function isValidTimestamp(value) {
+	return typeof value === 'string' && Number.isFinite(Date.parse(value)) && value.includes('T');
+}
+
+/** Read-only production preflight, with no non-production target support. */
+export async function inspectDatabase(prisma, target, members, datasetReport, approval) {
+	assertInspectionInputs(target, members, datasetReport, approval);
 	return prisma.$transaction(
 		async (transaction) => {
 			await transaction.$executeRaw`SET TRANSACTION READ ONLY`;
-			const readOnlyState = await transaction.$queryRaw`
-			SELECT current_setting('transaction_read_only') AS "readOnly"
-		`;
-			if (readOnlyState[0]?.readOnly !== 'on') {
-				throw new Error('Read-only transaction was not enabled.');
-			}
-			await transaction.$queryRaw`
-			SELECT set_config('app.current_organization_id', ${KD_GYM_ORGANIZATION_ID}, true)
-		`;
-			await transaction.$queryRaw`SELECT set_config('app.current_branch_id', '', true)`;
-			const identityRows = await transaction.$queryRaw`
-			SELECT current_database() AS "databaseName",
-				inet_server_addr()::text AS "host",
-				inet_server_port() AS "port"
-		`;
-			const identity = identityRows[0];
-			const columns = await transaction.$queryRaw`
-			SELECT table_name AS "tableName", column_name AS "columnName"
-			FROM information_schema.columns
-			WHERE table_schema = 'public' AND table_name IN ('organizations', 'organization_members')
-		`;
-			const columnSet = new Set(columns.map((row) => `${row.tableName}.${row.columnName}`));
-			const migrationTableRows = await transaction.$queryRaw`
-			SELECT EXISTS (
-				SELECT 1 FROM information_schema.tables
-				WHERE table_schema = 'public' AND table_name = '_prisma_migrations'
-			) AS "exists"
-		`;
-			const migrationRows = migrationTableRows[0]?.exists
-				? await transaction.$queryRaw`
-					SELECT migration_name AS "migrationName"
-					FROM public._prisma_migrations
-					WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL
-						AND migration_name IN (
-							'20261112193052_add_organization_member_gender',
-							'20261112212705_add_organization_member_joined_on'
-						)
-				`
-				: [];
-			const migrationSet = new Set(migrationRows.map((row) => row.migrationName));
-			const schemaChecks = {
-				organizationTable: columnSet.has('organizations.id'),
-				memberTable: columnSet.has('organization_members.id'),
-				memberOrganizationIdColumn: columnSet.has('organization_members.organization_id'),
-				normalizedNameColumn: columnSet.has('organization_members.normalized_name'),
-				phoneNumberColumn: columnSet.has('organization_members.phone_number'),
-				memberCreatedAtColumn: columnSet.has('organization_members.created_at'),
-				joinedOnColumn: columnSet.has('organization_members.joined_on'),
-				genderColumn: columnSet.has('organization_members.gender'),
-				// The published gym-db Organization model has no configured business start-date field.
-				businessStartDateAvailable: false,
-				migrationHistoryAvailable: migrationTableRows[0]?.exists === true,
-				genderMigrationApplied: migrationSet.has(EXPECTED_DATABASE_MIGRATIONS[0]),
-				joinedOnMigrationApplied: migrationSet.has(EXPECTED_DATABASE_MIGRATIONS[1]),
-			};
-			const blockers = Object.entries(schemaChecks)
-				.filter(([, passed]) => !passed)
-				.map(([name]) =>
-					name === 'businessStartDateAvailable'
-						? 'ORGANIZATION_BUSINESS_START_DATE_UNAVAILABLE'
-						: `SCHEMA_${name.replace(/[A-Z]/gu, (letter) => `_${letter}`).toUpperCase()}`,
-				);
-			const report = {
-				performed: true,
-				target: target.target,
-				databaseIdentity: {
-					databaseName: identity?.databaseName ?? target.databaseName,
-					host: identity?.host ?? target.host,
-					port: identity?.port ?? null,
-				},
-				organizationId: KD_GYM_ORGANIZATION_ID,
-				databaseIdentityMatchesExpected: identity?.databaseName === target.databaseName,
-				schemaChecks,
-				organizationExists: null,
-				organizationBusinessStartDate: null,
-				existingMemberCount: null,
-				generatedMemberCount: datasetReport.recordCount,
-				expectedTotalMemberCount: EXPECTED_BASELINE_MEMBER_COUNT + EXPECTED_RECORD_COUNT,
-				genderCounts: null,
-				monthlyRegistrationCounts: null,
-				collisions: {
-					memberId: null,
-					normalizedName: null,
-					phoneNumber: null,
-					matchingAnyFixture: null,
-				},
-				blockers,
-				safeToProceedToSeparatelyApprovedImport: false,
-			};
-			if (!report.databaseIdentityMatchesExpected)
-				report.blockers.push('DATABASE_IDENTITY_MISMATCH');
-
-			const organization = await transaction.organization.findUnique({
-				where: { id: KD_GYM_ORGANIZATION_ID },
-				select: { id: true },
-			});
-			report.organizationExists = organization !== null;
-			if (organization === null) report.blockers.push('ORGANIZATION_NOT_FOUND');
-			if (
-				organization !== null &&
-				schemaChecks.memberTable &&
-				schemaChecks.memberOrganizationIdColumn &&
-				schemaChecks.normalizedNameColumn &&
-				schemaChecks.phoneNumberColumn &&
-				schemaChecks.memberCreatedAtColumn &&
-				schemaChecks.joinedOnColumn &&
-				schemaChecks.genderColumn &&
-				schemaChecks.migrationHistoryAvailable &&
-				schemaChecks.genderMigrationApplied &&
-				schemaChecks.joinedOnMigrationApplied
-			) {
-				const organizationId = KD_GYM_ORGANIZATION_ID;
-				const [
-					existingMemberCount,
-					idCollisions,
-					nameCollisions,
-					phoneCollisions,
-					matchingAnyFixture,
-					genderRows,
-					monthlyRows,
-				] = await Promise.all([
-					transaction.organizationMember.count({ where: { organizationId } }),
-					transaction.organizationMember.count({
-						where: { organizationId, id: { in: members.map(({ id }) => id) } },
-					}),
-					transaction.organizationMember.count({
-						where: {
-							organizationId,
-							normalizedName: { in: members.map(({ normalizedName }) => normalizedName) },
-						},
-					}),
-					transaction.organizationMember.count({
-						where: {
-							organizationId,
-							phoneNumber: { in: members.map(({ phoneNumber }) => phoneNumber) },
-						},
-					}),
-					transaction.organizationMember.count({
-						where: {
-							organizationId,
-							OR: [
-								{ id: { in: members.map(({ id }) => id) } },
-								{ normalizedName: { in: members.map(({ normalizedName }) => normalizedName) } },
-								{ phoneNumber: { in: members.map(({ phoneNumber }) => phoneNumber) } },
-							],
-						},
-					}),
-					transaction.$queryRaw`
-					SELECT gender::text AS "gender", COUNT(*)::int AS "count"
-					FROM public.organization_members
-					WHERE organization_id = ${organizationId}::uuid
-					GROUP BY gender
-				`,
-					transaction.$queryRaw`
-					SELECT TO_CHAR(
-						COALESCE(joined_on::timestamp, created_at AT TIME ZONE 'Africa/Kigali'),
-						'YYYY-MM'
-					) AS "month",
-						gender::text AS "gender", COUNT(*)::int AS "count"
-					FROM public.organization_members
-					WHERE organization_id = ${organizationId}::uuid
-					GROUP BY 1, gender
-					ORDER BY 1, 2
-				`,
-				]);
-				report.existingMemberCount = existingMemberCount;
-				report.genderCounts = Object.fromEntries(
-					['male', 'female', 'other', 'prefer_not_to_say', 'unknown'].map((gender) => [
-						gender,
-						genderRows.find((row) => (row.gender ?? 'unknown') === gender)?.count ?? 0,
-					]),
-				);
-				report.monthlyRegistrationCounts = monthlyRows.map((row) => ({
-					month: row.month,
-					gender: row.gender ?? 'unknown',
-					count: row.count,
-				}));
-				report.collisions = {
-					memberId: idCollisions,
-					normalizedName: nameCollisions,
-					phoneNumber: phoneCollisions,
-					matchingAnyFixture,
-				};
-				if (existingMemberCount !== EXPECTED_BASELINE_MEMBER_COUNT) {
-					report.blockers.push('UNEXPECTED_EXISTING_MEMBER_COUNT');
-				}
-				if (
-					report.genderCounts.unknown !== 1 ||
-					Object.entries(report.genderCounts).some(
-						([gender, count]) => gender !== 'unknown' && count !== 0,
-					)
-				) {
-					report.blockers.push('EXISTING_GENDER_BASELINE_MISMATCH');
-				}
-				if (
-					MONTH_TARGETS.some(
-						([month, , , reserved]) => countMonthlyUnknown(monthlyRows, month) !== reserved,
-					)
-				) {
-					report.blockers.push('EXISTING_MONTHLY_REGISTRATION_BASELINE_MISMATCH');
-				}
-				if (idCollisions + nameCollisions + phoneCollisions + matchingAnyFixture > 0) {
-					report.blockers.push('GENERATED_FIXTURE_COLLISION');
-				}
-			}
-			report.safeToProceedToSeparatelyApprovedImport =
-				datasetReport.valid &&
-				report.organizationExists === true &&
-				report.existingMemberCount === EXPECTED_BASELINE_MEMBER_COUNT &&
-				Object.values(schemaChecks).every(Boolean) &&
-				report.collisions.matchingAnyFixture === 0 &&
-				report.blockers.length === 0;
-			return report;
+			return inspectDatabaseTransaction(
+				transaction,
+				target,
+				members,
+				datasetReport,
+				approval,
+				{ expectedReadOnly: true },
+			);
 		},
 		{ isolationLevel: 'RepeatableRead', timeout: 30_000 },
 	);
+}
+
+/** Run the identical checks inside an existing transaction, including APPLY's serializable pass. */
+export async function inspectDatabaseTransaction(
+	transaction,
+	target,
+	members,
+	datasetReport,
+	approval,
+	{ expectedReadOnly, lockOrganization = false },
+) {
+	assertInspectionInputs(target, members, datasetReport, approval);
+	const readOnlyState = await transaction.$queryRaw`
+		SELECT current_setting('transaction_read_only') AS "readOnly"
+	`;
+	const actualReadOnly = readOnlyState[0]?.readOnly === 'on';
+	if (actualReadOnly !== expectedReadOnly) {
+		throw new Error('Database transaction mode did not match the requested preflight mode.');
+	}
+	await transaction.$queryRaw`
+		SELECT set_config('app.current_organization_id', ${KD_GYM_ORGANIZATION_ID}, true)
+	`;
+	await transaction.$queryRaw`SELECT set_config('app.current_branch_id', '', true)`;
+	if (lockOrganization) {
+		await transaction.$queryRaw`
+			SELECT id FROM public.organizations
+			WHERE id = ${KD_GYM_ORGANIZATION_ID}::uuid
+			FOR UPDATE
+		`;
+	}
+	const identityRows = await transaction.$queryRaw`
+		SELECT current_database() AS "databaseName", inet_server_port() AS "port"
+	`;
+	const identity = identityRows[0];
+	const columns = await transaction.$queryRaw`
+		SELECT table_name AS "tableName", column_name AS "columnName"
+		FROM information_schema.columns
+		WHERE table_schema = 'public' AND table_name IN ('organizations', 'organization_members')
+	`;
+	const columnSet = new Set(columns.map((row) => `${row.tableName}.${row.columnName}`));
+	const migrationTableRows = await transaction.$queryRaw`
+		SELECT EXISTS (
+			SELECT 1 FROM information_schema.tables
+			WHERE table_schema = 'public' AND table_name = '_prisma_migrations'
+		) AS "exists"
+	`;
+	const migrationRows = migrationTableRows[0]?.exists
+		? await transaction.$queryRaw`
+			SELECT migration_name AS "migrationName"
+			FROM public._prisma_migrations
+			WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL
+				AND migration_name IN (
+					'20261019202006_add_member_email_reminder_outbox',
+					'20261112193052_add_organization_member_gender',
+					'20261112212705_add_organization_member_joined_on'
+				)
+		`
+		: [];
+	const migrationSet = new Set(migrationRows.map((row) => row.migrationName));
+	const manualReasonRows = await transaction.$queryRaw`
+		SELECT EXISTS (
+			SELECT 1 FROM pg_type AS type
+			JOIN pg_enum AS enum ON enum.enumtypid = type.oid
+			WHERE type.typname = 'organization_member_email_suppression_reason'
+				AND enum.enumlabel = 'manual'
+		) AS "exists"
+	`;
+	const suppressionConstraintRows = await transaction.$queryRaw`
+		SELECT EXISTS (
+			SELECT 1 FROM pg_constraint
+			WHERE conrelid = 'public.organization_members'::regclass
+				AND conname = 'members_reminder_suppression_pair_check'
+				AND contype = 'c'
+		) AS "exists"
+	`;
+	const schemaChecks = {
+		organizationTable: columnSet.has('organizations.id'),
+		memberTable: columnSet.has('organization_members.id'),
+		memberOrganizationIdColumn: columnSet.has('organization_members.organization_id'),
+		nameColumn: columnSet.has('organization_members.name'),
+		normalizedNameColumn: columnSet.has('organization_members.normalized_name'),
+		phoneNumberColumn: columnSet.has('organization_members.phone_number'),
+		emailColumn: columnSet.has('organization_members.email'),
+		memberCreatedAtColumn: columnSet.has('organization_members.created_at'),
+		memberUpdatedAtColumn: columnSet.has('organization_members.updated_at'),
+		joinedOnColumn: columnSet.has('organization_members.joined_on'),
+		genderColumn: columnSet.has('organization_members.gender'),
+		reminderEmailSuppressedAtColumn: columnSet.has(
+			'organization_members.reminder_email_suppressed_at',
+		),
+		reminderEmailSuppressionReasonColumn: columnSet.has(
+			'organization_members.reminder_email_suppression_reason',
+		),
+		manualSuppressionReasonAvailable: manualReasonRows[0]?.exists === true,
+		suppressionPairConstraintAvailable: suppressionConstraintRows[0]?.exists === true,
+		migrationHistoryAvailable: migrationTableRows[0]?.exists === true,
+		suppressionMigrationApplied: migrationSet.has(EXPECTED_DATABASE_MIGRATIONS[0]),
+		genderMigrationApplied: migrationSet.has(EXPECTED_DATABASE_MIGRATIONS[1]),
+		joinedOnMigrationApplied: migrationSet.has(EXPECTED_DATABASE_MIGRATIONS[2]),
+	};
+	const blockers = Object.entries(schemaChecks)
+		.filter(([, passed]) => !passed)
+		.map(([name]) => `SCHEMA_${name.replace(/[A-Z]/gu, (letter) => `_${letter}`).toUpperCase()}`);
+	if (!SMS_NOTIFICATION_SUPPRESSION_SUPPORTED) {
+		blockers.push('SMS_NOTIFICATION_SUPPRESSION_UNAVAILABLE');
+	}
+	const report = {
+		performed: true,
+		target: target.target,
+		databaseIdentity: {
+			databaseName: identity?.databaseName ?? null,
+			host: target.host,
+			port: identity?.port ?? null,
+		},
+		databaseIdentityMatchesExpected:
+			target.target === 'production' &&
+			target.host === EXPECTED_PRODUCTION_DATABASE_HOST &&
+			target.databaseName === EXPECTED_PRODUCTION_DATABASE_NAME &&
+			identity?.databaseName === EXPECTED_PRODUCTION_DATABASE_NAME,
+		organizationId: KD_GYM_ORGANIZATION_ID,
+		organizationExists: null,
+		organizationBusinessStartDate: approval.historicalBusinessStartDate,
+		businessStartDateAttestationVerified: true,
+		approvalReference: approval.approvalReference,
+		approvalOperator: approval.operator,
+		datasetManifestSha256: datasetReport.manifestSha256,
+		existingMemberCount: null,
+		generatedMemberCount: datasetReport.recordCount,
+		expectedTotalMemberCount: EXPECTED_FINAL_MEMBER_COUNT,
+		expectedFinalCountMatches: false,
+		schemaChecks,
+		genderCounts: null,
+		monthlyRegistrationCounts: null,
+		collisions: {
+			memberId: null,
+			normalizedName: null,
+			phoneNumber: null,
+			matchingAnyFixture: null,
+		},
+		blockers,
+		safeToProceedToSeparatelyApprovedImport: false,
+	};
+	if (!report.databaseIdentityMatchesExpected) report.blockers.push('DATABASE_IDENTITY_MISMATCH');
+	if (schemaChecks.organizationTable) {
+		const organizationRows = await transaction.$queryRaw`
+			SELECT id FROM public.organizations
+			WHERE id = ${KD_GYM_ORGANIZATION_ID}::uuid
+		`;
+		report.organizationExists = organizationRows.length === 1;
+	}
+	if (report.organizationExists !== true) report.blockers.push('ORGANIZATION_NOT_FOUND');
+	const memberSchemaReady =
+		schemaChecks.memberTable &&
+		schemaChecks.memberOrganizationIdColumn &&
+		schemaChecks.nameColumn &&
+		schemaChecks.normalizedNameColumn &&
+		schemaChecks.phoneNumberColumn &&
+		schemaChecks.emailColumn &&
+		schemaChecks.memberCreatedAtColumn &&
+		schemaChecks.memberUpdatedAtColumn &&
+		schemaChecks.joinedOnColumn &&
+		schemaChecks.genderColumn &&
+		schemaChecks.reminderEmailSuppressedAtColumn &&
+		schemaChecks.reminderEmailSuppressionReasonColumn &&
+		schemaChecks.manualSuppressionReasonAvailable &&
+		schemaChecks.suppressionPairConstraintAvailable &&
+		schemaChecks.migrationHistoryAvailable &&
+		schemaChecks.suppressionMigrationApplied &&
+		schemaChecks.genderMigrationApplied &&
+		schemaChecks.joinedOnMigrationApplied;
+	if (report.organizationExists === true && memberSchemaReady) {
+		const organizationId = KD_GYM_ORGANIZATION_ID;
+		const [existingMemberCount, idCollisions, nameCollisions, phoneCollisions, matchingAnyFixture] =
+			await Promise.all([
+				transaction.organizationMember.count({ where: { organizationId } }),
+				transaction.organizationMember.count({
+					where: { organizationId, id: { in: members.map(({ id }) => id) } },
+				}),
+				transaction.organizationMember.count({
+					where: {
+						organizationId,
+						normalizedName: { in: members.map(({ normalizedName }) => normalizedName) },
+					},
+				}),
+				transaction.organizationMember.count({
+					where: {
+						organizationId,
+						phoneNumber: { in: members.map(({ phoneNumber }) => phoneNumber) },
+					},
+				}),
+				transaction.organizationMember.count({
+					where: {
+						organizationId,
+						OR: [
+							{ id: { in: members.map(({ id }) => id) } },
+							{ normalizedName: { in: members.map(({ normalizedName }) => normalizedName) } },
+							{ phoneNumber: { in: members.map(({ phoneNumber }) => phoneNumber) } },
+						],
+					},
+				}),
+			]);
+		report.existingMemberCount = existingMemberCount;
+		report.expectedFinalCountMatches =
+			existingMemberCount + datasetReport.recordCount === EXPECTED_FINAL_MEMBER_COUNT;
+		report.collisions = {
+			memberId: idCollisions,
+			normalizedName: nameCollisions,
+			phoneNumber: phoneCollisions,
+			matchingAnyFixture,
+		};
+		const genderRows = await transaction.$queryRaw`
+			SELECT gender::text AS "gender", COUNT(*)::int AS "count"
+			FROM public.organization_members
+			WHERE organization_id = ${organizationId}::uuid
+			GROUP BY gender
+		`;
+		report.genderCounts = Object.fromEntries(
+			['male', 'female', 'other', 'prefer_not_to_say', 'unknown'].map((gender) => [
+				gender,
+				genderRows.find((row) => (row.gender ?? 'unknown') === gender)?.count ?? 0,
+			]),
+		);
+		const monthlyRows = await transaction.$queryRaw`
+			SELECT TO_CHAR(joined_on::timestamp, 'YYYY-MM') AS "month",
+				gender::text AS "gender", COUNT(*)::int AS "count"
+			FROM public.organization_members
+			WHERE organization_id = ${organizationId}::uuid
+			GROUP BY 1, gender
+			ORDER BY 1, 2
+		`;
+		report.monthlyRegistrationCounts = monthlyRows.map((row) => ({
+			month: row.month,
+			gender: row.gender ?? 'unknown',
+			count: row.count,
+		}));
+		if (existingMemberCount !== EXPECTED_BASELINE_MEMBER_COUNT) {
+			report.blockers.push('UNEXPECTED_EXISTING_MEMBER_COUNT');
+		}
+		if (!report.expectedFinalCountMatches) {
+			report.blockers.push('EXPECTED_FINAL_MEMBER_COUNT_MISMATCH');
+		}
+		if (idCollisions + nameCollisions + phoneCollisions + matchingAnyFixture > 0) {
+			report.blockers.push('GENERATED_FIXTURE_COLLISION');
+		}
+	}
+	report.safeToProceedToSeparatelyApprovedImport =
+		datasetReport.valid &&
+		datasetReport.recordCount === EXPECTED_RECORD_COUNT &&
+		datasetReport.manifestSha256 === approval.manifestSha256 &&
+		report.databaseIdentityMatchesExpected &&
+		report.organizationExists === true &&
+		report.existingMemberCount === EXPECTED_BASELINE_MEMBER_COUNT &&
+		Object.values(schemaChecks).every(Boolean) &&
+		SMS_NOTIFICATION_SUPPRESSION_SUPPORTED &&
+		report.collisions.memberId === 0 &&
+		report.collisions.normalizedName === 0 &&
+		report.collisions.phoneNumber === 0 &&
+		report.collisions.matchingAnyFixture === 0 &&
+		report.blockers.length === 0;
+	return report;
+}
+
+function assertInspectionInputs(target, members, datasetReport, approval) {
+	if (
+		!datasetReport.valid ||
+		datasetReport.recordCount !== EXPECTED_RECORD_COUNT ||
+		members.length !== EXPECTED_RECORD_COUNT ||
+		members.some(
+			(member) =>
+				member.organizationId !== KD_GYM_ORGANIZATION_ID ||
+				!isUuid(member.id) ||
+				typeof member.normalizedName !== 'string' ||
+				typeof member.phoneNumber !== 'string',
+		) ||
+		uniqueCount(members.map(({ id }) => id)) !== 0 ||
+		uniqueCount(members.map(({ normalizedName }) => normalizedName)) !== 0 ||
+		uniqueCount(members.map(({ phoneNumber }) => phoneNumber)) !== 0
+	) {
+		throw new PreflightConfigurationError(
+			'FIXTURE_VALIDATION_FAILED',
+			'Refusing database inspection because fixtures do not match the approved organization or uniqueness rules.',
+		);
+	}
+	if (
+		target.target !== 'production' ||
+		target.host !== EXPECTED_PRODUCTION_DATABASE_HOST ||
+		target.databaseName !== EXPECTED_PRODUCTION_DATABASE_NAME
+	) {
+		throw new PreflightConfigurationError(
+			'DATABASE_IDENTITY_EXPECTATION_MISMATCH',
+			'This historical import workflow is restricted to the approved production database.',
+		);
+	}
+	if (
+		!isRecord(approval) ||
+		approval.historicalBusinessStartDate !== EXPECTED_BUSINESS_START_DATE ||
+		approval.manifestSha256 !== datasetReport.manifestSha256
+	) {
+		throw new PreflightConfigurationError(
+			'PRODUCTION_APPROVAL_ARTIFACT_INVALID',
+			'A matching production approval and historical date attestation are required.',
+		);
+	}
 }
 
 function parseJsonLines(text) {
