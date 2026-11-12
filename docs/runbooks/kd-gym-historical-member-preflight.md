@@ -41,12 +41,11 @@ never consulted. No credentials are included in the JSON report or error output.
 
 The database transaction begins with PostgreSQL `SET TRANSACTION READ ONLY` and sets
 transaction-local organization scope to the fixed KD GYM organization ID. It then performs aggregate
-or count queries. All
-member collision queries include the organization ID. The report includes target identity, migration
-and column checks, the existing member baseline, month/gender aggregates, and collision counts. A
-collision, missing organization, missing migration/column, unverified business start date, or any
-baseline mismatch blocks readiness. Database errors fail closed without printing SQL, credentials,
-member names, phone numbers or stack traces.
+or count queries. Every member collision query includes the organization ID. The report includes
+target identity, migration and column checks, the existing member baseline, month/gender aggregates,
+and collision counts. A collision, missing organization, missing migration/column, an unverified
+business start date, or a baseline mismatch blocks readiness. Database errors fail closed without
+printing SQL, credentials, member names, phone numbers or stack traces.
 
 The current published `Organization` schema does not expose a configured business start-date field.
 Until that value is available through the database contract and verified to match the approved
@@ -88,9 +87,8 @@ organization ID, generation batch, dataset SHA-256 hashes, imported fixture UUID
 approval reference and import timestamp. Store the artifact in an encrypted location with retention
 and object-lock controls and link it to the import audit record. That artifact supplies the exact
 cleanup manifest without changing the member schema. The importer itself still needs a reviewed
-transaction plan,
-production approval, collision remediation decisions, rollback procedure and human verification of
-the existing-member baseline.
+transaction plan, production approval, collision remediation decisions, rollback procedure and human
+verification of the existing-member baseline.
 
 ## Focused tests and human verification
 
