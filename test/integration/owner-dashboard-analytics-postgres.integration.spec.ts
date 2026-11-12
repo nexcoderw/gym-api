@@ -159,7 +159,7 @@ postgresDescribe('owner dashboard aggregates in disposable PostgreSQL', () => {
 					expect(selectedReport.paymentCount).toBe(3);
 					expect(result.metrics.netCollected.currentRwf).toBe('28000');
 					expect(result.metrics.netCollected.previousRwf).toBe('5000');
-					expect(result.metrics.newMembers).toMatchObject({ current: 1, previous: 1 });
+					expect(result.metrics.newMembers).toMatchObject({ current: 0, previous: 2 });
 					expect(result.metrics.activeSubscribers).toMatchObject({ current: 2, previous: 1 });
 					expect(result.planTotals.reduce((sum, row) => sum + BigInt(row.grossRwf), 0n)).toBe(
 						30000n,
@@ -238,6 +238,7 @@ postgresDescribe('owner dashboard aggregates in disposable PostgreSQL', () => {
 					name: 'Member One',
 					normalizedName: 'member one',
 					phoneNumber: '+250700000101',
+					joinedOn: null,
 					createdAt: september,
 					updatedAt: september,
 				},
@@ -247,6 +248,7 @@ postgresDescribe('owner dashboard aggregates in disposable PostgreSQL', () => {
 					name: 'Member Two',
 					normalizedName: 'member two',
 					phoneNumber: '+250700000102',
+					joinedOn: new Date('2026-09-28T00:00:00.000Z'),
 					createdAt: october,
 					updatedAt: october,
 				},
