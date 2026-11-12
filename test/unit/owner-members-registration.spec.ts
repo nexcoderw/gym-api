@@ -149,6 +149,9 @@ describe('member registration workflow', () => {
 		await service.create(CONTEXT, input, KEY);
 		expect(createMember.mock.calls[0]?.[0].data).toMatchObject({ gender: 'FEMALE' });
 		const firstFingerprint = createSubscription.mock.calls[0]?.[0].data.requestFingerprint;
+		lock
+			.mockResolvedValueOnce([{ id: MEMBER_ID }])
+			.mockResolvedValueOnce([{ id: PLAN_ID, name: 'Monthly access', price_rwf: 30_000n }]);
 		await service.create(CONTEXT, INPUT, '66666666-6666-4666-8666-666666666666');
 		const secondFingerprint = createSubscription.mock.calls[1]?.[0].data.requestFingerprint;
 		expect(firstFingerprint).toBeDefined();
