@@ -1,6 +1,7 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { OrganizationPaymentStatus, TenantTransactionService } from '@nexcoderw/gym-db';
 
+import { listDateOnlyRange } from '../list-date-range.js';
 import type { OwnerPaymentContext } from '../payments/owner-payment-context.js';
 import type {
 	DashboardCountMetricDto,
@@ -70,12 +71,31 @@ export class OwnerDashboardAnalyticsService {
 				`;
 				const financial = dashboardFinancialSummary(financialRows, period);
 
+				const joinedOnSelected = listDateOnlyRange(period.fromDate, period.toDate);
+				const joinedOnComparison = listDateOnlyRange(
+					period.comparisonFromDate,
+					period.comparisonToDate,
+				);
 				const newMembers = await transaction.organizationMember.count({
-					where: { organizationId: context.organizationId, createdAt: selected },
+					where: {
+						organizationId: context.organizationId,
+						OR: [
+							{ joinedOn: joinedOnSelected },
+							{ joinedOn: null, createdAt: selected },
+						],
+					},
 				});
 				const previousNewMembers = await transaction.organizationMember.count({
-					where: { organizationId: context.organizationId, createdAt: comparison },
+					where: {
+						organizationId: context.organizationId,
+						OR: [
+							{ joinedOn: joinedOnComparison },
+							{ joinedOn: null, createdAt: comparison },
+						],
+					},
 				});
+				// Subscriber as-of history still uses member/subscription createdAt timestamps.
+				// Replacing those cutoffs with joinedOn would invent subscription history.
 				const activeRows = await transaction.$queryRaw<ActiveSubscriberRow[]>`
 					WITH boundaries(label, day, cutoff) AS (
 						VALUES
