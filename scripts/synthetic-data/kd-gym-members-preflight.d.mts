@@ -41,12 +41,31 @@ export interface DatabasePreflightReport {
 	readonly existingMemberCount: number | null;
 	readonly generatedMemberCount: number;
 	readonly expectedTotalMemberCount: number;
+	readonly schemaChecks: Readonly<{
+		organizationTable: boolean;
+		memberTable: boolean;
+		memberOrganizationIdColumn: boolean;
+		normalizedNameColumn: boolean;
+		phoneNumberColumn: boolean;
+		memberCreatedAtColumn: boolean;
+		joinedOnColumn: boolean;
+		genderColumn: boolean;
+		businessStartDateAvailable: boolean;
+		migrationHistoryAvailable: boolean;
+		genderMigrationApplied: boolean;
+		joinedOnMigrationApplied: boolean;
+	}>;
 	readonly genderCounts: Readonly<Record<string, number>> | null;
 	readonly monthlyRegistrationCounts: readonly Readonly<Record<string, string | number>>[] | null;
 	readonly collisions: Readonly<Record<string, number | null>>;
 	readonly blockers: readonly string[];
 	readonly safeToProceedToSeparatelyApprovedImport: boolean;
 	readonly [key: string]: unknown;
+}
+
+export class PreflightConfigurationError extends Error {
+	constructor(code: string, message: string);
+	readonly code: string;
 }
 
 export function validateFixtureFiles(directory?: string): FixturePreflightResult;
