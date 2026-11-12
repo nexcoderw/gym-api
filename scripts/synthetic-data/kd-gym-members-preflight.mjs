@@ -229,7 +229,10 @@ export function resolveDatabaseTarget(arguments_, environment = process.env) {
 			continue;
 		}
 		if (args[index] !== '--database-target') {
-			throw new PreflightConfigurationError('PREFLIGHT_OPTION_INVALID', 'Unknown preflight option.');
+			throw new PreflightConfigurationError(
+				'PREFLIGHT_OPTION_INVALID',
+				'Unknown preflight option.',
+			);
 		}
 		const candidate = args[index + 1];
 		if (candidate === undefined || candidate.startsWith('--') || target !== undefined) {
