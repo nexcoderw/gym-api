@@ -45,8 +45,10 @@ export class OwnerDashboardAnalyticsController {
 		description:
 			'Requires organization.dashboard.read. Defaults to the current Africa/Kigali month through today. ' +
 			'Optional dates are inclusive and compared with the preceding equal-length period. ' +
+			'New-member counts use joinedOn when known and fall back to createdAt for legacy members with no joining date. ' +
 			'Money uses the same settled-payment and confirmed-refund rules as payment reports; ' +
-			'plan and method breakdowns show gross settled value before refunds.',
+			'plan and method breakdowns show gross settled value before refunds. Active-subscriber history ' +
+			'remains bounded by technical member and subscription timestamps.',
 	})
 	@ApiOkResponse({ type: OwnerDashboardAnalyticsResponseDto })
 	get(
