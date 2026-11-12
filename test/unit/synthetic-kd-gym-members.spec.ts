@@ -8,9 +8,7 @@ import { fileURLToPath } from 'node:url';
 const SCRIPT_PATH = fileURLToPath(
 	new URL('../../scripts/synthetic-data/generate-kd-gym-members.mjs', import.meta.url),
 );
-const OUTPUT_ROOT = fileURLToPath(
-	new URL('../../scripts/synthetic-data/output/', import.meta.url),
-);
+const OUTPUT_ROOT = fileURLToPath(new URL('../../scripts/synthetic-data/output/', import.meta.url));
 const ORGANIZATION_ID = 'f6e417be-b93e-40ef-b028-d9d03666e69f';
 const SEED = 'kd-gym-members-2026-11-12-v1';
 const FILES = ['members.csv', 'members.jsonl', 'manifest.json', 'validation-report.json'];
@@ -30,27 +28,29 @@ const EXPECTED_MONTHS: readonly (readonly [string, number, number, number])[] = 
 	['2026-10', 79, 12, 1],
 	['2026-11', 32, 5, 0],
 ];
-type GeneratedMember = {
+interface GeneratedMember {
 	id: string;
 	organizationId: string;
 	name: string;
 	normalizedName: string;
 	phoneNumber: string;
 	gender: string;
-	email: null;
+	email: string | null;
 	joinedOn: string;
 	synthetic: boolean;
 	generationCategory: string;
 	generationBatch: string;
-};
-type MonthlySummary = {
+}
+
+interface MonthlySummary {
 	month: string;
 	male: number;
 	female: number;
 	reservedExistingUnknown: number;
 	malePercentageIncludingReservedUnknown: number;
-};
-type GeneratorManifest = {
+}
+
+interface GeneratorManifest {
 	organizationId: string;
 	generationSeed: string;
 	recordCount: number;
@@ -61,8 +61,12 @@ type GeneratorManifest = {
 	duplicateCounts: { id: number; normalizedName: number; phoneNumber: number };
 	sha256: Record<string, string>;
 	syntheticDataWarning: string;
-};
-type ValidationReport = { valid: boolean; checks: Record<string, boolean> };
+}
+
+interface ValidationReport {
+	valid: boolean;
+	checks: Record<string, boolean>;
+}
 
 describe('offline KD GYM member generator', () => {
 	it('writes matching deterministic CSV and JSONL with all required targets', () => {
@@ -80,9 +84,7 @@ describe('offline KD GYM member generator', () => {
 
 			const csv = readFileSync(join(firstDirectory, 'members.csv'), 'utf8').trimEnd();
 			const jsonl = readFileSync(join(firstDirectory, 'members.jsonl'), 'utf8').trimEnd();
-			const parsedRecords: unknown[] = jsonl
-				.split('\n')
-				.map((line): unknown => JSON.parse(line));
+			const parsedRecords: unknown[] = jsonl.split('\n').map((line): unknown => JSON.parse(line));
 			expect(parsedRecords.every(isGeneratedMember)).toBe(true);
 			const records = parsedRecords.filter(isGeneratedMember);
 			const csvRows = csv.split('\n').map(parseCsvRow);
@@ -96,18 +98,19 @@ describe('offline KD GYM member generator', () => {
 			expect(new Set(records.map((record) => record.normalizedName)).size).toBe(823);
 			expect(new Set(records.map((record) => record.phoneNumber)).size).toBe(823);
 			expect(records.every((record) => record.organizationId === ORGANIZATION_ID)).toBe(true);
-			expect(records.every((record) => record.synthetic && record.email === null)).toBe(true);
-			expect(
-				records.every((record) => !('createdAt' in record) && !('updatedAt' in record)),
-			).toBe(true);
+			expect(records.every((record) => record.synthetic)).toBe(true);
+			expect(records.every((record) => record.email === null)).toBe(true);
+			expect(records.every((record) => !('createdAt' in record) && !('updatedAt' in record))).toBe(
+				true,
+			);
 			expect(
 				records.every((record) =>
-					/^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u.test(
-						record.id,
-					),
+					/^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u.test(record.id),
 				),
 			).toBe(true);
-			expect(records.every((record) => /^\+250(?:78|72)\d{7}$/u.test(record.phoneNumber))).toBe(true);
+			expect(records.every((record) => /^\+250(?:78|72)\d{7}$/u.test(record.phoneNumber))).toBe(
+				true,
+			);
 			expect(
 				records.every(
 					(record) => record.joinedOn >= '2025-10-18' && record.joinedOn <= '2026-11-12',
@@ -119,9 +122,9 @@ describe('offline KD GYM member generator', () => {
 					return componentCount >= 2 && componentCount <= 4;
 				}),
 			).toBe(true);
-			expect(
-				records.every((record) => record.normalizedName === normalizeName(record.name)),
-			).toBe(true);
+			expect(records.every((record) => record.normalizedName === normalizeName(record.name))).toBe(
+				true,
+			);
 			for (const [month] of EXPECTED_MONTHS) {
 				const dailyCounts = new Map<string, number>();
 				for (const record of records.filter((member) => member.joinedOn.startsWith(month))) {
@@ -152,14 +155,12 @@ describe('offline KD GYM member generator', () => {
 				timezone: 'Africa/Kigali',
 			});
 			expect(
-				manifest.monthlyGenderBreakdown.map(
-					({ month, male, female, reservedExistingUnknown }) => [
-						month,
-						male,
-						female,
-						reservedExistingUnknown,
-					],
-				),
+				manifest.monthlyGenderBreakdown.map(({ month, male, female, reservedExistingUnknown }) => [
+					month,
+					male,
+					female,
+					reservedExistingUnknown,
+				]),
 			).toEqual(EXPECTED_MONTHS);
 			expect(
 				manifest.monthlyGenderBreakdown.every(
@@ -188,7 +189,7 @@ describe('offline KD GYM member generator', () => {
 				/no claims about real people or religious identity/iu,
 			);
 			expect(report.valid).toBe(true);
-			expect(Object.values(report.checks).every((passed) => passed === true)).toBe(true);
+			expect(Object.values(report.checks).every(Boolean)).toBe(true);
 			expect(readdirSync(firstDirectory).sort()).toEqual([...FILES].sort());
 		} finally {
 			rmSync(firstDirectory, { recursive: true, force: true });
@@ -214,11 +215,10 @@ describe('offline KD GYM member generator', () => {
 
 	it('rejects output paths outside the ignored local fixture directory', () => {
 		expect(() =>
-			execFileSync(
-				process.execPath,
-				[SCRIPT_PATH, '--output-dir', tmpdir()],
-				{ encoding: 'utf8', stdio: 'pipe' },
-			),
+			execFileSync(process.execPath, [SCRIPT_PATH, '--output-dir', tmpdir()], {
+				encoding: 'utf8',
+				stdio: 'pipe',
+			}),
 		).toThrow(/gitignored synthetic-data output directory/iu);
 	});
 });
@@ -229,11 +229,10 @@ function temporaryDirectory(): string {
 }
 
 function runGenerator(outputDirectory: string): void {
-	execFileSync(
-		process.execPath,
-		[SCRIPT_PATH, '--seed', SEED, '--output-dir', outputDirectory],
-		{ encoding: 'utf8', stdio: 'pipe' },
-	);
+	execFileSync(process.execPath, [SCRIPT_PATH, '--seed', SEED, '--output-dir', outputDirectory], {
+		encoding: 'utf8',
+		stdio: 'pipe',
+	});
 }
 
 function parseCsvRow(line: string): string[] {
@@ -242,6 +241,7 @@ function parseCsvRow(line: string): string[] {
 	let quoted = false;
 	for (let index = 0; index < line.length; index += 1) {
 		const character = line[index];
+		if (character === undefined) continue;
 		if (character === '"' && quoted && line[index + 1] === '"') {
 			cell += '"';
 			index += 1;
@@ -296,7 +296,7 @@ function isGeneratedMember(value: unknown): value is GeneratedMember {
 		'gender' in value &&
 		typeof value.gender === 'string' &&
 		'email' in value &&
-		value.email === null &&
+		(value.email === null || typeof value.email === 'string') &&
 		'joinedOn' in value &&
 		typeof value.joinedOn === 'string' &&
 		'synthetic' in value &&
@@ -353,17 +353,11 @@ function isDuplicateCounts(value: unknown): value is GeneratorManifest['duplicat
 }
 
 function isNumberRecord(value: unknown): value is Record<string, number> {
-	return (
-		isRecord(value) &&
-		Object.values(value).every((item) => typeof item === 'number')
-	);
+	return isRecord(value) && Object.values(value).every((item) => typeof item === 'number');
 }
 
 function isStringRecord(value: unknown): value is Record<string, string> {
-	return (
-		isRecord(value) &&
-		Object.values(value).every((item) => typeof item === 'string')
-	);
+	return isRecord(value) && Object.values(value).every((item) => typeof item === 'string');
 }
 
 function isValidationReport(value: unknown): value is ValidationReport {
