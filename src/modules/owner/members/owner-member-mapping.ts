@@ -13,6 +13,7 @@ export const MEMBER_SELECT = {
 	email: true,
 	phoneNumber: true,
 	gender: true,
+	joinedOn: true,
 	createdAt: true,
 	updatedAt: true,
 	archivedAt: true,
@@ -44,6 +45,7 @@ export function memberResponse(row: MemberRow): MemberResponseDto {
 		email: row.email,
 		phoneNumber: row.phoneNumber,
 		gender: row.gender,
+		joinedOn: row.joinedOn?.toISOString().slice(0, 10) ?? null,
 		status: row.archivedAt === null ? 'ACTIVE' : 'ARCHIVED',
 		createdAt: row.createdAt.toISOString(),
 		updatedAt: row.updatedAt.toISOString(),
@@ -54,6 +56,11 @@ export function memberResponse(row: MemberRow): MemberResponseDto {
 /** Kigali calendar day; current gym scheduling uses Africa/Kigali (UTC+02, no DST). */
 export function memberToday(now = new Date()): string {
 	return new Date(now.getTime() + 2 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+/** Encode the Kigali business date as UTC midnight for Prisma's PostgreSQL DATE field. */
+export function memberJoinedOn(now = new Date()): Date {
+	return new Date(`${memberToday(now)}T00:00:00.000Z`);
 }
 
 export function memberSubscriptionResponse(
