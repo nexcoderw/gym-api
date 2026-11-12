@@ -12,7 +12,10 @@ export function listDateRange(fromDate?: string, toDate?: string): { gte?: Date;
 }
 
 /** Build inclusive UTC-midnight bounds for a PostgreSQL DATE column. */
-export function listDateOnlyRange(fromDate?: string, toDate?: string): {
+export function listDateOnlyRange(
+	fromDate?: string,
+	toDate?: string,
+): {
 	gte?: Date;
 	lt?: Date;
 } {
