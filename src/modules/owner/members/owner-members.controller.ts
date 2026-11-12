@@ -79,7 +79,7 @@ export class OwnerMembersController {
 	@ApiOperation({
 		summary: 'List gym members',
 		description:
-			'Requires organization.members.read. Results are tenant scoped with bounded cursor or numbered pagination and optional search; archived profiles are excluded by default.',
+			'Requires organization.members.read. Results are tenant scoped with bounded cursor or numbered pagination and optional search and gender filters; archived profiles are excluded by default.',
 	})
 	@ApiOkResponse({ type: MemberListResponseDto })
 	list(
@@ -141,7 +141,7 @@ export class OwnerMembersController {
 	@ApiOperation({
 		summary: 'Update a member profile',
 		description:
-			'Requires organization.members.update. Only contact/name fields are mutable and the current updatedAt ETag is required.',
+			'Requires organization.members.update. Name, contact and gender are mutable, including clearing gender to null; the current updatedAt ETag is required.',
 	})
 	@ApiPreconditionFailedResponse({ type: ApiErrorResponseDto })
 	@ApiOkResponse({ type: MemberResponseDto })
