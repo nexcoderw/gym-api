@@ -1,5 +1,6 @@
 import {
 	inspectDatabase,
+	PreflightConfigurationError,
 	resolveDatabaseTarget,
 	validateFixtureFiles,
 } from './kd-gym-members-preflight.mjs';
@@ -72,13 +73,15 @@ async function main(arguments_) {
 	}
 }
 
-main(process.argv.slice(2)).catch(() => {
+main(process.argv.slice(2)).catch((error) => {
+	const configurationError = error instanceof PreflightConfigurationError;
 	process.stderr.write(
 		`${JSON.stringify(
 			{
 				preflight: 'kd-gym-historical-member-import',
 				failed: true,
-				blockers: ['PREFLIGHT_ABORTED'],
+				blockers: [configurationError ? error.code : 'PREFLIGHT_ABORTED'],
+				...(configurationError ? { message: error.message } : {}),
 				safeToProceedToSeparatelyApprovedImport: false,
 			},
 			null,
