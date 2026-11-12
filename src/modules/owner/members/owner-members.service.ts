@@ -55,6 +55,7 @@ export class OwnerMembersService {
 				const dateRange = listDateRange(query.fromDate, query.toDate);
 				const where: Prisma.OrganizationMemberWhereInput = {
 					organizationId: context.organizationId,
+					...(query.gender === undefined ? {} : { gender: query.gender }),
 					archivedAt: query.status === MemberStatusFilter.ARCHIVED ? { not: null } : null,
 					...(query.search === undefined
 						? {}
@@ -138,6 +139,7 @@ export class OwnerMembersService {
 			...memberName(input.name),
 			phoneNumber: memberPhone(input.phoneNumber),
 			email: input.email ?? null,
+			gender: input.gender ?? null,
 		};
 		memberPeriod(
 			input.subscription.startDate,
@@ -150,6 +152,7 @@ export class OwnerMembersService {
 			profile.normalizedName,
 			profile.phoneNumber,
 			profile.email,
+			...(profile.gender === null ? [] : [profile.gender]),
 			input.subscription.membershipPlanId,
 			input.subscription.startDate,
 			input.subscription.periodUnit,
@@ -212,7 +215,12 @@ export class OwnerMembersService {
 		input: UpdateMemberDto,
 		expected: Date,
 	): Promise<MemberResponseDto> {
-		if (input.name === undefined && input.phoneNumber === undefined && input.email === undefined) {
+		if (
+			input.name === undefined &&
+			input.phoneNumber === undefined &&
+			input.email === undefined &&
+			input.gender === undefined
+		) {
 			throw new BadRequestException({
 				code: 'MEMBER_UPDATE_EMPTY',
 				message: 'Supply at least one profile field.',
@@ -222,6 +230,7 @@ export class OwnerMembersService {
 			...(input.name === undefined ? {} : memberName(input.name)),
 			...(input.phoneNumber === undefined ? {} : { phoneNumber: memberPhone(input.phoneNumber) }),
 			...(input.email === undefined ? {} : { email: input.email }),
+			...(input.gender === undefined ? {} : { gender: input.gender }),
 			updatedAt: new Date(Math.max(Date.now(), expected.getTime() + 1)),
 		};
 		try {
