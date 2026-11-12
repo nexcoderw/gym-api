@@ -138,9 +138,7 @@ describe('owner member numbered pagination', () => {
 			},
 		};
 		expect(count).toHaveBeenCalledWith({ where });
-		expect(findMany).toHaveBeenCalledWith(
-			expect.objectContaining({ where, skip: 20, take: 20 }),
-		);
+		expect(findMany).toHaveBeenCalledWith(expect.objectContaining({ where, skip: 20, take: 20 }));
 	});
 
 	it.each([
