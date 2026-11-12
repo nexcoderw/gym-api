@@ -104,6 +104,21 @@ describe('owner member numbered pagination', () => {
 		expect(findMany).toHaveBeenCalledWith(expect.objectContaining({ where }));
 	});
 
+	it('applies gender inside the tenant-scoped query before count and pagination', async () => {
+		await service.list(CONTEXT, { ...QUERY, gender: 'FEMALE', page: 2 });
+		const where = {
+			organizationId: CONTEXT.organizationId,
+			gender: 'FEMALE',
+			archivedAt: null,
+		};
+		expect(count).toHaveBeenCalledWith({ where });
+		expect(findMany).toHaveBeenCalledWith(expect.objectContaining({
+			where,
+			skip: 20,
+			take: 20,
+		}));
+	});
+
 	it('rejects mixing page and cursor modes', async () => {
 		await expect(
 			service.list(CONTEXT, { ...QUERY, page: 2, cursor: MEMBER.id }),
