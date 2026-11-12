@@ -49,6 +49,7 @@ const MEMBER = {
 	phoneNumber: INPUT.phoneNumber,
 	email: null,
 	gender: null,
+	joinedOn: '2026-10-18',
 	status: 'ACTIVE' as const,
 	createdAt: AT,
 	updatedAt: AT,
@@ -156,6 +157,7 @@ describe('owner members HTTP security', () => {
 		for (const body of [
 			{ name: INPUT.name, phoneNumber: INPUT.phoneNumber },
 			{ ...INPUT, organizationId: ORGANIZATION_ID },
+			{ ...INPUT, joinedOn: '2026-10-01' },
 			{ ...INPUT, subscription: { ...INPUT.subscription, endDate: '2030-01-01' } },
 			{ ...INPUT, subscription: { ...INPUT.subscription, price: 1 } },
 			{ ...INPUT, subscription: { ...INPUT.subscription, periodCount: 1.5 } },
@@ -191,6 +193,10 @@ describe('owner members HTTP security', () => {
 			.expect(400);
 		await ownerRequest('patch', `${ROOT}/${MEMBER_ID}`)
 			.set('If-Match', `"${AT}"`)
+			.send({ joinedOn: '2026-10-01' })
+			.expect(400);
+		await ownerRequest('patch', `${ROOT}/${MEMBER_ID}`)
+			.set('If-Match', `"${AT}"`)
 			.send({ name: null })
 			.expect(400);
 	});
@@ -209,7 +215,7 @@ describe('owner members HTTP security', () => {
 		});
 		await ownerRequest(
 			'get',
-			`${ROOT}?order=NAME_ASC&fromDate=2026-10-01&toDate=2026-10-20`,
+			`${ROOT}?order=NAME_ASC&fromDate=2026-10-01&toDate=2026-10-20&joinedOnFrom=2026-10-05&joinedOnTo=2026-10-12`,
 		).expect(200);
 		expect(list).toHaveBeenLastCalledWith(CONTEXT, {
 			limit: 20,
@@ -217,6 +223,8 @@ describe('owner members HTTP security', () => {
 			order: 'NAME_ASC',
 			fromDate: '2026-10-01',
 			toDate: '2026-10-20',
+			joinedOnFrom: '2026-10-05',
+			joinedOnTo: '2026-10-12',
 		});
 		await ownerRequest('get', `${ROOT}?search=member`).expect(200);
 		expect(list).toHaveBeenLastCalledWith(CONTEXT, {
@@ -249,7 +257,10 @@ describe('owner members HTTP security', () => {
 	});
 
 	it('requires optimistic concurrency for profile changes and archival', async () => {
-		await ownerRequest('get', `${ROOT}/${MEMBER_ID}`).expect(200).expect('ETag', `"${AT}"`);
+		const memberResponse = await ownerRequest('get', `${ROOT}/${MEMBER_ID}`)
+			.expect(200)
+			.expect('ETag', `"${AT}"`);
+		expect(memberResponse.body).toMatchObject({ joinedOn: '2026-10-18' });
 		await ownerRequest('patch', `${ROOT}/${MEMBER_ID}`)
 			.send({ name: 'Updated Member' })
 			.expect(400);
