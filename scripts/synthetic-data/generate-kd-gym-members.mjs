@@ -194,10 +194,12 @@ const CHRISTIAN_GIVEN_NAMES = Object.freeze({
 const MUSLIM_GIVEN_NAMES = Object.freeze({
 	MALE: [
 		'Ibrahim', 'Yusuf', 'Ismail', 'Omar', 'Ali', 'Hassan', 'Musa', 'Abdallah', 'Karim', 'Said',
-		'Hamza', 'Khalid', 'Mustafa', 'Salim', 'Bilal', 'Idris', 'Abubakar', 'Farid', 'Mahmud', 'Nabil',
+		'Hamza', 'Khalid', 'Mustafa', 'Salim', 'Bilal', 'Idris', 'Abubakar', 'Farid', 'Mahmud',
+		'Nabil',
 	],
 	FEMALE: [
-		'Amina', 'Fatima', 'Khadija', 'Aisha', 'Zainab', 'Mariam', 'Hawa', 'Halima', 'Safiya', 'Salma',
+		'Amina', 'Fatima', 'Khadija', 'Aisha', 'Zainab', 'Mariam', 'Hawa', 'Halima', 'Safiya',
+		'Salma',
 		'Nadia', 'Samira', 'Jamila', 'Rukiya', 'Hafsa', 'Nuru', 'Asma', 'Safa', 'Layla', 'Zahra',
 	],
 });
@@ -514,7 +516,9 @@ function parseArguments(arguments_) {
 			options.help = true;
 			continue;
 		}
-		if (flag !== '--seed' && flag !== '--output-dir') throw new Error(`Unknown option: ${flag}`);
+		if (flag !== '--seed' && flag !== '--output-dir') {
+			throw new Error(`Unknown option: ${flag}`);
+		}
 		const value = arguments_[index + 1];
 		if (value === undefined || value.startsWith('--')) {
 			throw new Error(`A value is required for ${flag}.`);
@@ -635,7 +639,9 @@ function createNameComponents(gender, category, random) {
 	if (category === 'RWANDAN_MUSLIM_COMBINATION') {
 		const given = [pick(MUSLIM_GIVEN_NAMES[gender], random)];
 		if (random() < 0.16) {
-			given.push(pick(MUSLIM_GIVEN_NAMES[gender].filter((name) => name !== given[0]), random));
+			given.push(
+				pick(MUSLIM_GIVEN_NAMES[gender].filter((name) => name !== given[0]), random),
+			);
 		}
 		const family = distinctParts(
 			Math.max(1, Math.min(4 - given.length, random() < 0.4 ? 2 : 1)),
@@ -719,7 +725,9 @@ function makeMonthlyBreakdown(counts) {
 			female: actual.female,
 			reservedExistingUnknown: target.reservedUnknown,
 			plannedTotalIncludingReserved: plannedTotal,
-			malePercentageIncludingReservedUnknown: Number(((actual.male / plannedTotal) * 100).toFixed(2)),
+			malePercentageIncludingReservedUnknown: Number(
+				((actual.male / plannedTotal) * 100).toFixed(2),
+			),
 			targetMale: target.male,
 			targetFemale: target.female,
 		};
@@ -731,7 +739,9 @@ function countDuplicates(values) {
 }
 
 function isValidUuid(value) {
-	return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(value);
+	return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(
+		value,
+	);
 }
 
 function isValidDate(value) {
@@ -774,7 +784,8 @@ if (isMainModule) {
 			);
 		}
 	} catch (error) {
-		const message = error instanceof Error ? error.message : 'Synthetic data generation failed.';
+		const message =
+			error instanceof Error ? error.message : 'Synthetic data generation failed.';
 		process.stderr.write(`${message}\n`);
 		process.exitCode = 1;
 	}
