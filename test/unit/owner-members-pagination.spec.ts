@@ -112,11 +112,13 @@ describe('owner member numbered pagination', () => {
 			archivedAt: null,
 		};
 		expect(count).toHaveBeenCalledWith({ where });
-		expect(findMany).toHaveBeenCalledWith(expect.objectContaining({
-			where,
-			skip: 20,
-			take: 20,
-		}));
+		expect(findMany).toHaveBeenCalledWith(
+			expect.objectContaining({
+				where,
+				skip: 20,
+				take: 20,
+			}),
+		);
 	});
 
 	it('rejects mixing page and cursor modes', async () => {
