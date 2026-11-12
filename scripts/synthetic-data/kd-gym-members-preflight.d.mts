@@ -13,10 +13,17 @@ export interface DatasetPreflightReport {
 		manifestMatches: boolean;
 	}>[];
 	readonly checks: Readonly<Record<string, boolean>>;
+	readonly manifestSha256: string | null;
 }
 
 export const KD_GYM_ORGANIZATION_ID: string;
 export const EXPECTED_DATABASE_MIGRATIONS: readonly string[];
+export const EXPECTED_PRODUCTION_DATABASE_NAME: string;
+export const EXPECTED_PRODUCTION_DATABASE_HOST: string;
+export const EXPECTED_FINAL_MEMBER_COUNT: number;
+export const EXPECTED_DATE_RANGE: Readonly<{ from: string; to: string; timezone: string }>;
+export const PRODUCTION_APPROVAL_DIRECTORY: string;
+export const SMS_NOTIFICATION_SUPPRESSION_SUPPORTED: boolean;
 
 export interface FixturePreflightResult {
 	readonly members: readonly Readonly<Record<string, string | boolean | null>>[];
@@ -38,9 +45,13 @@ export interface DatabasePreflightReport {
 	readonly organizationId: string;
 	readonly organizationExists: boolean | null;
 	readonly organizationBusinessStartDate: string | null;
+	readonly businessStartDateAttestationVerified: boolean;
+	readonly approvalReference: string;
+	readonly approvalOperator: string;
 	readonly existingMemberCount: number | null;
 	readonly generatedMemberCount: number;
 	readonly expectedTotalMemberCount: number;
+	readonly expectedFinalCountMatches: boolean;
 	readonly schemaChecks: Readonly<{
 		organizationTable: boolean;
 		memberTable: boolean;
@@ -50,8 +61,12 @@ export interface DatabasePreflightReport {
 		memberCreatedAtColumn: boolean;
 		joinedOnColumn: boolean;
 		genderColumn: boolean;
-		businessStartDateAvailable: boolean;
+		reminderEmailSuppressedAtColumn: boolean;
+		reminderEmailSuppressionReasonColumn: boolean;
+		manualSuppressionReasonAvailable: boolean;
+		suppressionPairConstraintAvailable: boolean;
 		migrationHistoryAvailable: boolean;
+		suppressionMigrationApplied: boolean;
 		genderMigrationApplied: boolean;
 		joinedOnMigrationApplied: boolean;
 	}>;
@@ -73,9 +88,24 @@ export function resolveDatabaseTarget(
 	arguments_: readonly string[],
 	environment?: Readonly<Record<string, string | undefined>>,
 ): DatabasePreflightTarget;
+export function validateProductionApprovalArtifact(
+	value: unknown,
+	manifestSha256: string | null,
+): Readonly<Record<string, string>>;
+export function loadProductionApprovalArtifact(manifestSha256: string | null): Readonly<Record<string, string>>;
+export function loadProductionBackupAttestation(): Readonly<Record<string, string>>;
 export function inspectDatabase(
 	prisma: unknown,
 	target: DatabasePreflightTarget,
 	members: readonly Readonly<Record<string, string | boolean | null>>[],
 	datasetReport: DatasetPreflightReport,
+	approval: Readonly<Record<string, string>>,
+): Promise<DatabasePreflightReport>;
+export function inspectDatabaseTransaction(
+	transaction: unknown,
+	target: DatabasePreflightTarget,
+	members: readonly Readonly<Record<string, string | boolean | null>>[],
+	datasetReport: DatasetPreflightReport,
+	approval: Readonly<Record<string, string>>,
+	options: Readonly<{ expectedReadOnly: boolean; lockOrganization?: boolean }>,
 ): Promise<DatabasePreflightReport>;
