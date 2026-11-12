@@ -174,7 +174,7 @@ export class OwnerPaymentsService {
 			profile?.normalizedName ?? null,
 			profile?.phoneNumber ?? null,
 			profile?.email ?? null,
-			...(profile === null || profile.gender === null ? [] : [profile.gender]),
+			...(profile?.gender ? [profile.gender] : []),
 			input.subscription.membershipPlanId,
 			input.subscription.startDate,
 			input.subscription.periodUnit,
