@@ -128,16 +128,13 @@ describe('offline KD GYM historical member preflight', () => {
 			},
 			'uniquePhones',
 		],
-	] as const)(
-		'rejects %s',
-		(_description, _field, mutate, check) => {
-			const directory = copyBaseline();
-			const records = readMembers(directory);
-			mutate(records);
-			writeJsonLines(directory, records);
-			expect(validateFixtureFiles(directory).report.checks[check]).toBe(false);
-		},
-	);
+	] as const)('rejects %s', (_description, _field, mutate, check) => {
+		const directory = copyBaseline();
+		const records = readMembers(directory);
+		mutate(records);
+		writeJsonLines(directory, records);
+		expect(validateFixtureFiles(directory).report.checks[check]).toBe(false);
+	});
 
 	it('rejects an invalid organization ID and dates outside the historical range', () => {
 		const directory = copyBaseline();
@@ -177,7 +174,7 @@ describe('offline KD GYM historical member preflight', () => {
 				resolveDatabaseTarget(['--database-target', 'development'], {
 					PREFLIGHT_DATABASE_TARGET: 'development',
 				}),
-			).toThrow(expect.objectContaining({ code: 'PREFLIGHT_DATABASE_URL_REQUIRED' }));
+			).toThrow(/PREFLIGHT_DATABASE_URL is required/u);
 			expect(() =>
 				resolveDatabaseTarget(['--database-target', 'development'], DATABASE_ENV),
 			).not.toThrow();
@@ -251,7 +248,7 @@ describe('offline KD GYM historical member preflight', () => {
 		it('enforces PostgreSQL read-only mode and never calls write APIs', async () => {
 			const { prisma, events, transaction } = mockPrisma();
 			const report = await inspectDatabase(prisma, DATABASE_TARGET, fixtureIds(), DATASET_REPORT);
-			expect(events[0]).toBe('set-transaction-read-only');
+			expect(events[0]).toBe('set:SET TRANSACTION READ ONLY');
 			expect(transaction.$executeRaw).toHaveBeenCalledTimes(1);
 			expect(transaction.$executeRaw.mock.calls[0]?.[0].join('').trim()).toBe(
 				'SET TRANSACTION READ ONLY',
@@ -373,16 +370,18 @@ function fixtureIds(): Readonly<Record<string, string | boolean | null>>[] {
 	}));
 }
 
-function mockPrisma(options: {
-	organizationExists?: boolean;
-	existingMemberCount?: number;
-	idCollision?: number;
-	nameCollision?: number;
-	phoneCollision?: number;
-	matchingFixture?: number;
-	missingJoinedOnColumn?: boolean;
-	missingMigration?: boolean;
-} = {}) {
+function mockPrisma(
+	options: {
+		organizationExists?: boolean;
+		existingMemberCount?: number;
+		idCollision?: number;
+		nameCollision?: number;
+		phoneCollision?: number;
+		matchingFixture?: number;
+		missingJoinedOnColumn?: boolean;
+		missingMigration?: boolean;
+	} = {},
+) {
 	const events: string[] = [];
 	const queryRaw = jest.fn((strings: TemplateStringsArray) => {
 		const sql = strings.join(' ');
