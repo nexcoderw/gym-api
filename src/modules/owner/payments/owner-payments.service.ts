@@ -13,6 +13,7 @@ import {
 import { databaseErrorCode } from '../../../common/errors/database-error-code.js';
 import { listDateRange } from '../list-date-range.js';
 import { memberName, memberPhone } from '../members/member-normalization.js';
+import { memberJoinedOn } from '../members/owner-member-mapping.js';
 import { memberPeriod } from '../members/member-period.js';
 import { registerMemberPlan } from '../members/member-plan-registration.js';
 import type { CreatePaymentDto } from './dto/create-payment.dto.js';
@@ -208,7 +209,11 @@ export class OwnerPaymentsService {
 						memberId = input.memberId;
 					} else {
 						const member = await transaction.organizationMember.create({
-							data: { organizationId: context.organizationId, ...profile },
+							data: {
+								organizationId: context.organizationId,
+								...profile,
+								joinedOn: memberJoinedOn(),
+							},
 							select: { id: true },
 						});
 
