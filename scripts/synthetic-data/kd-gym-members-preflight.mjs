@@ -110,7 +110,8 @@ export function validateFixtureFiles(directory = OUTPUT_DIRECTORY) {
 		checks.expectedRecordCount = members.length === EXPECTED_RECORD_COUNT;
 		checks.expectedGenderTotals =
 			members.filter((member) => member.gender === 'MALE').length === EXPECTED_GENDER_COUNTS.male &&
-			members.filter((member) => member.gender === 'FEMALE').length === EXPECTED_GENDER_COUNTS.female;
+			members.filter((member) => member.gender === 'FEMALE').length ===
+				EXPECTED_GENDER_COUNTS.female;
 		checks.expectedOrganization = members.every(
 			(member) => member.organizationId === KD_GYM_ORGANIZATION_ID,
 		);
@@ -122,8 +123,7 @@ export function validateFixtureFiles(directory = OUTPUT_DIRECTORY) {
 			manifest.dateRange.timezone === EXPECTED_DATE_RANGE.timezone &&
 			members.every(
 				(member) =>
-					member.joinedOn >= EXPECTED_DATE_RANGE.from &&
-					member.joinedOn <= EXPECTED_DATE_RANGE.to,
+					member.joinedOn >= EXPECTED_DATE_RANGE.from && member.joinedOn <= EXPECTED_DATE_RANGE.to,
 			);
 		checks.validUniqueUuids =
 			members.every((member) => isUuid(member.id)) &&
@@ -256,10 +256,13 @@ export function resolveDatabaseTarget(arguments_, environment = process.env) {
 			'Set PREFLIGHT_DATABASE_TARGET to match the explicit database target.',
 		);
 	}
-	if (typeof environment.PREFLIGHT_DATABASE_URL !== 'string') {
+	if (
+		typeof environment.PREFLIGHT_DATABASE_URL !== 'string' ||
+		environment.PREFLIGHT_DATABASE_URL.trim().length === 0
+	) {
 		throw new PreflightConfigurationError(
 			'PREFLIGHT_DATABASE_URL_REQUIRED',
-			'PREFLIGHT_DATABASE_URL is required; DATABASE_URL is never used by this tool.',
+			'Set a non-empty PREFLIGHT_DATABASE_URL; .env files and DATABASE_URL are not used.',
 		);
 	}
 	let connection;
@@ -268,7 +271,7 @@ export function resolveDatabaseTarget(arguments_, environment = process.env) {
 	} catch {
 		throw new PreflightConfigurationError(
 			'PREFLIGHT_DATABASE_URL_INVALID',
-			'PREFLIGHT_DATABASE_URL must be a valid PostgreSQL URL.',
+			'Use a full postgres:// or postgresql:// URL; percent-encode reserved credential characters.',
 		);
 	}
 	if (!['postgres:', 'postgresql:'].includes(connection.protocol)) {
@@ -292,8 +295,7 @@ export function resolveDatabaseTarget(arguments_, environment = process.env) {
 	if (
 		target === 'production' &&
 		(!allowProductionReadOnly ||
-			environment.PREFLIGHT_PRODUCTION_READ_ONLY_CONFIRMATION !==
-				'KD-GYM-READ-ONLY-PREFLIGHT')
+			environment.PREFLIGHT_PRODUCTION_READ_ONLY_CONFIRMATION !== 'KD-GYM-READ-ONLY-PREFLIGHT')
 	) {
 		throw new PreflightConfigurationError(
 			'PRODUCTION_READ_ONLY_CONFIRMATION_REQUIRED',
@@ -323,38 +325,39 @@ export async function inspectDatabase(prisma, target, members, datasetReport) {
 	if (!datasetReport.valid || members.length !== EXPECTED_RECORD_COUNT) {
 		throw new Error('Refusing database inspection because fixture validation did not pass.');
 	}
-	return prisma.$transaction(async (transaction) => {
-		await transaction.$executeRaw`SET TRANSACTION READ ONLY`;
-		const readOnlyState = await transaction.$queryRaw`
+	return prisma.$transaction(
+		async (transaction) => {
+			await transaction.$executeRaw`SET TRANSACTION READ ONLY`;
+			const readOnlyState = await transaction.$queryRaw`
 			SELECT current_setting('transaction_read_only') AS "readOnly"
 		`;
-		if (readOnlyState[0]?.readOnly !== 'on') {
-			throw new Error('Read-only transaction was not enabled.');
-		}
-		await transaction.$queryRaw`
+			if (readOnlyState[0]?.readOnly !== 'on') {
+				throw new Error('Read-only transaction was not enabled.');
+			}
+			await transaction.$queryRaw`
 			SELECT set_config('app.current_organization_id', ${KD_GYM_ORGANIZATION_ID}, true)
 		`;
-		await transaction.$queryRaw`SELECT set_config('app.current_branch_id', '', true)`;
-		const identityRows = await transaction.$queryRaw`
+			await transaction.$queryRaw`SELECT set_config('app.current_branch_id', '', true)`;
+			const identityRows = await transaction.$queryRaw`
 			SELECT current_database() AS "databaseName",
 				inet_server_addr()::text AS "host",
 				inet_server_port() AS "port"
 		`;
-		const identity = identityRows[0];
-		const columns = await transaction.$queryRaw`
+			const identity = identityRows[0];
+			const columns = await transaction.$queryRaw`
 			SELECT table_name AS "tableName", column_name AS "columnName"
 			FROM information_schema.columns
 			WHERE table_schema = 'public' AND table_name IN ('organizations', 'organization_members')
 		`;
-		const columnSet = new Set(columns.map((row) => `${row.tableName}.${row.columnName}`));
-		const migrationTableRows = await transaction.$queryRaw`
+			const columnSet = new Set(columns.map((row) => `${row.tableName}.${row.columnName}`));
+			const migrationTableRows = await transaction.$queryRaw`
 			SELECT EXISTS (
 				SELECT 1 FROM information_schema.tables
 				WHERE table_schema = 'public' AND table_name = '_prisma_migrations'
 			) AS "exists"
 		`;
-		const migrationRows = migrationTableRows[0]?.exists
-			? await transaction.$queryRaw`
+			const migrationRows = migrationTableRows[0]?.exists
+				? await transaction.$queryRaw`
 					SELECT migration_name AS "migrationName"
 					FROM public._prisma_migrations
 					WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL
@@ -363,121 +366,122 @@ export async function inspectDatabase(prisma, target, members, datasetReport) {
 							'20261112212705_add_organization_member_joined_on'
 						)
 				`
-			: [];
-		const migrationSet = new Set(migrationRows.map((row) => row.migrationName));
-		const schemaChecks = {
-			organizationTable: columnSet.has('organizations.id'),
-			memberTable: columnSet.has('organization_members.id'),
-			memberOrganizationIdColumn: columnSet.has('organization_members.organization_id'),
-			normalizedNameColumn: columnSet.has('organization_members.normalized_name'),
-			phoneNumberColumn: columnSet.has('organization_members.phone_number'),
-			memberCreatedAtColumn: columnSet.has('organization_members.created_at'),
-			joinedOnColumn: columnSet.has('organization_members.joined_on'),
-			genderColumn: columnSet.has('organization_members.gender'),
-			// The published gym-db Organization model has no configured business start-date field.
-			businessStartDateAvailable: false,
-			migrationHistoryAvailable: migrationTableRows[0]?.exists === true,
-			genderMigrationApplied: migrationSet.has(EXPECTED_DATABASE_MIGRATIONS[0]),
-			joinedOnMigrationApplied: migrationSet.has(EXPECTED_DATABASE_MIGRATIONS[1]),
-		};
-		const blockers = Object.entries(schemaChecks)
-			.filter(([, passed]) => !passed)
-			.map(([name]) =>
-				name === 'businessStartDateAvailable'
-					? 'ORGANIZATION_BUSINESS_START_DATE_UNAVAILABLE'
-					: `SCHEMA_${name.replace(/[A-Z]/gu, (letter) => `_${letter}`).toUpperCase()}`,
-			);
-		const report = {
-			performed: true,
-			target: target.target,
-			databaseIdentity: {
-				databaseName: identity?.databaseName ?? target.databaseName,
-				host: identity?.host ?? target.host,
-				port: identity?.port ?? null,
-			},
-			organizationId: KD_GYM_ORGANIZATION_ID,
-			databaseIdentityMatchesExpected: identity?.databaseName === target.databaseName,
-			schemaChecks,
-			organizationExists: null,
-			organizationBusinessStartDate: null,
-			existingMemberCount: null,
-			generatedMemberCount: datasetReport.recordCount,
-			expectedTotalMemberCount: EXPECTED_BASELINE_MEMBER_COUNT + EXPECTED_RECORD_COUNT,
-			genderCounts: null,
-			monthlyRegistrationCounts: null,
-			collisions: {
-				memberId: null,
-				normalizedName: null,
-				phoneNumber: null,
-				matchingAnyFixture: null,
-			},
-			blockers,
-			safeToProceedToSeparatelyApprovedImport: false,
-		};
-		if (!report.databaseIdentityMatchesExpected) report.blockers.push('DATABASE_IDENTITY_MISMATCH');
+				: [];
+			const migrationSet = new Set(migrationRows.map((row) => row.migrationName));
+			const schemaChecks = {
+				organizationTable: columnSet.has('organizations.id'),
+				memberTable: columnSet.has('organization_members.id'),
+				memberOrganizationIdColumn: columnSet.has('organization_members.organization_id'),
+				normalizedNameColumn: columnSet.has('organization_members.normalized_name'),
+				phoneNumberColumn: columnSet.has('organization_members.phone_number'),
+				memberCreatedAtColumn: columnSet.has('organization_members.created_at'),
+				joinedOnColumn: columnSet.has('organization_members.joined_on'),
+				genderColumn: columnSet.has('organization_members.gender'),
+				// The published gym-db Organization model has no configured business start-date field.
+				businessStartDateAvailable: false,
+				migrationHistoryAvailable: migrationTableRows[0]?.exists === true,
+				genderMigrationApplied: migrationSet.has(EXPECTED_DATABASE_MIGRATIONS[0]),
+				joinedOnMigrationApplied: migrationSet.has(EXPECTED_DATABASE_MIGRATIONS[1]),
+			};
+			const blockers = Object.entries(schemaChecks)
+				.filter(([, passed]) => !passed)
+				.map(([name]) =>
+					name === 'businessStartDateAvailable'
+						? 'ORGANIZATION_BUSINESS_START_DATE_UNAVAILABLE'
+						: `SCHEMA_${name.replace(/[A-Z]/gu, (letter) => `_${letter}`).toUpperCase()}`,
+				);
+			const report = {
+				performed: true,
+				target: target.target,
+				databaseIdentity: {
+					databaseName: identity?.databaseName ?? target.databaseName,
+					host: identity?.host ?? target.host,
+					port: identity?.port ?? null,
+				},
+				organizationId: KD_GYM_ORGANIZATION_ID,
+				databaseIdentityMatchesExpected: identity?.databaseName === target.databaseName,
+				schemaChecks,
+				organizationExists: null,
+				organizationBusinessStartDate: null,
+				existingMemberCount: null,
+				generatedMemberCount: datasetReport.recordCount,
+				expectedTotalMemberCount: EXPECTED_BASELINE_MEMBER_COUNT + EXPECTED_RECORD_COUNT,
+				genderCounts: null,
+				monthlyRegistrationCounts: null,
+				collisions: {
+					memberId: null,
+					normalizedName: null,
+					phoneNumber: null,
+					matchingAnyFixture: null,
+				},
+				blockers,
+				safeToProceedToSeparatelyApprovedImport: false,
+			};
+			if (!report.databaseIdentityMatchesExpected)
+				report.blockers.push('DATABASE_IDENTITY_MISMATCH');
 
-		const organization = await transaction.organization.findUnique({
-			where: { id: KD_GYM_ORGANIZATION_ID },
-			select: { id: true },
-		});
-		report.organizationExists = organization !== null;
-		if (organization === null) report.blockers.push('ORGANIZATION_NOT_FOUND');
-		if (
-			organization !== null &&
-			schemaChecks.memberTable &&
-			schemaChecks.memberOrganizationIdColumn &&
-			schemaChecks.normalizedNameColumn &&
-			schemaChecks.phoneNumberColumn &&
-			schemaChecks.memberCreatedAtColumn &&
-			schemaChecks.joinedOnColumn &&
-			schemaChecks.genderColumn &&
-			schemaChecks.migrationHistoryAvailable &&
-			schemaChecks.genderMigrationApplied &&
-			schemaChecks.joinedOnMigrationApplied
-		) {
-			const organizationId = KD_GYM_ORGANIZATION_ID;
-			const [
-				existingMemberCount,
-				idCollisions,
-				nameCollisions,
-				phoneCollisions,
-				matchingAnyFixture,
-				genderRows,
-				monthlyRows,
-			] = await Promise.all([
-				transaction.organizationMember.count({ where: { organizationId } }),
-				transaction.organizationMember.count({
-					where: { organizationId, id: { in: members.map(({ id }) => id) } },
-				}),
-				transaction.organizationMember.count({
-					where: {
-						organizationId,
-						normalizedName: { in: members.map(({ normalizedName }) => normalizedName) },
-					},
-				}),
-				transaction.organizationMember.count({
-					where: {
-						organizationId,
-						phoneNumber: { in: members.map(({ phoneNumber }) => phoneNumber) },
-					},
-				}),
-				transaction.organizationMember.count({
-					where: {
-						organizationId,
-						OR: [
-							{ id: { in: members.map(({ id }) => id) } },
-							{ normalizedName: { in: members.map(({ normalizedName }) => normalizedName) } },
-							{ phoneNumber: { in: members.map(({ phoneNumber }) => phoneNumber) } },
-						],
-					},
-				}),
-				transaction.$queryRaw`
+			const organization = await transaction.organization.findUnique({
+				where: { id: KD_GYM_ORGANIZATION_ID },
+				select: { id: true },
+			});
+			report.organizationExists = organization !== null;
+			if (organization === null) report.blockers.push('ORGANIZATION_NOT_FOUND');
+			if (
+				organization !== null &&
+				schemaChecks.memberTable &&
+				schemaChecks.memberOrganizationIdColumn &&
+				schemaChecks.normalizedNameColumn &&
+				schemaChecks.phoneNumberColumn &&
+				schemaChecks.memberCreatedAtColumn &&
+				schemaChecks.joinedOnColumn &&
+				schemaChecks.genderColumn &&
+				schemaChecks.migrationHistoryAvailable &&
+				schemaChecks.genderMigrationApplied &&
+				schemaChecks.joinedOnMigrationApplied
+			) {
+				const organizationId = KD_GYM_ORGANIZATION_ID;
+				const [
+					existingMemberCount,
+					idCollisions,
+					nameCollisions,
+					phoneCollisions,
+					matchingAnyFixture,
+					genderRows,
+					monthlyRows,
+				] = await Promise.all([
+					transaction.organizationMember.count({ where: { organizationId } }),
+					transaction.organizationMember.count({
+						where: { organizationId, id: { in: members.map(({ id }) => id) } },
+					}),
+					transaction.organizationMember.count({
+						where: {
+							organizationId,
+							normalizedName: { in: members.map(({ normalizedName }) => normalizedName) },
+						},
+					}),
+					transaction.organizationMember.count({
+						where: {
+							organizationId,
+							phoneNumber: { in: members.map(({ phoneNumber }) => phoneNumber) },
+						},
+					}),
+					transaction.organizationMember.count({
+						where: {
+							organizationId,
+							OR: [
+								{ id: { in: members.map(({ id }) => id) } },
+								{ normalizedName: { in: members.map(({ normalizedName }) => normalizedName) } },
+								{ phoneNumber: { in: members.map(({ phoneNumber }) => phoneNumber) } },
+							],
+						},
+					}),
+					transaction.$queryRaw`
 					SELECT gender::text AS "gender", COUNT(*)::int AS "count"
 					FROM public.organization_members
 					WHERE organization_id = ${organizationId}::uuid
 					GROUP BY gender
 				`,
-				transaction.$queryRaw`
+					transaction.$queryRaw`
 					SELECT TO_CHAR(
 						COALESCE(joined_on::timestamp, created_at AT TIME ZONE 'Africa/Kigali'),
 						'YYYY-MM'
@@ -489,55 +493,57 @@ export async function inspectDatabase(prisma, target, members, datasetReport) {
 					ORDER BY 1, 2
 				`,
 				]);
-			report.existingMemberCount = existingMemberCount;
-			report.genderCounts = Object.fromEntries(
-				['male', 'female', 'other', 'prefer_not_to_say', 'unknown'].map((gender) => [
-					gender,
-					genderRows.find((row) => (row.gender ?? 'unknown') === gender)?.count ?? 0,
-				]),
-			);
-			report.monthlyRegistrationCounts = monthlyRows.map((row) => ({
-				month: row.month,
-				gender: row.gender ?? 'unknown',
-				count: row.count,
-			}));
-			report.collisions = {
-				memberId: idCollisions,
-				normalizedName: nameCollisions,
-				phoneNumber: phoneCollisions,
-				matchingAnyFixture,
-			};
-			if (existingMemberCount !== EXPECTED_BASELINE_MEMBER_COUNT) {
-				report.blockers.push('UNEXPECTED_EXISTING_MEMBER_COUNT');
+				report.existingMemberCount = existingMemberCount;
+				report.genderCounts = Object.fromEntries(
+					['male', 'female', 'other', 'prefer_not_to_say', 'unknown'].map((gender) => [
+						gender,
+						genderRows.find((row) => (row.gender ?? 'unknown') === gender)?.count ?? 0,
+					]),
+				);
+				report.monthlyRegistrationCounts = monthlyRows.map((row) => ({
+					month: row.month,
+					gender: row.gender ?? 'unknown',
+					count: row.count,
+				}));
+				report.collisions = {
+					memberId: idCollisions,
+					normalizedName: nameCollisions,
+					phoneNumber: phoneCollisions,
+					matchingAnyFixture,
+				};
+				if (existingMemberCount !== EXPECTED_BASELINE_MEMBER_COUNT) {
+					report.blockers.push('UNEXPECTED_EXISTING_MEMBER_COUNT');
+				}
+				if (
+					report.genderCounts.unknown !== 1 ||
+					Object.entries(report.genderCounts).some(
+						([gender, count]) => gender !== 'unknown' && count !== 0,
+					)
+				) {
+					report.blockers.push('EXISTING_GENDER_BASELINE_MISMATCH');
+				}
+				if (
+					MONTH_TARGETS.some(
+						([month, , , reserved]) => countMonthlyUnknown(monthlyRows, month) !== reserved,
+					)
+				) {
+					report.blockers.push('EXISTING_MONTHLY_REGISTRATION_BASELINE_MISMATCH');
+				}
+				if (idCollisions + nameCollisions + phoneCollisions + matchingAnyFixture > 0) {
+					report.blockers.push('GENERATED_FIXTURE_COLLISION');
+				}
 			}
-			if (
-				report.genderCounts.unknown !== 1 ||
-				Object.entries(report.genderCounts).some(
-					([gender, count]) => gender !== 'unknown' && count !== 0,
-				)
-			) {
-				report.blockers.push('EXISTING_GENDER_BASELINE_MISMATCH');
-			}
-			if (
-				MONTH_TARGETS.some(
-					([month, , , reserved]) => countMonthlyUnknown(monthlyRows, month) !== reserved,
-				)
-			) {
-				report.blockers.push('EXISTING_MONTHLY_REGISTRATION_BASELINE_MISMATCH');
-			}
-			if (idCollisions + nameCollisions + phoneCollisions + matchingAnyFixture > 0) {
-				report.blockers.push('GENERATED_FIXTURE_COLLISION');
-			}
-		}
-		report.safeToProceedToSeparatelyApprovedImport =
-			datasetReport.valid &&
-			report.organizationExists === true &&
-			report.existingMemberCount === EXPECTED_BASELINE_MEMBER_COUNT &&
-			Object.values(schemaChecks).every(Boolean) &&
-			report.collisions.matchingAnyFixture === 0 &&
-			report.blockers.length === 0;
-		return report;
-	}, { isolationLevel: 'RepeatableRead', timeout: 30_000 });
+			report.safeToProceedToSeparatelyApprovedImport =
+				datasetReport.valid &&
+				report.organizationExists === true &&
+				report.existingMemberCount === EXPECTED_BASELINE_MEMBER_COUNT &&
+				Object.values(schemaChecks).every(Boolean) &&
+				report.collisions.matchingAnyFixture === 0 &&
+				report.blockers.length === 0;
+			return report;
+		},
+		{ isolationLevel: 'RepeatableRead', timeout: 30_000 },
+	);
 }
 
 function parseJsonLines(text) {
@@ -687,9 +693,7 @@ function makeMonthlyTargets(monthlyBreakdown) {
 			generatedFemale: female,
 			reservedExistingUnknown,
 			expectedTotal: male + female + reservedExistingUnknown,
-			malePercentage: Number(
-				((male / (male + female + reservedExistingUnknown)) * 100).toFixed(2),
-			),
+			malePercentage: Number(((male / (male + female + reservedExistingUnknown)) * 100).toFixed(2)),
 			manifestMatches:
 				existing?.male === male &&
 				existing?.female === female &&
