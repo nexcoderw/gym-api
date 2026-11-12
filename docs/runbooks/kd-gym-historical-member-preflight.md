@@ -39,6 +39,11 @@ Production selection requires all of the following: `--database-target productio
 host and database-name values that match the supplied preflight URL. The regular `DATABASE_URL` is
 never consulted. No credentials are included in the JSON report or error output.
 
+If database mode stops before connecting, inspect the safe `blockers` code and `message` in its
+error report. Set `PREFLIGHT_DATABASE_TARGET` to the selected CLI target and provide the dedicated
+`PREFLIGHT_DATABASE_URL` plus matching expected host and database name. The preflight never falls
+back to `DATABASE_URL`.
+
 The database transaction begins with PostgreSQL `SET TRANSACTION READ ONLY` and sets
 transaction-local organization scope to the fixed KD GYM organization ID. It then performs aggregate
 or count queries. Every member collision query includes the organization ID. The report includes
@@ -101,6 +106,6 @@ npm run lint
 npm run typecheck
 ```
 
-These commands were not run as part of this change. The unit tests create generated fixtures only
-under the gitignored `scripts/synthetic-data/output/` directory and use mocked database interfaces;
-they never connect to a live database.
+The unit tests create generated fixtures only under the gitignored
+`scripts/synthetic-data/output/` directory and use mocked database interfaces; they never connect to
+a live database.
