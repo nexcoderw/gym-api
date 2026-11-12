@@ -1,7 +1,11 @@
 import { Transform, Type } from 'class-transformer';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { OrganizationMemberGender } from '@nexcoderw/gym-db';
 import {
 	IsDefined,
 	IsEmail,
+	IsEnum,
+	IsOptional,
 	IsString,
 	MaxLength,
 	MinLength,
@@ -9,11 +13,15 @@ import {
 	ValidateIf,
 	ValidateNested,
 } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 import { RegisterMemberSubscriptionDto } from './register-member-subscription.dto.js';
 
 export class MemberProfileDto {
+	@ApiPropertyOptional({ enum: OrganizationMemberGender, nullable: true })
+	@IsOptional()
+	@IsEnum(OrganizationMemberGender)
+	gender?: OrganizationMemberGender | null;
+
 	@ApiProperty({ example: 'Example Member', minLength: 1, maxLength: 160 })
 	@IsString()
 	@MinLength(1)
