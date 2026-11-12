@@ -165,6 +165,7 @@ export class OwnerPaymentsService {
 						...memberName(input.member.name),
 						phoneNumber: memberPhone(input.member.phoneNumber),
 						email: input.member.email ?? null,
+						gender: input.member.gender ?? null,
 					};
 
 		const fingerprint = requestFingerprint([
@@ -173,6 +174,7 @@ export class OwnerPaymentsService {
 			profile?.normalizedName ?? null,
 			profile?.phoneNumber ?? null,
 			profile?.email ?? null,
+			...(profile === null || profile.gender === null ? [] : [profile.gender]),
 			input.subscription.membershipPlanId,
 			input.subscription.startDate,
 			input.subscription.periodUnit,
