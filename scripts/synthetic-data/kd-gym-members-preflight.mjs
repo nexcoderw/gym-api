@@ -20,6 +20,14 @@ export const EXPECTED_DATABASE_MIGRATIONS = Object.freeze([
 	'20261112212705_add_organization_member_joined_on',
 ]);
 
+export class PreflightConfigurationError extends Error {
+	constructor(code, message) {
+		super(message);
+		this.name = 'PreflightConfigurationError';
+		this.code = code;
+	}
+}
+
 const FIXTURE_FIELDS = Object.freeze([
 	'id',
 	'organizationId',
@@ -220,33 +228,51 @@ export function resolveDatabaseTarget(arguments_, environment = process.env) {
 			allowProductionReadOnly = true;
 			continue;
 		}
-		if (args[index] !== '--database-target') throw new Error('Unknown preflight option.');
+		if (args[index] !== '--database-target') {
+			throw new PreflightConfigurationError('PREFLIGHT_OPTION_INVALID', 'Unknown preflight option.');
+		}
 		const candidate = args[index + 1];
 		if (candidate === undefined || candidate.startsWith('--') || target !== undefined) {
-			throw new Error('Supply exactly one explicit --database-target value.');
+			throw new PreflightConfigurationError(
+				'DATABASE_TARGET_REQUIRED',
+				'Supply exactly one explicit --database-target value.',
+			);
 		}
 		target = candidate;
 		index += 1;
 	}
 	if (!['development', 'staging', 'production'].includes(target)) {
-		throw new Error(
+		throw new PreflightConfigurationError(
+			'DATABASE_TARGET_REQUIRED',
 			'Database preflight requires an explicit development, staging or production target.',
 		);
 	}
 	if (environment.PREFLIGHT_DATABASE_TARGET !== target) {
-		throw new Error('The explicit database target does not match PREFLIGHT_DATABASE_TARGET.');
+		throw new PreflightConfigurationError(
+			'DATABASE_TARGET_CONFIRMATION_MISMATCH',
+			'Set PREFLIGHT_DATABASE_TARGET to match the explicit database target.',
+		);
 	}
 	if (typeof environment.PREFLIGHT_DATABASE_URL !== 'string') {
-		throw new Error('PREFLIGHT_DATABASE_URL is required; DATABASE_URL is never used by this tool.');
+		throw new PreflightConfigurationError(
+			'PREFLIGHT_DATABASE_URL_REQUIRED',
+			'PREFLIGHT_DATABASE_URL is required; DATABASE_URL is never used by this tool.',
+		);
 	}
 	let connection;
 	try {
 		connection = new URL(environment.PREFLIGHT_DATABASE_URL);
 	} catch {
-		throw new Error('PREFLIGHT_DATABASE_URL must be a valid PostgreSQL URL.');
+		throw new PreflightConfigurationError(
+			'PREFLIGHT_DATABASE_URL_INVALID',
+			'PREFLIGHT_DATABASE_URL must be a valid PostgreSQL URL.',
+		);
 	}
 	if (!['postgres:', 'postgresql:'].includes(connection.protocol)) {
-		throw new Error('PREFLIGHT_DATABASE_URL must use PostgreSQL.');
+		throw new PreflightConfigurationError(
+			'PREFLIGHT_DATABASE_URL_INVALID',
+			'PREFLIGHT_DATABASE_URL must use PostgreSQL.',
+		);
 	}
 	const databaseName = decodeURIComponent(connection.pathname.slice(1));
 	if (
@@ -255,7 +281,8 @@ export function resolveDatabaseTarget(arguments_, environment = process.env) {
 		connection.hostname.toLowerCase() !==
 			environment.PREFLIGHT_EXPECTED_DATABASE_HOST?.toLowerCase()
 	) {
-		throw new Error(
+		throw new PreflightConfigurationError(
+			'DATABASE_IDENTITY_EXPECTATION_MISMATCH',
 			'Database URL identity does not match the explicitly expected host and database.',
 		);
 	}
@@ -265,10 +292,16 @@ export function resolveDatabaseTarget(arguments_, environment = process.env) {
 			environment.PREFLIGHT_PRODUCTION_READ_ONLY_CONFIRMATION !==
 				'KD-GYM-READ-ONLY-PREFLIGHT')
 	) {
-		throw new Error('Production requires the CLI flag and separate read-only confirmation variable.');
+		throw new PreflightConfigurationError(
+			'PRODUCTION_READ_ONLY_CONFIRMATION_REQUIRED',
+			'Production requires the CLI flag and separate read-only confirmation variable.',
+		);
 	}
 	if (allowProductionReadOnly && target !== 'production') {
-		throw new Error('--allow-production-read-only is valid only for the production target.');
+		throw new PreflightConfigurationError(
+			'PRODUCTION_FLAG_TARGET_MISMATCH',
+			'--allow-production-read-only is valid only for the production target.',
+		);
 	}
 	return Object.freeze({
 		target,
@@ -409,49 +442,49 @@ export async function inspectDatabase(prisma, target, members, datasetReport) {
 				genderRows,
 				monthlyRows,
 			] = await Promise.all([
-					transaction.organizationMember.count({ where: { organizationId } }),
-					transaction.organizationMember.count({
-						where: { organizationId, id: { in: members.map(({ id }) => id) } },
-					}),
-					transaction.organizationMember.count({
-						where: {
-							organizationId,
-							normalizedName: { in: members.map(({ normalizedName }) => normalizedName) },
-						},
-					}),
-					transaction.organizationMember.count({
-						where: {
-							organizationId,
-							phoneNumber: { in: members.map(({ phoneNumber }) => phoneNumber) },
-						},
-					}),
-					transaction.organizationMember.count({
-						where: {
-							organizationId,
-							OR: [
-								{ id: { in: members.map(({ id }) => id) } },
-								{ normalizedName: { in: members.map(({ normalizedName }) => normalizedName) } },
-								{ phoneNumber: { in: members.map(({ phoneNumber }) => phoneNumber) } },
-							],
-						},
-					}),
-					transaction.$queryRaw`
-						SELECT gender::text AS "gender", COUNT(*)::int AS "count"
-						FROM public.organization_members
-						WHERE organization_id = ${organizationId}::uuid
-						GROUP BY gender
-					`,
-					transaction.$queryRaw`
-						SELECT TO_CHAR(
-							COALESCE(joined_on::timestamp, created_at AT TIME ZONE 'Africa/Kigali'),
-							'YYYY-MM'
-						) AS "month",
-							gender::text AS "gender", COUNT(*)::int AS "count"
-						FROM public.organization_members
-						WHERE organization_id = ${organizationId}::uuid
-						GROUP BY 1, gender
-						ORDER BY 1, 2
-					`,
+				transaction.organizationMember.count({ where: { organizationId } }),
+				transaction.organizationMember.count({
+					where: { organizationId, id: { in: members.map(({ id }) => id) } },
+				}),
+				transaction.organizationMember.count({
+					where: {
+						organizationId,
+						normalizedName: { in: members.map(({ normalizedName }) => normalizedName) },
+					},
+				}),
+				transaction.organizationMember.count({
+					where: {
+						organizationId,
+						phoneNumber: { in: members.map(({ phoneNumber }) => phoneNumber) },
+					},
+				}),
+				transaction.organizationMember.count({
+					where: {
+						organizationId,
+						OR: [
+							{ id: { in: members.map(({ id }) => id) } },
+							{ normalizedName: { in: members.map(({ normalizedName }) => normalizedName) } },
+							{ phoneNumber: { in: members.map(({ phoneNumber }) => phoneNumber) } },
+						],
+					},
+				}),
+				transaction.$queryRaw`
+					SELECT gender::text AS "gender", COUNT(*)::int AS "count"
+					FROM public.organization_members
+					WHERE organization_id = ${organizationId}::uuid
+					GROUP BY gender
+				`,
+				transaction.$queryRaw`
+					SELECT TO_CHAR(
+						COALESCE(joined_on::timestamp, created_at AT TIME ZONE 'Africa/Kigali'),
+						'YYYY-MM'
+					) AS "month",
+						gender::text AS "gender", COUNT(*)::int AS "count"
+					FROM public.organization_members
+					WHERE organization_id = ${organizationId}::uuid
+					GROUP BY 1, gender
+					ORDER BY 1, 2
+				`,
 				]);
 			report.existingMemberCount = existingMemberCount;
 			report.genderCounts = Object.fromEntries(
