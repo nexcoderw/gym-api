@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { OrganizationMemberGender } from '@nexcoderw/gym-db';
 
 import { MemberPeriodUnit } from '../member-period.js';
 
@@ -16,6 +17,8 @@ export class MemberResponseDto {
 	name!: string;
 	@ApiProperty()
 	phoneNumber!: string;
+	@ApiProperty({ enum: OrganizationMemberGender, nullable: true })
+	gender!: OrganizationMemberGender | null;
 	@ApiProperty({ type: String, nullable: true })
 	email!: string | null;
 	@ApiProperty({ enum: ['ACTIVE', 'ARCHIVED'] })
