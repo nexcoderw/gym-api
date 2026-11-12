@@ -223,9 +223,7 @@ describe('owner registration payment', () => {
 		expect(memberInput?.data.organizationId).toBe(ORGANIZATION_ID);
 		expect(memberInput?.data).toMatchObject({ gender: 'FEMALE' });
 		expect(memberInput?.data.joinedOn).toBeInstanceOf(Date);
-		expect(memberInput?.data.joinedOn.toISOString()).toMatch(
-			/^\d{4}-\d{2}-\d{2}T00:00:00\.000Z$/u,
-		);
+		expect(memberInput?.data.joinedOn.toISOString()).toMatch(/^\d{4}-\d{2}-\d{2}T00:00:00\.000Z$/u);
 
 		const subscriptionInput = createSubscription.mock.calls[0]?.[0];
 
