@@ -174,7 +174,13 @@ describe('offline KD GYM historical member preflight', () => {
 				resolveDatabaseTarget(['--database-target', 'development'], {
 					PREFLIGHT_DATABASE_TARGET: 'development',
 				}),
-			).toThrow(/PREFLIGHT_DATABASE_URL is required/u);
+			).toThrow(/non-empty PREFLIGHT_DATABASE_URL/u);
+			expect(() =>
+				resolveDatabaseTarget(['--database-target', 'development'], {
+					...DATABASE_ENV,
+					PREFLIGHT_DATABASE_URL: '   ',
+				}),
+			).toThrow(/non-empty PREFLIGHT_DATABASE_URL/u);
 			expect(() =>
 				resolveDatabaseTarget(['--database-target', 'development'], DATABASE_ENV),
 			).not.toThrow();
