@@ -37,7 +37,8 @@ async function main(arguments_) {
 		},
 	};
 	const requestsDatabase = arguments_.some(
-		(argument) => argument === '--database-target' || argument === '--allow-production-read-only',
+		(argument) =>
+			argument === '--database-target' || argument === '--allow-production-read-only',
 	);
 	if (arguments_.length > 0 && !requestsDatabase) {
 		throw new Error('Unknown preflight option.');
