@@ -34,8 +34,8 @@ percentage is `null`; two zero values are `UNCHANGED` at `0%`.
 | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `netCollected`      | Original settled value of payments occurring in the range, less confirmed refunds linked to those payments as of generation. This must use the same settled-status and refund policy as payment reports.                                                                                                                                                                |
 | `settledPayments`   | Count of payments occurring in the range currently marked confirmed, partially refunded or refunded. Pending, failed and voided payments are excluded.                                                                                                                                                                                                                  |
-| `newMembers`        | Count of distinct member profiles created in the selected range, whether or not they purchased another plan later.                                                                                                                                                                                                                                                      |
-| `activeSubscribers` | Count of distinct members whose profile was not archived by the end of the range and who had a subscription already registered by then and effective on that day (`startDate <= day <= endDate`, with no cancellation by that day's end). This is a point-in-time count, not the number of sales during the range. The comparison uses the end of the comparison range. |
+| `newMembers`        | Count of distinct members whose business `joinedOn` date is in the selected range. Legacy members with `joinedOn = null` use the Africa/Kigali business date of `createdAt` as a read-only fallback; no fallback is written to the database. |
+| `activeSubscribers` | Count of distinct members whose profile was not archived by the end of the range and who had a subscription already registered by then and effective on that day (`startDate <= day <= endDate`, with no cancellation by that day's end). This is a point-in-time count, not the number of sales during the range. The comparison uses the end of the comparison range. Historical subscriber accuracy is limited because member existence and subscription registration are still determined by their technical `createdAt` timestamps; `joinedOn` does not reconstruct either history. |
 
 The revenue series shows selected-period gross, confirmed refunds and net using the same payment
 occurrence-date attribution as `netCollected`. Its points must sum exactly to that metric's current
@@ -62,9 +62,10 @@ returns zero-valued metrics and empty plan/method breakdowns, never fictional va
 still contains zero-valued buckets for the requested dates.
 
 The backend groups payments by Kigali day and status across the bounded selected and comparison
-ranges before building the displayed buckets; it does not return individual payments. Queries for
-payments, refunds, plan allocations, members and subscriptions all use the authenticated organization
-ID inside a tenant transaction.
+ranges before building the displayed buckets; it does not return individual payments. New-member
+counts filter `joinedOn` as a PostgreSQL date, using `createdAt` only for null-date legacy rows.
+Queries for payments, refunds, plan allocations, members and subscriptions all use the authenticated
+organization ID inside a tenant transaction.
 Invalid dates return `400`; an absent session returns `401`; inactive or non-owner access returns
 `403`; an aggregation failure returns `503 DASHBOARD_ANALYTICS_UNAVAILABLE` without partial data.
 
