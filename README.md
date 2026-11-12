@@ -179,6 +179,25 @@ npm run start:dev
 Agents are prohibited from running these commands. `npm install` must legitimately regenerate
 `package-lock.json` after the foundation dependency changes.
 
+### Offline KD GYM member fixtures
+
+The deterministic offline generator creates 823 synthetic historical member fixtures for the
+specified KD GYM organization. It does not connect to a database or contact the generated phone
+numbers. Its default output directory, `scripts/synthetic-data/output/`, is gitignored. Treat the
+phone numbers as synthetic fixtures only; they do not represent known members or verified numbers.
+
+From `api/api`, a human may run:
+
+```bash
+node scripts/synthetic-data/generate-kd-gym-members.mjs
+```
+
+The script writes `members.csv`, `members.jsonl`, `manifest.json`, and `validation-report.json` to
+that ignored directory. Use `--help` for the default seed and supported output options; any custom
+output path must remain inside that ignored directory. Naming categories describe generator patterns
+only, not a person's religion or identity. Generated data is not an import command and does not
+change database records.
+
 ## API behavior
 
 Swagger UI is available at `/docs` when enabled; the Nest Swagger JSON endpoint is `/docs-json`. Do not
