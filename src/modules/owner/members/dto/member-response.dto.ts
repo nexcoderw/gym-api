@@ -19,11 +19,21 @@ export class MemberResponseDto {
 	phoneNumber!: string;
 	@ApiProperty({ enum: OrganizationMemberGender, nullable: true })
 	gender!: OrganizationMemberGender | null;
+	@ApiProperty({
+		type: String,
+		format: 'date',
+		nullable: true,
+		description: 'Kigali business joining date; null when unknown.',
+	})
+	joinedOn!: string | null;
 	@ApiProperty({ type: String, nullable: true })
 	email!: string | null;
 	@ApiProperty({ enum: ['ACTIVE', 'ARCHIVED'] })
 	status!: 'ACTIVE' | 'ARCHIVED';
-	@ApiProperty({ format: 'date-time' })
+	@ApiProperty({
+		format: 'date-time',
+		description: 'Technical database insertion timestamp; joinedOn is the business joining date.',
+	})
 	createdAt!: string;
 	@ApiProperty({ format: 'date-time' })
 	updatedAt!: string;
