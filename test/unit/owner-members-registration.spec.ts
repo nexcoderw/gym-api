@@ -52,9 +52,10 @@ describe('member registration workflow', () => {
 	let service: OwnerMembersService;
 	let module: TestingModule | undefined;
 	let storedFingerprint: string;
-	const createMember = jest.fn<
-		(input: { data: { organizationId: string; joinedOn: Date } }) => Promise<typeof MEMBER>
-	>();
+	const createMember =
+		jest.fn<
+			(input: { data: { organizationId: string; joinedOn: Date } }) => Promise<typeof MEMBER>
+		>();
 	const createSubscription = jest.fn<
 		(input: {
 			data: {
@@ -121,9 +122,7 @@ describe('member registration workflow', () => {
 		expect(memberInput?.data.organizationId).toBe(ORGANIZATION_ID);
 		expect(memberInput?.data).toMatchObject({ gender: null });
 		expect(memberInput?.data.joinedOn).toBeInstanceOf(Date);
-		expect(memberInput?.data.joinedOn.toISOString()).toMatch(
-			/^\d{4}-\d{2}-\d{2}T00:00:00\.000Z$/u,
-		);
+		expect(memberInput?.data.joinedOn.toISOString()).toMatch(/^\d{4}-\d{2}-\d{2}T00:00:00\.000Z$/u);
 		expect(subscriptionInput?.data).toMatchObject({
 			memberId: MEMBER_ID,
 			organizationId: ORGANIZATION_ID,
