@@ -48,6 +48,7 @@ const MEMBER = {
 	name: INPUT.name,
 	phoneNumber: INPUT.phoneNumber,
 	email: null,
+	gender: null,
 	status: 'ACTIVE' as const,
 	createdAt: AT,
 	updatedAt: AT,
@@ -159,6 +160,7 @@ describe('owner members HTTP security', () => {
 			{ ...INPUT, subscription: { ...INPUT.subscription, price: 1 } },
 			{ ...INPUT, subscription: { ...INPUT.subscription, periodCount: 1.5 } },
 			{ ...INPUT, email: 'invalid' },
+			{ ...INPUT, gender: 'UNKNOWN' },
 		]) {
 			await ownerRequest('post', ROOT).set('Idempotency-Key', KEY).send(body).expect(400);
 		}
@@ -223,6 +225,15 @@ describe('owner members HTTP security', () => {
 			order: 'NEWEST',
 			search: 'member',
 		});
+		await ownerRequest('get', `${ROOT}?gender=FEMALE&page=2`).expect(200);
+		expect(list).toHaveBeenLastCalledWith(CONTEXT, {
+			limit: 20,
+			page: 2,
+			status: 'ACTIVE',
+			order: 'NEWEST',
+			gender: 'FEMALE',
+		});
+		await ownerRequest('get', `${ROOT}?gender=UNKNOWN`).expect(400);
 		await ownerRequest('get', `${ROOT}?search=me`).expect(400);
 		await ownerRequest('get', `${ROOT}/${MEMBER_ID}/subscriptions`).expect(200);
 		expect(subscriptions).toHaveBeenCalledWith(CONTEXT, MEMBER_ID, { limit: 24 });
@@ -244,12 +255,22 @@ describe('owner members HTTP security', () => {
 			.expect(400);
 		await ownerRequest('patch', `${ROOT}/${MEMBER_ID}`)
 			.set('If-Match', `"${AT}"`)
-			.send({ name: 'Updated Member' })
+			.send({ name: 'Updated Member', gender: 'PREFER_NOT_TO_SAY' })
 			.expect(200);
 		expect(update).toHaveBeenCalledWith(
 			CONTEXT,
 			MEMBER_ID,
-			{ name: 'Updated Member' },
+			{ name: 'Updated Member', gender: 'PREFER_NOT_TO_SAY' },
+			new Date(AT),
+		);
+		await ownerRequest('patch', `${ROOT}/${MEMBER_ID}`)
+			.set('If-Match', `"${AT}"`)
+			.send({ gender: null })
+			.expect(200);
+		expect(update).toHaveBeenLastCalledWith(
+			CONTEXT,
+			MEMBER_ID,
+			{ gender: null },
 			new Date(AT),
 		);
 		await ownerRequest('delete', `${ROOT}/${MEMBER_ID}`).set('If-Match', `"${AT}"`).expect(204);
