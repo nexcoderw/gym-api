@@ -21,11 +21,38 @@ import readiness decision because it has not checked the database baseline.
 
 ## Optional read-only database preflight
 
-Use an explicitly selected non-production target first. Provide the dedicated URL and expected
-identity through a protected environment or secrets manager; this command does not load `.env` files
-and does not fall back to `DATABASE_URL`.
+Use an explicitly selected non-production target first. The preflight script does not load `.env`
+files itself and never falls back to `DATABASE_URL`. For local development, Node can load the API
+project's ignored `.env.local` file for this process only.
+
+From `api/api`, add these dedicated development settings to `api/api/.env.local`. Set
+`PREFLIGHT_DATABASE_URL` to the complete development PostgreSQL URL directly; do not put a `$VAR`
+reference there. Replace the URL placeholder with the actual development URL, and make the expected
+host and database name match that URL.
+
+```dotenv
+PREFLIGHT_DATABASE_TARGET=development
+PREFLIGHT_DATABASE_URL=<full-development-postgresql-url>
+PREFLIGHT_EXPECTED_DATABASE_HOST=127.0.0.1
+PREFLIGHT_EXPECTED_DATABASE_NAME=kd-gym-development
+```
+
+Run the local preflight with Node's env-file option:
 
 ```bash
+node --env-file=.env.local scripts/synthetic-data/preflight-kd-gym-members.mjs --database-target development
+```
+
+The repository supports Node 20.19 or later in the 20.x line, which includes `--env-file`. Shell
+environment variables take precedence over values from the file. Never put production credentials
+in `.env.local`; supply production settings through a protected secrets source and retain both
+production confirmations.
+
+When supplying settings directly in a shell, use the dedicated URL variable from your protected
+environment:
+
+```bash
+: "${KD_GYM_PREFLIGHT_DATABASE_URL:?Load this variable from your protected secrets source}"
 PREFLIGHT_DATABASE_TARGET=development \
 PREFLIGHT_DATABASE_URL="$KD_GYM_PREFLIGHT_DATABASE_URL" \
 PREFLIGHT_EXPECTED_DATABASE_HOST=127.0.0.1 \
