@@ -19,6 +19,7 @@ const MEMBER = {
 	phoneNumber: '+250700000001',
 	email: null,
 	gender: null,
+	joinedOn: new Date('2026-10-18T00:00:00.000Z'),
 	archivedAt: null,
 	createdAt: AT,
 	updatedAt: AT,
@@ -51,8 +52,9 @@ describe('member registration workflow', () => {
 	let service: OwnerMembersService;
 	let module: TestingModule | undefined;
 	let storedFingerprint: string;
-	const createMember =
-		jest.fn<(input: { data: { organizationId: string } }) => Promise<typeof MEMBER>>();
+	const createMember = jest.fn<
+		(input: { data: { organizationId: string; joinedOn: Date } }) => Promise<typeof MEMBER>
+	>();
 	const createSubscription = jest.fn<
 		(input: {
 			data: {
@@ -118,6 +120,10 @@ describe('member registration workflow', () => {
 		const subscriptionInput = createSubscription.mock.calls[0]?.[0];
 		expect(memberInput?.data.organizationId).toBe(ORGANIZATION_ID);
 		expect(memberInput?.data).toMatchObject({ gender: null });
+		expect(memberInput?.data.joinedOn).toBeInstanceOf(Date);
+		expect(memberInput?.data.joinedOn.toISOString()).toMatch(
+			/^\d{4}-\d{2}-\d{2}T00:00:00\.000Z$/u,
+		);
 		expect(subscriptionInput?.data).toMatchObject({
 			memberId: MEMBER_ID,
 			organizationId: ORGANIZATION_ID,
@@ -159,20 +165,30 @@ describe('member registration workflow', () => {
 	});
 
 	it('returns the original registration for identical retries and rejects key reuse', async () => {
-		await service.create(CONTEXT, INPUT, KEY);
-		findReplay.mockResolvedValue({
-			...SUBSCRIPTION,
-			requestFingerprint: storedFingerprint,
-			member: MEMBER,
-		});
-		await service.create(CONTEXT, INPUT, KEY);
-		expect(createMember).toHaveBeenCalledTimes(1);
-		expect(createSubscription).toHaveBeenCalledTimes(1);
-		await expect(
-			service.create(CONTEXT, { ...INPUT, name: 'Different Member' }, KEY),
-		).rejects.toMatchObject({
-			response: { code: 'MEMBER_IDEMPOTENCY_CONFLICT' },
-		});
+		jest.useFakeTimers();
+		jest.setSystemTime(new Date('2026-10-18T21:59:59.999Z'));
+		try {
+			await service.create(CONTEXT, INPUT, KEY);
+			const firstJoinedOn = createMember.mock.calls[0]?.[0].data.joinedOn;
+			expect(firstJoinedOn).toEqual(new Date('2026-10-18T00:00:00.000Z'));
+			findReplay.mockResolvedValue({
+				...SUBSCRIPTION,
+				requestFingerprint: storedFingerprint,
+				member: MEMBER,
+			});
+			jest.setSystemTime(new Date('2026-10-18T22:00:00.001Z'));
+			await service.create(CONTEXT, INPUT, KEY);
+			expect(createMember).toHaveBeenCalledTimes(1);
+			expect(createMember.mock.calls[0]?.[0].data.joinedOn).toEqual(firstJoinedOn);
+			expect(createSubscription).toHaveBeenCalledTimes(1);
+			await expect(
+				service.create(CONTEXT, { ...INPUT, name: 'Different Member' }, KEY),
+			).rejects.toMatchObject({
+				response: { code: 'MEMBER_IDEMPOTENCY_CONFLICT' },
+			});
+		} finally {
+			jest.useRealTimers();
+		}
 	});
 
 	it('rejects archived or foreign plans before inserting a registration', async () => {
