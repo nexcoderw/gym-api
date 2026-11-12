@@ -30,6 +30,7 @@ const INPUT: RegisterPaymentDto = {
 	member: {
 		name: 'Example Member',
 		phoneNumber: '+250700000001',
+		gender: 'FEMALE',
 	},
 	subscription: {
 		membershipPlanId: PLAN_ID,
@@ -218,6 +219,7 @@ describe('owner registration payment', () => {
 		const memberInput = createMember.mock.calls[0]?.[0];
 
 		expect(memberInput?.data.organizationId).toBe(ORGANIZATION_ID);
+		expect(memberInput?.data).toMatchObject({ gender: 'FEMALE' });
 
 		const subscriptionInput = createSubscription.mock.calls[0]?.[0];
 
