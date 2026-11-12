@@ -1,138 +1,178 @@
-# KD GYM historical member import preflight
+# KD GYM production historical member import
 
-The preflight validates the generated member files locally by default. It does not open a database
-connection unless a database target is explicitly selected. It never imports members, subscriptions
-or payments.
+This runbook is specific to KD GYM organization `f6e417be-b93e-40ef-b028-d9d03666e69f` in
+production database `neondb` on the approved Neon endpoint. The historical dataset covers
+2025-10-18 through 2026-11-12. It expects one existing member, 823 generated members, and 824 total
+after import. The existing member is never updated and its gender or joining date is never inferred.
 
-## Offline file validation
+The workflow is offline by default. Preflight and dry run use a PostgreSQL read-only transaction.
+The importer has a separate explicit APPLY mode; Codex must never execute it. The only allowed
+production writes are 823 `OrganizationMember` rows. No plans, subscriptions, payments, or reminders
+are created.
 
-From `api/api`, run:
+## Required local private artifacts
+
+Obtain independent written approval for the exact production organization, endpoint, historical
+date range, dataset checksum, one-member baseline and 824 final total. The approval must explicitly
+acknowledge that all generated rows are synthetic and must attest the business start date as
+2025-10-18. Do not derive this date from `Organization.createdAt`. The operator and approval
+reference must be recorded.
+
+First generate and validate the deterministic fixture set, then capture the SHA-256 value of
+`dataset.manifestSha256` from the offline report. Place these JSON files locally under
+`scripts/synthetic-data/private/`, which is gitignored. Create that directory with mode 0700 and
+each artifact with mode 0600. Never commit, upload to source control, or include credentials in
+either artifact.
+
+`production-approval.json` must have this shape and exact values (replace the checksum, reference,
+operator and timestamp with approved values):
+
+```json
+{
+  "version": 1,
+  "organizationId": "f6e417be-b93e-40ef-b028-d9d03666e69f",
+  "productionDatabase": {
+    "host": "ep-rapid-violet-b4txcgks-pooler.c-6.us-east-2.aws.neon.tech",
+    "name": "neondb"
+  },
+  "historicalBusinessStartDateAttestation": {
+    "date": "2025-10-18",
+    "operatorAttested": true
+  },
+  "dateRange": {
+    "from": "2025-10-18",
+    "to": "2026-11-12",
+    "timezone": "Africa/Kigali"
+  },
+  "datasetManifestSha256": "<64-character-sha256>",
+  "expectedExistingMemberCount": 1,
+  "expectedGeneratedMemberCount": 823,
+  "expectedFinalMemberCount": 824,
+  "syntheticRecordsAcknowledged": true,
+  "approvalReference": "<approved-reference>",
+  "operator": "<operator-name>",
+  "approvedAt": "<ISO-8601-timestamp>"
+}
+```
+
+For a future apply, `production-backup-attestation.json` must independently record `version: 1`,
+the exact same `productionDatabase`, `backupVerified: true`, a durable `backupReference`,
+`verifiedBy`, and ISO-8601 `verifiedAt`. The tool verifies the format and database identity; the
+human operator is responsible for verifying the backup itself and approval authority.
+
+## Offline fixture check
+
+From `api/api`:
 
 ```bash
 node scripts/synthetic-data/preflight-kd-gym-members.mjs
 ```
 
-The command reads the four files in `scripts/synthetic-data/output/`, validates the CSV and JSONL
-records against the generator's validation rules, independently checks the dataset's fixed counts
-and constraints, compares CSV and JSONL contents, verifies both fixture hashes against the manifest,
-and checks that the validation report has no failed checks. Its report contains aggregate counts
-only. It does not print fixture names or phone numbers. A successful offline validation is not an
-import readiness decision because it has not checked the database baseline.
+This reads the fixture CSV, JSONL, manifest and generator report. It checks fixture IDs, names,
+phones, monthly distributions and all dataset/manifest hashes. It reports aggregates only.
 
-## Optional read-only database preflight
+## Read-only production preflight
 
-Use an explicitly selected non-production target first. The preflight script does not load `.env`
-files itself and never falls back to `DATABASE_URL`. For local development, Node can load the API
-project's ignored `.env.local` file for this process only.
-
-From `api/api`, add these dedicated development settings to `api/api/.env.local`. Set
-`PREFLIGHT_DATABASE_URL` to the complete development PostgreSQL URL directly; do not put a `$VAR`
-reference there. Replace the URL placeholder with the actual development URL, and make the expected
-host and database name match that URL.
-
-```dotenv
-PREFLIGHT_DATABASE_TARGET=development
-PREFLIGHT_DATABASE_URL=<full-development-postgresql-url>
-PREFLIGHT_EXPECTED_DATABASE_HOST=127.0.0.1
-PREFLIGHT_EXPECTED_DATABASE_NAME=kd-gym-development
-```
-
-Run the local preflight with Node's env-file option:
+Load the dedicated `PREFLIGHT_DATABASE_URL` from the protected secrets source into the shell. Do
+not put production credentials in `.env.local`, commit them, or rely on `DATABASE_URL`. Set both
+identity expectations explicitly. The command refuses any non-production target, different host,
+or database. It verifies the approval artifact, organization, exact member baseline, migration and
+column history, fixture collisions, and final count within a read-only transaction.
 
 ```bash
-node --env-file=.env.local scripts/synthetic-data/preflight-kd-gym-members.mjs --database-target development
-```
-
-The repository supports Node 20.19 or later in the 20.x line, which includes `--env-file`. Shell
-environment variables take precedence over values from the file. Never put production credentials
-in `.env.local`; supply production settings through a protected secrets source and retain both
-production confirmations.
-
-When supplying settings directly in a shell, use the dedicated URL variable from your protected
-environment:
-
-```bash
-: "${KD_GYM_PREFLIGHT_DATABASE_URL:?Load this variable from your protected secrets source}"
-PREFLIGHT_DATABASE_TARGET=development \
+PREFLIGHT_DATABASE_TARGET=production \
 PREFLIGHT_DATABASE_URL="$KD_GYM_PREFLIGHT_DATABASE_URL" \
-PREFLIGHT_EXPECTED_DATABASE_HOST=127.0.0.1 \
-PREFLIGHT_EXPECTED_DATABASE_NAME=kd-gym-development \
-node scripts/synthetic-data/preflight-kd-gym-members.mjs --database-target development
+PREFLIGHT_EXPECTED_DATABASE_HOST=ep-rapid-violet-b4txcgks-pooler.c-6.us-east-2.aws.neon.tech \
+PREFLIGHT_EXPECTED_DATABASE_NAME=neondb \
+PREFLIGHT_PRODUCTION_READ_ONLY_CONFIRMATION=KD-GYM-READ-ONLY-PREFLIGHT \
+node scripts/synthetic-data/preflight-kd-gym-members.mjs \
+  --database-target production --allow-production-read-only
 ```
 
-Production selection requires all of the following: `--database-target production`,
-`PREFLIGHT_DATABASE_TARGET=production`,
-`PREFLIGHT_PRODUCTION_READ_ONLY_CONFIRMATION=KD-GYM-READ-ONLY-PREFLIGHT`, and explicit expected
-host and database-name values that match the supplied preflight URL. The regular `DATABASE_URL` is
-never consulted. No credentials are included in the JSON report or error output.
+The expected start date comes solely from the local, checksum-bound attestation. The report also
+shows existing gender aggregates without assigning or changing the existing member's gender. A
+failed preflight is a hard stop; do not change fixture data or baseline to get a green report.
 
-If database mode stops before connecting, inspect the safe `blockers` code and `message` in its
-error report. Set `PREFLIGHT_DATABASE_TARGET` to the selected CLI target and provide the dedicated
-`PREFLIGHT_DATABASE_URL` plus matching expected host and database name. The preflight never falls
-back to `DATABASE_URL`.
+## Production dry run
 
-The database transaction begins with PostgreSQL `SET TRANSACTION READ ONLY` and sets
-transaction-local organization scope to the fixed KD GYM organization ID. It then performs aggregate
-or count queries. Every member collision query includes the organization ID. The report includes
-target identity, migration and column checks, the existing member baseline, month/gender aggregates,
-and collision counts. A collision, missing organization, missing migration/column, an unverified
-business start date, or a baseline mismatch blocks readiness. Database errors fail closed without
-printing SQL, credentials, member names, phone numbers or stack traces.
-
-The current published `Organization` schema does not expose a configured business start-date field.
-Until that value is available through the database contract and verified to match the approved
-historical plan, database preflight will report `ORGANIZATION_BUSINESS_START_DATE_UNAVAILABLE` and
-will not declare the dataset ready. `createdAt` is not treated as the organization's business start
-date.
-
-## Example aggregated report
-
-The following is an illustrative shape, not a result from a database run:
-
-```json
-{
-  "preflight": "kd-gym-historical-member-import",
-  "dataset": {
-    "valid": true,
-    "recordCount": 823,
-    "genderCounts": { "male": 709, "female": 114 },
-    "dateRange": {
-      "from": "2025-10-18",
-      "to": "2026-11-12",
-      "timezone": "Africa/Kigali"
-    }
-  },
-  "database": {
-    "performed": false,
-    "safeToProceedToSeparatelyApprovedImport": false,
-    "note": "Local file validation only; no database target was selected."
-  }
-}
-```
-
-## Provenance and later importer prerequisites
-
-The fixture's `synthetic`, `generationCategory` and `generationBatch` properties are generator
-metadata; they are not columns on `OrganizationMember` and must not be written there. For a later,
-separately approved importer, retain an immutable, access-controlled audit artifact containing the
-organization ID, generation batch, dataset SHA-256 hashes, imported fixture UUIDs, operator and
-approval reference and import timestamp. Store the artifact in an encrypted location with retention
-and object-lock controls and link it to the import audit record. That artifact supplies the exact
-cleanup manifest without changing the member schema. The importer itself still needs a reviewed
-transaction plan, production approval, collision remediation decisions, rollback procedure and human
-verification of the existing-member baseline.
-
-## Focused tests and human verification
-
-From `api/api`, the developer may run:
+The import CLI defaults to DRY RUN, always performs the production preflight, and reports aggregate
+validation, blockers and the planned insert count. It performs no write and does not require the
+backup attestation:
 
 ```bash
-npm run test:unit -- --runTestsByPath test/unit/synthetic-kd-gym-members-preflight.spec.ts
+PREFLIGHT_DATABASE_TARGET=production \
+PREFLIGHT_DATABASE_URL="$KD_GYM_PREFLIGHT_DATABASE_URL" \
+PREFLIGHT_EXPECTED_DATABASE_HOST=ep-rapid-violet-b4txcgks-pooler.c-6.us-east-2.aws.neon.tech \
+PREFLIGHT_EXPECTED_DATABASE_NAME=neondb \
+PREFLIGHT_PRODUCTION_READ_ONLY_CONFIRMATION=KD-GYM-READ-ONLY-PREFLIGHT \
+node scripts/synthetic-data/import-kd-gym-members.mjs --database-target production
+```
+
+It should show exactly 823 planned inserts only if every check passes. This dry run is not approval
+to apply.
+
+## Notification safety
+
+The database has durable member email suppression fields and a paired constraint. Every inserted
+synthetic member would have no email address and an email suppression timestamp/reason `MANUAL`;
+the API reminder queue and delivery worker honor that suppression. This repository has no member
+SMS sender or SMS reminder worker. However, the schema has no durable SMS suppression marker, so
+the current importer explicitly blocks APPLY even if an operator acknowledges the risk. The
+required future change is a reviewed `gym-db` schema/client migration that stores durable
+per-member SMS suppression and an API importer update that sets and verifies it transactionally.
+Every SMS-capable external integration must also enforce that stored marker before delivery. Until
+those technical controls exist, the production preflight reports
+`SMS_NOTIFICATION_SUPPRESSION_UNAVAILABLE` and the planned insert count is zero.
+
+## APPLY — DO NOT RUN YET
+
+Do not run APPLY. It is currently hard-blocked because the database schema has no durable SMS
+suppression marker. After a separately reviewed schema/client change adds and validates that
+technical safeguard, the human operator must review a successful fresh production dry run, obtain
+separate explicit approval, verify a recoverable production backup, and record the backup attestation above. Apply requires a
+separate typed confirmation and fresh preflight. It takes a serializable transaction, locks the fixed
+organization row, rechecks baseline and collisions, inserts only the 823 member rows with actual
+insertion timestamps, and rolls back on any conflict or verification failure. It never skips
+conflicts. A durable private import manifest is created before the transaction and finalized after
+commit; a leftover `PREPARED` manifest requires manual reconciliation and blocks rerun by checksum.
+
+```bash
+PREFLIGHT_DATABASE_TARGET=production \
+PREFLIGHT_DATABASE_URL="$KD_GYM_PREFLIGHT_DATABASE_URL" \
+PREFLIGHT_EXPECTED_DATABASE_HOST=ep-rapid-violet-b4txcgks-pooler.c-6.us-east-2.aws.neon.tech \
+PREFLIGHT_EXPECTED_DATABASE_NAME=neondb \
+PREFLIGHT_PRODUCTION_READ_ONLY_CONFIRMATION=KD-GYM-READ-ONLY-PREFLIGHT \
+node scripts/synthetic-data/import-kd-gym-members.mjs \
+  --database-target production --apply \
+  --confirm-production-import KD-GYM-PRODUCTION-IMPORT-824
+```
+
+The actual APPLY command above is provided for future human operation only. It was not run as part
+of implementation.
+
+## Tests and static verification for the human developer
+
+From `api/api`:
+
+```bash
+npm run test:unit -- --runTestsByPath \
+  test/unit/synthetic-kd-gym-members-preflight.spec.ts \
+  test/unit/synthetic-kd-gym-members-import.spec.ts
 npm run format:check
 npm run lint
 npm run typecheck
 ```
 
-The unit tests create generated fixtures only under the gitignored
-`scripts/synthetic-data/output/` directory and use mocked database interfaces; they never connect to
-a live database.
+Tests must use mocks and local ignored fixture output only. They must never connect to production.
+The implementation agent does not run tests, builds, formatting, lint, typecheck, or database
+commands for this task.
+
+## Remaining external checks
+
+- Confirm the local fixture checksum has been independently approved and the two private artifacts
+  have exact permissions.
+- Confirm backup recoverability and external SMS/email integrations' suppression behavior.
+- Review generated SQL behavior of the published database client and the transaction lock/isolation
+  behavior in a non-production review environment before approving any production write.
+- No gender dashboard or aggregation endpoint was added; existing member records and aggregate
+  reporting remain queryable, while dedicated gender reporting can be scoped as a future feature.
