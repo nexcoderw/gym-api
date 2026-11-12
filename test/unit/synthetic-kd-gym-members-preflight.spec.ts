@@ -39,16 +39,24 @@ const DATASET_REPORT = {
 	checks: { valid: true },
 };
 
+let baselineDirectory: string;
+let testDirectories: string[] = [];
+
 describe('offline KD GYM historical member preflight', () => {
-	let baselineDirectory: string;
-	let testDirectories: string[];
+	function copyBaseline(): string {
+		const directory = temporaryDirectory('preflight-test-');
+		testDirectories.push(directory);
+		cpSync(baselineDirectory, directory, { recursive: true });
+		return directory;
+	}
 
 	beforeAll(() => {
 		baselineDirectory = temporaryDirectory('baseline-');
-		execFileSync(process.execPath, [SCRIPT_PATH, '--seed', SEED, '--output-dir', baselineDirectory], {
-			encoding: 'utf8',
-			stdio: 'pipe',
-		});
+		execFileSync(
+			process.execPath,
+			[SCRIPT_PATH, '--seed', SEED, '--output-dir', baselineDirectory],
+			{ encoding: 'utf8', stdio: 'pipe' },
+		);
 	});
 
 	beforeEach(() => {
@@ -99,35 +107,46 @@ describe('offline KD GYM historical member preflight', () => {
 		[
 			'duplicate member UUID',
 			'id',
-			(records: Fixture[]) => duplicateField(records, 'id'),
+			(records: Fixture[]) => {
+				duplicateField(records, 'id');
+			},
 			'validUniqueUuids',
 		],
 		[
 			'duplicate normalized name',
 			'normalizedName',
-			(records: Fixture[]) => duplicateField(records, 'normalizedName'),
+			(records: Fixture[]) => {
+				duplicateField(records, 'normalizedName');
+			},
 			'uniqueNormalizedNames',
 		],
 		[
 			'duplicate phone number',
 			'phoneNumber',
-			(records: Fixture[]) => duplicateField(records, 'phoneNumber'),
+			(records: Fixture[]) => {
+				duplicateField(records, 'phoneNumber');
+			},
 			'uniquePhones',
 		],
-	] as const)('rejects %s', (_description, _field, mutate, check) => {
-		const directory = copyBaseline();
-		const records = readMembers(directory);
-		mutate(records);
-		writeJsonLines(directory, records);
-		expect(validateFixtureFiles(directory).report.checks[check]).toBe(false);
-	});
+	] as const)(
+		'rejects %s',
+		(_description, _field, mutate, check) => {
+			const directory = copyBaseline();
+			const records = readMembers(directory);
+			mutate(records);
+			writeJsonLines(directory, records);
+			expect(validateFixtureFiles(directory).report.checks[check]).toBe(false);
+		},
+	);
 
 	it('rejects an invalid organization ID and dates outside the historical range', () => {
 		const directory = copyBaseline();
 		const records = readMembers(directory);
 		const first = records[0];
 		const second = records[1];
-		if (first === undefined || second === undefined) throw new Error('Expected generated fixtures.');
+		if (first === undefined || second === undefined) {
+			throw new Error('Expected generated fixtures.');
+		}
 		first.organizationId = '11111111-1111-4111-8111-111111111111';
 		second.joinedOn = '2025-10-17';
 		writeJsonLines(directory, records);
@@ -154,8 +173,13 @@ describe('offline KD GYM historical member preflight', () => {
 			expect(() => resolveDatabaseTarget(['--database-target', 'staging'], DATABASE_ENV)).toThrow(
 				/match/u,
 			);
-			expect(
-				() => resolveDatabaseTarget(['--database-target', 'development'], DATABASE_ENV),
+			expect(() =>
+				resolveDatabaseTarget(['--database-target', 'development'], {
+					PREFLIGHT_DATABASE_TARGET: 'development',
+				}),
+			).toThrow(expect.objectContaining({ code: 'PREFLIGHT_DATABASE_URL_REQUIRED' }));
+			expect(() =>
+				resolveDatabaseTarget(['--database-target', 'development'], DATABASE_ENV),
 			).not.toThrow();
 		});
 
@@ -279,13 +303,6 @@ function temporaryDirectory(prefix: string): string {
 	return mkdtempSync(join(OUTPUT_ROOT, prefix));
 }
 
-function copyBaseline(): string {
-	const directory = temporaryDirectory('preflight-test-');
-	testDirectories.push(directory);
-	cpSync(baselineDirectory, directory, { recursive: true });
-	return directory;
-}
-
 function readJson(directory: string, filename: string): unknown {
 	return JSON.parse(readFileSync(join(directory, filename), 'utf8'));
 }
@@ -326,10 +343,7 @@ function readMembers(directory: string): Fixture[] {
 		});
 }
 
-function duplicateField(
-	records: Fixture[],
-	field: 'id' | 'normalizedName' | 'phoneNumber',
-): void {
+function duplicateField(records: Fixture[], field: 'id' | 'normalizedName' | 'phoneNumber'): void {
 	const first = records[0];
 	const second = records[1];
 	if (first === undefined || second === undefined) throw new Error('Expected generated fixtures.');
@@ -347,8 +361,8 @@ function fixtureIds(): Readonly<Record<string, string | boolean | null>>[] {
 	return Array.from({ length: 823 }, (_, index) => ({
 		id: `00000000-0000-5000-8000-${String(index + 1).padStart(12, '0')}`,
 		organizationId: KD_GYM_ORGANIZATION_ID,
-		name: `Synthetic Fixture Name ${index}`,
-		normalizedName: `synthetic fixture name ${index}`,
+		name: `Synthetic Fixture Name ${String(index)}`,
+		normalizedName: `synthetic fixture name ${String(index)}`,
 		phoneNumber: `+25078${String(index).padStart(7, '0')}`,
 		gender: 'MALE',
 		email: null,
@@ -370,15 +384,19 @@ function mockPrisma(options: {
 	missingMigration?: boolean;
 } = {}) {
 	const events: string[] = [];
-	const queryRaw = jest.fn(async (strings: TemplateStringsArray) => {
+	const queryRaw = jest.fn((strings: TemplateStringsArray) => {
 		const sql = strings.join(' ');
 		events.push(`query:${sql.trim().split(/\s+/u).slice(0, 2).join(' ')}`);
-		if (sql.includes("current_setting('transaction_read_only')")) return [{ readOnly: 'on' }];
+		if (sql.includes("current_setting('transaction_read_only')")) {
+			return Promise.resolve([{ readOnly: 'on' }]);
+		}
 		if (sql.includes('current_database()')) {
-			return [{ databaseName: DATABASE_TARGET.databaseName, host: '127.0.0.1', port: 5432 }];
+			return Promise.resolve([
+				{ databaseName: DATABASE_TARGET.databaseName, host: '127.0.0.1', port: 5432 },
+			]);
 		}
 		if (sql.includes('information_schema.columns')) {
-			return [
+			return Promise.resolve([
 				{ tableName: 'organizations', columnName: 'id' },
 				{ tableName: 'organization_members', columnName: 'id' },
 				{ tableName: 'organization_members', columnName: 'organization_id' },
@@ -389,42 +407,46 @@ function mockPrisma(options: {
 					? []
 					: [{ tableName: 'organization_members', columnName: 'joined_on' }]),
 				{ tableName: 'organization_members', columnName: 'gender' },
-			];
+			]);
 		}
-		if (sql.includes('information_schema.tables')) return [{ exists: true }];
+		if (sql.includes('information_schema.tables')) return Promise.resolve([{ exists: true }]);
 		if (sql.includes('migration_name')) {
-			return EXPECTED_DATABASE_MIGRATIONS.filter(
-				(migrationName) => !options.missingMigration,
-			).map((migrationName) => ({ migrationName }));
+			const migrations = options.missingMigration ? [] : [...EXPECTED_DATABASE_MIGRATIONS];
+			return Promise.resolve(migrations.map((migrationName) => ({ migrationName })));
 		}
-		if (sql.includes('business_start_date')) return [{ businessStartDate: '2025-10-18' }];
-		if (sql.includes('SELECT gender::text')) return [{ gender: null, count: 1 }];
-		if (sql.includes('TO_CHAR(COALESCE')) return [{ month: '2026-10', gender: null, count: 1 }];
-		return [];
+		if (sql.includes('SELECT gender::text')) {
+			return Promise.resolve([{ gender: null, count: 1 }]);
+		}
+		if (sql.includes('TO_CHAR(COALESCE')) {
+			return Promise.resolve([{ month: '2026-10', gender: null, count: 1 }]);
+		}
+		return Promise.resolve([]);
 	});
-	const executeRaw = jest.fn(async (_strings: TemplateStringsArray) => {
-		events.push('set-transaction-read-only');
-		return 0;
+	const executeRaw = jest.fn((strings: TemplateStringsArray) => {
+		events.push(`set:${strings.join('').trim()}`);
+		return Promise.resolve(0);
 	});
-	const memberCount = jest.fn(async ({ where }: { where: Record<string, unknown> }) => {
-		if ('OR' in where) return options.matchingFixture ?? 0;
-		if ('id' in where) return options.idCollision ?? 0;
-		if ('normalizedName' in where) return options.nameCollision ?? 0;
-		if ('phoneNumber' in where) return options.phoneCollision ?? 0;
-		return options.existingMemberCount ?? 1;
+	const memberCount = jest.fn(({ where }: { where: Record<string, unknown> }) => {
+		if ('OR' in where) return Promise.resolve(options.matchingFixture ?? 0);
+		if ('id' in where) return Promise.resolve(options.idCollision ?? 0);
+		if ('normalizedName' in where) return Promise.resolve(options.nameCollision ?? 0);
+		if ('phoneNumber' in where) return Promise.resolve(options.phoneCollision ?? 0);
+		return Promise.resolve(options.existingMemberCount ?? 1);
 	});
 	const transaction = {
 		$executeRaw: executeRaw,
 		$queryRaw: queryRaw,
 		organization: {
-			findUnique: jest.fn(async () =>
-				options.organizationExists === false ? null : { id: KD_GYM_ORGANIZATION_ID },
+			findUnique: jest.fn(() =>
+				Promise.resolve(
+					options.organizationExists === false ? null : { id: KD_GYM_ORGANIZATION_ID },
+				),
 			),
 		},
 		organizationMember: { count: memberCount },
 	};
 	const prisma = {
-		$transaction: jest.fn(async (operation: (client: typeof transaction) => Promise<unknown>) =>
+		$transaction: jest.fn((operation: (client: typeof transaction) => Promise<unknown>) =>
 			operation(transaction),
 		),
 	};
