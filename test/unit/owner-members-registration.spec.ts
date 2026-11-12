@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import { jest } from '@jest/globals';
 import { Test, type TestingModule } from '@nestjs/testing';
 import { TenantTransactionService } from '@nexcoderw/gym-db';
@@ -16,6 +18,7 @@ const MEMBER = {
 	name: 'Example Member',
 	phoneNumber: '+250700000001',
 	email: null,
+	gender: null,
 	archivedAt: null,
 	createdAt: AT,
 	updatedAt: AT,
@@ -114,6 +117,7 @@ describe('member registration workflow', () => {
 		const memberInput = createMember.mock.calls[0]?.[0];
 		const subscriptionInput = createSubscription.mock.calls[0]?.[0];
 		expect(memberInput?.data.organizationId).toBe(ORGANIZATION_ID);
+		expect(memberInput?.data).toMatchObject({ gender: null });
 		expect(subscriptionInput?.data).toMatchObject({
 			memberId: MEMBER_ID,
 			organizationId: ORGANIZATION_ID,
@@ -121,6 +125,34 @@ describe('member registration workflow', () => {
 			createdByUserId: KEY,
 			idempotencyKey: KEY,
 		});
+		expect(subscriptionInput?.data.requestFingerprint).toBe(
+			createHash('sha256')
+				.update(
+					JSON.stringify([
+						'create',
+						'Example Member',
+						'example member',
+						'+250700000001',
+						null,
+						PLAN_ID,
+						'2030-01-01',
+						'MONTHS',
+						1,
+					]),
+				)
+				.digest('hex'),
+		);
+	});
+
+	it('includes explicit gender in creation and its idempotency identity', async () => {
+		const input = { ...INPUT, gender: 'FEMALE' as const };
+		await service.create(CONTEXT, input, KEY);
+		expect(createMember.mock.calls[0]?.[0].data).toMatchObject({ gender: 'FEMALE' });
+		const firstFingerprint = createSubscription.mock.calls[0]?.[0].data.requestFingerprint;
+		await service.create(CONTEXT, INPUT, '66666666-6666-4666-8666-666666666666');
+		const secondFingerprint = createSubscription.mock.calls[1]?.[0].data.requestFingerprint;
+		expect(firstFingerprint).toBeDefined();
+		expect(secondFingerprint).not.toBe(firstFingerprint);
 	});
 
 	it('returns the original registration for identical retries and rejects key reuse', async () => {
