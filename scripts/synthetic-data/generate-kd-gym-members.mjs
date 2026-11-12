@@ -296,7 +296,6 @@ const MUSLIM_GIVEN_NAMES = Object.freeze({
 	]),
 });
 
-
 /**
  * Generates local synthetic historical member files without connecting to external systems.
  */
