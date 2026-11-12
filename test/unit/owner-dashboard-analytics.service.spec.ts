@@ -95,10 +95,41 @@ describe('owner dashboard analytics service', () => {
 		expect(count).toHaveBeenNthCalledWith(1, {
 			where: {
 				organizationId: CONTEXT.organizationId,
-				createdAt: {
-					gte: new Date('2025-12-31T22:00:00.000Z'),
-					lt: new Date('2026-01-02T22:00:00.000Z'),
-				},
+				OR: [
+					{
+						joinedOn: {
+							gte: new Date('2026-01-01T00:00:00.000Z'),
+							lt: new Date('2026-01-03T00:00:00.000Z'),
+						},
+					},
+					{
+						joinedOn: null,
+						createdAt: {
+							gte: new Date('2025-12-31T22:00:00.000Z'),
+							lt: new Date('2026-01-02T22:00:00.000Z'),
+						},
+					},
+				],
+			},
+		});
+		expect(count).toHaveBeenNthCalledWith(2, {
+			where: {
+				organizationId: CONTEXT.organizationId,
+				OR: [
+					{
+						joinedOn: {
+							gte: new Date('2025-12-30T00:00:00.000Z'),
+							lt: new Date('2026-01-01T00:00:00.000Z'),
+						},
+					},
+					{
+						joinedOn: null,
+						createdAt: {
+							gte: new Date('2025-12-29T22:00:00.000Z'),
+							lt: new Date('2025-12-31T22:00:00.000Z'),
+						},
+					},
+				],
 			},
 		});
 		expect(groupBy).toHaveBeenCalledWith({
