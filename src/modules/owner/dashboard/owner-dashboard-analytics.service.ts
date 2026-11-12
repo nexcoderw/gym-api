@@ -79,19 +79,13 @@ export class OwnerDashboardAnalyticsService {
 				const newMembers = await transaction.organizationMember.count({
 					where: {
 						organizationId: context.organizationId,
-						OR: [
-							{ joinedOn: joinedOnSelected },
-							{ joinedOn: null, createdAt: selected },
-						],
+						OR: [{ joinedOn: joinedOnSelected }, { joinedOn: null, createdAt: selected }],
 					},
 				});
 				const previousNewMembers = await transaction.organizationMember.count({
 					where: {
 						organizationId: context.organizationId,
-						OR: [
-							{ joinedOn: joinedOnComparison },
-							{ joinedOn: null, createdAt: comparison },
-						],
+						OR: [{ joinedOn: joinedOnComparison }, { joinedOn: null, createdAt: comparison }],
 					},
 				});
 				// Subscriber as-of history still uses member/subscription createdAt timestamps.
