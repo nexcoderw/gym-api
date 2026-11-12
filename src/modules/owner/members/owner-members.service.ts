@@ -4,7 +4,7 @@ import { BadRequestException, ConflictException, Injectable } from '@nestjs/comm
 import { TenantTransactionService, type Prisma } from '@nexcoderw/gym-db';
 
 import { databaseErrorCode } from '../../../common/errors/database-error-code.js';
-import { listDateRange } from '../list-date-range.js';
+import { listDateOnlyRange, listDateRange } from '../list-date-range.js';
 import type { CreateMemberDto } from './dto/create-member.dto.js';
 import {
 	MemberStatusFilter,
@@ -36,6 +36,7 @@ import {
 	SUBSCRIPTION_SELECT,
 	memberResponse,
 	memberSubscriptionResponse,
+	memberJoinedOn,
 	memberToday,
 } from './owner-member-mapping.js';
 
@@ -53,6 +54,7 @@ export class OwnerMembersService {
 					throw new BadRequestException('Choose either page or cursor pagination.');
 				}
 				const dateRange = listDateRange(query.fromDate, query.toDate);
+				const joinedOnRange = listDateOnlyRange(query.joinedOnFrom, query.joinedOnTo);
 				const where: Prisma.OrganizationMemberWhereInput = {
 					organizationId: context.organizationId,
 					...(query.gender === undefined ? {} : { gender: query.gender }),
@@ -67,6 +69,7 @@ export class OwnerMembersService {
 								],
 							}),
 					...(Object.keys(dateRange).length ? { createdAt: dateRange } : {}),
+					...(Object.keys(joinedOnRange).length ? { joinedOn: joinedOnRange } : {}),
 				};
 				const totalItems = await transaction.organizationMember.count({ where });
 				const totalPages = Math.ceil(totalItems / query.limit);
@@ -160,7 +163,7 @@ export class OwnerMembersService {
 		]);
 		return this.registration(context, key, fingerprint, async (transaction) => {
 			const member = await transaction.organizationMember.create({
-				data: { organizationId: context.organizationId, ...profile },
+				data: { organizationId: context.organizationId, ...profile, joinedOn: memberJoinedOn() },
 				select: MEMBER_SELECT,
 			});
 			const subscription = await registerMemberPlan(
