@@ -18,6 +18,7 @@ const MEMBER = {
 	name: 'Example Member',
 	phoneNumber: '+250700000001',
 	email: null,
+	joinedOn: null,
 	archivedAt: null,
 	createdAt: new Date('2026-10-18T08:00:00.000Z'),
 	updatedAt: new Date('2026-10-18T08:00:00.000Z'),
@@ -119,6 +120,37 @@ describe('owner member numbered pagination', () => {
 				take: 20,
 			}),
 		);
+	});
+
+	it('applies joining-date ranges in the tenant query before counting and paging', async () => {
+		await service.list(CONTEXT, {
+			...QUERY,
+			joinedOnFrom: '2026-10-10',
+			joinedOnTo: '2026-10-12',
+			page: 2,
+		});
+		const where = {
+			organizationId: CONTEXT.organizationId,
+			archivedAt: null,
+			joinedOn: {
+				gte: new Date('2026-10-10T00:00:00.000Z'),
+				lt: new Date('2026-10-13T00:00:00.000Z'),
+			},
+		};
+		expect(count).toHaveBeenCalledWith({ where });
+		expect(findMany).toHaveBeenCalledWith(
+			expect.objectContaining({ where, skip: 20, take: 20 }),
+		);
+	});
+
+	it.each([
+		{ joinedOnFrom: '2026-02-30' },
+		{ joinedOnFrom: '2026-10-12', joinedOnTo: '2026-10-10' },
+	])('rejects invalid joining-date ranges: %p', async (range) => {
+		await expect(service.list(CONTEXT, { ...QUERY, ...range })).rejects.toBeInstanceOf(
+			BadRequestException,
+		);
+		expect(count).not.toHaveBeenCalled();
 	});
 
 	it('rejects mixing page and cursor modes', async () => {
