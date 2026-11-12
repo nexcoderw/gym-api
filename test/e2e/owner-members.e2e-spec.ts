@@ -267,12 +267,7 @@ describe('owner members HTTP security', () => {
 			.set('If-Match', `"${AT}"`)
 			.send({ gender: null })
 			.expect(200);
-		expect(update).toHaveBeenLastCalledWith(
-			CONTEXT,
-			MEMBER_ID,
-			{ gender: null },
-			new Date(AT),
-		);
+		expect(update).toHaveBeenLastCalledWith(CONTEXT, MEMBER_ID, { gender: null }, new Date(AT));
 		await ownerRequest('delete', `${ROOT}/${MEMBER_ID}`).set('If-Match', `"${AT}"`).expect(204);
 	});
 
