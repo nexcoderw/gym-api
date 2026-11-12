@@ -1,5 +1,6 @@
 import {
 	inspectDatabase,
+	loadProductionApprovalArtifact,
 	PreflightConfigurationError,
 	resolveDatabaseTarget,
 	validateFixtureFiles,
@@ -11,11 +12,11 @@ const HELP = [
 	'Usage:',
 	'  node scripts/synthetic-data/preflight-kd-gym-members.mjs',
 	'  node scripts/synthetic-data/preflight-kd-gym-members.mjs --database-target TARGET',
-	'  TARGET: development, staging or production',
+	'  TARGET: production only for this historical import',
 	'',
 	'Database mode also requires PREFLIGHT_DATABASE_TARGET, PREFLIGHT_DATABASE_URL,',
 	'PREFLIGHT_EXPECTED_DATABASE_NAME and PREFLIGHT_EXPECTED_DATABASE_HOST.',
-	'Production additionally requires --allow-production-read-only and',
+	'Production additionally requires the private approval artifact, --allow-production-read-only and',
 	'PREFLIGHT_PRODUCTION_READ_ONLY_CONFIRMATION=KD-GYM-READ-ONLY-PREFLIGHT.',
 	'DATABASE_URL is never read. No mode writes to the database.',
 ].join('\n');
@@ -44,6 +45,7 @@ async function main(arguments_) {
 	}
 	if (requestsDatabase && fixture.report.valid) {
 		const target = resolveDatabaseTarget(arguments_);
+		const approval = loadProductionApprovalArtifact(fixture.report.manifestSha256);
 		const { NestFactory } = await import('@nestjs/core');
 		const { DatabaseModule, PrismaService, loadDatabaseConfig } = await import('@nexcoderw/gym-db');
 		const databaseConfig = loadDatabaseConfig({
@@ -56,7 +58,13 @@ async function main(arguments_) {
 		);
 		try {
 			const prisma = application.get(PrismaService);
-			report.database = await inspectDatabase(prisma, target, fixture.members, fixture.report);
+			report.database = await inspectDatabase(
+				prisma,
+				target,
+				fixture.members,
+				fixture.report,
+				approval,
+			);
 		} finally {
 			await application.close();
 		}
