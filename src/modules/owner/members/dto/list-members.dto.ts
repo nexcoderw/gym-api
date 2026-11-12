@@ -1,5 +1,6 @@
 import { Transform } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { OrganizationMemberGender } from '@nexcoderw/gym-db';
 import {
 	IsEnum,
 	IsInt,
@@ -42,6 +43,11 @@ export class MemberPageQueryDto {
 }
 
 export class ListMembersQueryDto {
+	@ApiPropertyOptional({ enum: OrganizationMemberGender, description: 'Filter by member gender.' })
+	@IsOptional()
+	@IsEnum(OrganizationMemberGender)
+	gender?: OrganizationMemberGender;
+
 	@ApiPropertyOptional({
 		minLength: 3,
 		maxLength: 80,
