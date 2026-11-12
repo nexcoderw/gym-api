@@ -18,8 +18,7 @@ const MEMBER_ROW = {
 describe('owner member mapping', () => {
 	it('serializes known and unknown joining dates as date-only strings', () => {
 		expect(
-			memberResponse({ ...MEMBER_ROW, joinedOn: new Date('2026-10-18T00:00:00.000Z') })
-				.joinedOn,
+			memberResponse({ ...MEMBER_ROW, joinedOn: new Date('2026-10-18T00:00:00.000Z') }).joinedOn,
 		).toBe('2026-10-18');
 		expect(memberResponse(MEMBER_ROW).joinedOn).toBeNull();
 	});
