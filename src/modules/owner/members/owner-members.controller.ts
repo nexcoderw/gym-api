@@ -79,7 +79,7 @@ export class OwnerMembersController {
 	@ApiOperation({
 		summary: 'List gym members',
 		description:
-			'Requires organization.members.read. Results are tenant scoped with bounded cursor or numbered pagination and optional search and gender filters; archived profiles are excluded by default.',
+			'Requires organization.members.read. Results are tenant scoped with bounded cursor or numbered pagination, optional search and gender filters, and inclusive joinedOnFrom/joinedOnTo filters. The existing fromDate/toDate filters remain based on createdAt; archived profiles are excluded by default.',
 	})
 	@ApiOkResponse({ type: MemberListResponseDto })
 	list(
@@ -102,7 +102,7 @@ export class OwnerMembersController {
 	@ApiOperation({
 		summary: 'Register a member with a plan',
 		description:
-			'Requires organization.members.create and organization.member-subscriptions.manage. Atomically creates a gym member and their first plan registration; plan terms remain server controlled.',
+			'Requires organization.members.create and organization.member-subscriptions.manage. Atomically creates a gym member and their first plan registration; plan terms remain server controlled. joinedOn is set to the current Africa/Kigali business date and is not client supplied.',
 	})
 	@ApiCreatedResponse({ type: MemberRegistrationResponseDto })
 	create(
