@@ -39,8 +39,12 @@ export async function applyHistoricalMembers(
 		datasetReport.recordCount !== 823 ||
 		datasetReport.manifestSha256 !== approval.manifestSha256 ||
 		members.length !== 823 ||
-		!backup?.backupReference ||
-		!backup?.verifiedBy
+		backup?.verified !== true ||
+		!backup?.reference ||
+		!backup?.verifiedBy ||
+		!approval.authorizationConfirmed ||
+		!approval.syntheticRecordsAcknowledged ||
+		!approval.notificationSuppressionVerification?.verified
 	) {
 		throw new Error(
 			'Fresh validated fixtures, production approval and backup attestation are required.',
@@ -67,7 +71,7 @@ export async function applyHistoricalMembers(
 		datasetManifestSha256: datasetReport.manifestSha256,
 		approvalReference: approval.approvalReference,
 		operator: approval.operator,
-		backupReference: backup.backupReference,
+		backupReference: backup.reference,
 		preparedAt: new Date().toISOString(),
 	};
 	writeImportManifestOnce(manifestPath, prepared);
@@ -164,7 +168,10 @@ export function assertProductionTarget(target) {
 	if (
 		target?.target !== 'production' ||
 		target?.databaseName !== EXPECTED_PRODUCTION_DATABASE_NAME ||
-		target?.host !== EXPECTED_PRODUCTION_DATABASE_HOST
+		target?.host !== EXPECTED_PRODUCTION_DATABASE_HOST ||
+		!/^nexcode-gym:bootstrap:[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u.test(
+			target?.databaseMarker ?? '',
+		)
 	) {
 		throw new Error('Refusing member import outside the explicitly approved production database.');
 	}
