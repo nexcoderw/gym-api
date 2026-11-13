@@ -32,8 +32,8 @@ function makeMembers() {
 		return {
 			id: `member-${String(index).padStart(4, '0')}`,
 			organizationId: KD_GYM_ORGANIZATION_ID,
-			name: `Synthetic Member ${index}`,
-			normalizedName: `synthetic member ${index}`,
+			name: `Synthetic Member ${String(index)}`,
+			normalizedName: `synthetic member ${String(index)}`,
 			phoneNumber: `+25078${String(index).padStart(7, '0')}`,
 			email: null,
 			gender: index % 2 === 0 ? 'MALE' : 'FEMALE',
@@ -63,21 +63,25 @@ describe('KD GYM staging subscription seed', () => {
 		expect(first.length).toBeGreaterThan(members.length);
 		expect(new Set(first.map(({ data }) => data.id)).size).toBe(first.length);
 		expect(new Set(first.map(({ data }) => data.idempotencyKey)).size).toBe(first.length);
-		expect(first.every(({ memberId, data }) => {
-			const member = members.find(({ id }) => id === memberId);
-			return (
-				member !== undefined &&
-				data.organizationId === KD_GYM_ORGANIZATION_ID &&
-				data.createdByUserId === USER_ID &&
-				data.createdAt === CREATED_AT &&
-				data.updatedAt === CREATED_AT &&
-				data.startDate.toISOString().slice(0, 10) >= member.joinedOn &&
-				data.startDate.toISOString().slice(0, 10) <= HISTORICAL_CUTOFF &&
-				data.requestFingerprint.length === 64 &&
-				data.idempotencyKey.length === 36
-			);
-		})).toBe(true);
-		expect(() => assertNoSubscriptionOverlap(first)).not.toThrow();
+		expect(
+			first.every(({ memberId, data }) => {
+				const member = members.find(({ id }) => id === memberId);
+				return (
+					member !== undefined &&
+					data.organizationId === KD_GYM_ORGANIZATION_ID &&
+					data.createdByUserId === USER_ID &&
+					data.createdAt === CREATED_AT &&
+					data.updatedAt === CREATED_AT &&
+					data.startDate.toISOString().slice(0, 10) >= member.joinedOn &&
+					data.startDate.toISOString().slice(0, 10) <= HISTORICAL_CUTOFF &&
+					data.requestFingerprint.length === 64 &&
+					data.idempotencyKey.length === 36
+				);
+			}),
+		).toBe(true);
+		expect(() => {
+			assertNoSubscriptionOverlap(first);
+		}).not.toThrow();
 		expect(new Set(first.map(({ planName }) => planName))).toEqual(
 			new Set(PLANS.map(({ name }) => name)),
 		);
@@ -102,11 +106,13 @@ describe('KD GYM staging subscription seed', () => {
 		const firstMember = members[0];
 		if (firstMember === undefined) throw new Error('Test fixtures must include a member.');
 		const invalidOrganization = { ...firstMember, organizationId: 'other-org' };
-		expect(() => generateHistoricalSubscriptions([invalidOrganization], PLANS, USER_ID, CREATED_AT))
-			.toThrow(StagingSeedError);
+		expect(() =>
+			generateHistoricalSubscriptions([invalidOrganization], PLANS, USER_ID, CREATED_AT),
+		).toThrow(StagingSeedError);
 		const lateJoiner = { ...firstMember, joinedOn: '2026-11-13' };
-		expect(() => generateHistoricalSubscriptions([lateJoiner], PLANS, USER_ID, CREATED_AT))
-			.toThrow('after the historical subscription cutoff');
+		expect(() => generateHistoricalSubscriptions([lateJoiner], PLANS, USER_ID, CREATED_AT)).toThrow(
+			'after the historical subscription cutoff',
+		);
 	});
 
 	it('reports plan, monthly, renewal, active, expired, and no-history totals', () => {
@@ -126,9 +132,7 @@ describe('KD GYM staging subscription seed', () => {
 		expect(Object.values(countByPlan).reduce((sum, count) => sum + count, 0)).toBe(
 			histories.length,
 		);
-		expect(Object.values(monthly).reduce((sum, count) => sum + count, 0)).toBe(
-			histories.length,
-		);
+		expect(Object.values(monthly).reduce((sum, count) => sum + count, 0)).toBe(histories.length);
 		expect(summary.renewalCount).toBeGreaterThan(0);
 		expect(summary.activeSubscriptionsAsOfCutoff).toBeGreaterThan(0);
 		expect(summary.expiredSubscriptionsAsOfCutoff).toBeGreaterThan(0);
@@ -140,14 +144,18 @@ describe('KD GYM staging subscription seed', () => {
 	it('accepts only an exact complete deterministic history on rerun', () => {
 		const histories = generateHistoricalSubscriptions(makeMembers(), PLANS, USER_ID, CREATED_AT);
 		const planned = histories.map(({ data }) => data);
-		expect(() => assertExistingBatchMatches(planned, planned)).not.toThrow();
-		expect(() => assertExistingBatchMatches(planned.slice(1), planned)).toThrow(/partial/u);
-		expect(() =>
+		expect(() => {
+			assertExistingBatchMatches(planned, planned);
+		}).not.toThrow();
+		expect(() => {
+			assertExistingBatchMatches(planned.slice(1), planned);
+		}).toThrow(/partial/u);
+		expect(() => {
 			assertExistingBatchMatches(
 				planned.map((row, index) => (index === 0 ? { ...row, planName: 'changed' } : row)),
 				planned,
-			),
-		).toThrow(/differs/u);
+			);
+		}).toThrow(/differs/u);
 	});
 
 	it('inserts the batch transactionally and treats exact reruns as idempotent', async () => {
@@ -158,11 +166,14 @@ describe('KD GYM staging subscription seed', () => {
 		expect(first.status).toBe('INSERTED');
 		expect(second.status).toBe('ALREADY_SEEDED');
 		expect(prisma.insertedRows.length).toBeGreaterThan(members.length);
-		expect(prisma.insertedRows.every(({ memberId, organizationId, skipDuplicates }) =>
-			memberId !== 'real-member' &&
-			organizationId === KD_GYM_ORGANIZATION_ID &&
-			skipDuplicates === false,
-		)).toBe(true);
+		expect(
+			prisma.insertedRows.every(
+				({ memberId, organizationId, skipDuplicates }) =>
+					memberId !== 'real-member' &&
+					organizationId === KD_GYM_ORGANIZATION_ID &&
+					!skipDuplicates,
+			),
+		).toBe(true);
 		expect(prisma.createManyCalls).toBeGreaterThan(0);
 		expect(prisma.transactionOptions).toMatchObject({
 			isolationLevel: 'Serializable',
@@ -195,20 +206,12 @@ function makePrisma(
 	const schemaColumns: [string, string][] = [
 		['organizations', 'id'],
 		['organizations', 'name'],
-		...[
-			'id',
-			'organization_id',
-			'is_synthetic',
-			'synthetic_batch_id',
-			'joined_on',
-		].map((column): [string, string] => ['organization_members', column]),
-		...[
-			'id',
-			'organization_id',
-			'name',
-			'price_rwf',
-			'archived_at',
-		].map((column): [string, string] => ['organization_membership_plans', column]),
+		...['id', 'organization_id', 'is_synthetic', 'synthetic_batch_id', 'joined_on'].map(
+			(column): [string, string] => ['organization_members', column],
+		),
+		...['id', 'organization_id', 'name', 'price_rwf', 'archived_at'].map(
+			(column): [string, string] => ['organization_membership_plans', column],
+		),
 		...[
 			'id',
 			'organization_id',
@@ -235,49 +238,53 @@ function makePrisma(
 		...['id', 'status'].map((column): [string, string] => ['users', column]),
 	];
 	const storedRows: Record<string, unknown>[] = [];
-	const insertedRows: Array<{
+	const insertedRows: {
 		memberId: string;
 		organizationId: string;
 		skipDuplicates: boolean;
-	}> = [];
-	let rawQueryCount = 0;
+	}[] = [];
 	let createManyCalls = 0;
 	let transactionOptions: unknown;
 	const transaction = {
-		$queryRaw: async () => {
-			rawQueryCount += 1;
-			if (rawQueryCount === 1) {
-				return schemaColumns.map(([table_name, column_name]) => ({ table_name, column_name }));
+		$queryRaw: (query: TemplateStringsArray) => {
+			const sql = query.join('');
+			if (sql.includes('information_schema.columns')) {
+				return Promise.resolve(
+					schemaColumns.map(([table_name, column_name]) => ({ table_name, column_name })),
+				);
 			}
-			if (rawQueryCount === 2) return [{ conname: 'member_subscriptions_no_overlap' }];
-			return [{ databaseName: options.wrongDatabase === true ? 'other' : 'neondb' }];
+			if (sql.includes('pg_constraint')) {
+				return Promise.resolve([{ conname: 'member_subscriptions_no_overlap' }]);
+			}
+			return Promise.resolve([
+				{ databaseName: options.wrongDatabase === true ? 'other' : 'neondb' },
+			]);
 		},
 		organization: {
-			findUnique: async () => ({ id: KD_GYM_ORGANIZATION_ID, name: 'KD GYM' }),
+			findUnique: () => Promise.resolve({ id: KD_GYM_ORGANIZATION_ID, name: 'KD GYM' }),
 		},
 		organizationMember: {
-			findMany: async () =>
-				members.map((member) => ({
-					id: member.id,
-					joinedOn: new Date(`${member.joinedOn}T00:00:00.000Z`),
-				})),
-			count: async (args: { where: { isSynthetic?: boolean } }) =>
-				args.where.isSynthetic === false ? 1 : 824,
+			findMany: () =>
+				Promise.resolve(
+					members.map((member) => ({
+						id: member.id,
+						joinedOn: new Date(`${member.joinedOn}T00:00:00.000Z`),
+					})),
+				),
+			count: (args: { where: { isSynthetic?: boolean } }) =>
+				Promise.resolve(args.where.isSynthetic === false ? 1 : 824),
 		},
 		organizationMembershipPlan: {
-			findMany: async () => PLANS,
+			findMany: () => Promise.resolve(PLANS),
 		},
 		organizationMembership: {
-			findFirst: async () => ({ userId: USER_ID }),
+			findFirst: () => Promise.resolve({ userId: USER_ID }),
 		},
 		organizationMemberSubscription: {
-			count: async () => 4 + storedRows.length,
-			findMany: async (args: { where: { idempotencyKey?: unknown } }) =>
-				args.where.idempotencyKey === undefined ? storedRows : [],
-			createMany: async (args: {
-				data: Record<string, unknown>[];
-				skipDuplicates: boolean;
-			}) => {
+			count: () => Promise.resolve(4 + storedRows.length),
+			findMany: (args: { where: { idempotencyKey?: unknown } }) =>
+				Promise.resolve(args.where.idempotencyKey === undefined ? storedRows : []),
+			createMany: (args: { data: Record<string, unknown>[]; skipDuplicates: boolean }) => {
 				createManyCalls += 1;
 				for (const row of args.data) {
 					storedRows.push(row);
@@ -287,12 +294,12 @@ function makePrisma(
 						skipDuplicates: args.skipDuplicates,
 					});
 				}
-				return { count: args.data.length };
+				return Promise.resolve({ count: args.data.length });
 			},
 		},
 	};
 	const client = {
-		$transaction: async (
+		$transaction: (
 			callback: (value: typeof transaction) => Promise<unknown>,
 			settings: unknown,
 		) => {
