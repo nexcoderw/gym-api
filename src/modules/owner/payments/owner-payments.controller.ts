@@ -23,6 +23,7 @@ import {
 	ApiNotFoundResponse,
 	ApiOkResponse,
 	ApiOperation,
+	ApiQuery,
 	ApiServiceUnavailableResponse,
 	ApiTags,
 	ApiTooManyRequestsResponse,
@@ -66,7 +67,13 @@ export class OwnerPaymentsController {
 	@ApiOperation({
 		summary: 'List gym payments',
 		description:
-			'Requires organization.payments.read. Returns a tenant-scoped ledger with bounded pagination and optional member, receipt or reference search.',
+			'Requires organization.payments.read. Returns a tenant-scoped ledger with bounded pagination and optional member, receipt or reference search. membershipPlanIds is a comma-separated list of up to 24 plan UUIDs; a payment is included when any allocation matches a selected plan.',
+	})
+	@ApiQuery({
+		name: 'membershipPlanIds',
+		required: false,
+		type: String,
+		description: 'Comma-separated membership plan UUIDs; payments matching any selected plan.',
 	})
 	@ApiOkResponse({ type: PaymentListResponseDto })
 	list(
