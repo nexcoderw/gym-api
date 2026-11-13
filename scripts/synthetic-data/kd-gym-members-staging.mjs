@@ -74,6 +74,7 @@ export async function seedStagingMembers(
 	members,
 	insertedAt = new Date(),
 	onWriteStart = () => {},
+	onStage = () => {},
 ) {
 	if (!Array.isArray(members) || members.length !== EXPECTED_RECORD_COUNT) {
 		throw new StagingSeedError(
@@ -82,7 +83,9 @@ export async function seedStagingMembers(
 		);
 	}
 	return runSerializableImportTransaction(prisma, async (transaction) => {
+		onStage('schema_check');
 		await assertRequiredSchema(transaction);
+		onStage('organization_check');
 		const organization = await transaction.organization.findUnique({
 			where: { id: KD_GYM_ORGANIZATION_ID },
 			select: { id: true, name: true },
@@ -94,12 +97,14 @@ export async function seedStagingMembers(
 			);
 		}
 
+		onStage('baseline_check');
 		const existingCount = await transaction.organizationMember.count({
 			where: { organizationId: KD_GYM_ORGANIZATION_ID },
 		});
 		const existingRealMemberCount = await transaction.organizationMember.count({
 			where: { organizationId: KD_GYM_ORGANIZATION_ID, isSynthetic: false },
 		});
+		onStage('batch_check');
 		const existingBatch = await transaction.organizationMember.findMany({
 			where: {
 				organizationId: KD_GYM_ORGANIZATION_ID,
@@ -138,6 +143,7 @@ export async function seedStagingMembers(
 			);
 		}
 
+		onStage('collision_check');
 		const collisions = await transaction.organizationMember.findMany({
 			where: {
 				organizationId: KD_GYM_ORGANIZATION_ID,
@@ -156,6 +162,7 @@ export async function seedStagingMembers(
 			);
 		}
 
+		onStage('member_write');
 		if (typeof onWriteStart === 'function') onWriteStart();
 		const insertion = await transaction.organizationMember.createMany({
 			data: buildMemberInsertData(members, insertedAt),
@@ -167,6 +174,7 @@ export async function seedStagingMembers(
 				'The full synthetic member batch was not inserted; the transaction was rolled back.',
 			);
 		}
+		onStage('member_verification');
 		const insertedMembers = await transaction.organizationMember.findMany({
 			where: {
 				organizationId: KD_GYM_ORGANIZATION_ID,
@@ -175,6 +183,7 @@ export async function seedStagingMembers(
 			select: MEMBER_SELECT,
 		});
 		assertBatchMatchesFixtures(insertedMembers, members, insertedAt);
+		onStage('final_count_check');
 		const totalCount = await transaction.organizationMember.count({
 			where: { organizationId: KD_GYM_ORGANIZATION_ID },
 		});
