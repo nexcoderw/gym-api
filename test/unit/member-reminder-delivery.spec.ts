@@ -30,6 +30,7 @@ const row = {
 	messageBody: 'Hello, please renew.',
 	organization: { name: 'Soho Gym', status: OrganizationStatus.ACTIVE },
 	member: {
+		isSynthetic: false,
 		email: 'member@example.com',
 		archivedAt: null,
 		reminderEmailOptedOutAt: null,
@@ -90,12 +91,13 @@ describe('member reminder delivery', () => {
 		});
 		expect(send).toHaveBeenCalledWith({
 			recipient: 'member@example.com',
+			member: row.member,
 			organizationName: 'Soho Gym',
 			subject: row.messageSubject,
 			body: row.messageBody,
 			idempotencyKey: 'a'.repeat(64),
 		});
-		expect(updateMany.mock.calls[2]?.[0]).toMatchObject({
+		expect(updateMany.mock.calls[3]?.[0]).toMatchObject({
 			where: { id: ID, organizationId: ORGANIZATION_ID, status: ReminderStatus.PROCESSING },
 			data: {
 				status: ReminderStatus.ACCEPTED,
@@ -107,7 +109,10 @@ describe('member reminder delivery', () => {
 	});
 
 	it('never sends when another worker already claimed the row', async () => {
-		updateMany.mockResolvedValueOnce({ count: 0 }).mockResolvedValueOnce({ count: 0 });
+		updateMany
+			.mockResolvedValueOnce({ count: 0 })
+			.mockResolvedValueOnce({ count: 0 })
+			.mockResolvedValueOnce({ count: 0 });
 		expect(await service.runOnce(NOW)).toEqual({
 			claimed: 0,
 			accepted: 0,
@@ -121,7 +126,25 @@ describe('member reminder delivery', () => {
 		findMany.mockResolvedValueOnce([]);
 		await service.runOnce(NOW);
 		expect(findMany.mock.calls[0]?.[0]).toMatchObject({
-			where: { kind: ReminderKind.MANUAL },
+			where: {
+				kind: ReminderKind.MANUAL,
+				member: { is: { isSynthetic: false } },
+			},
+		});
+		expect(send).not.toHaveBeenCalled();
+	});
+
+	it('marks already queued synthetic email reminders skipped without contacting the provider', async () => {
+		findMany.mockResolvedValueOnce([]);
+		updateMany.mockResolvedValueOnce({ count: 0 }).mockResolvedValueOnce({ count: 1 });
+		expect(await service.runOnce(NOW)).toMatchObject({ skipped: 1, accepted: 0 });
+		expect(updateMany.mock.calls[1]?.[0]).toMatchObject({
+			where: {
+				kind: ReminderKind.MANUAL,
+				status: { in: [ReminderStatus.QUEUED, ReminderStatus.FAILED] },
+				member: { is: { isSynthetic: true } },
+			},
+			data: { status: ReminderStatus.SKIPPED, lastErrorCode: 'SYNTHETIC_MEMBER_BLOCKED' },
 		});
 		expect(send).not.toHaveBeenCalled();
 	});
@@ -148,7 +171,12 @@ describe('member reminder delivery', () => {
 	});
 
 	it.each([
+		{
+			label: 'synthetic classification at submission time',
+			change: { member: { ...row.member, isSynthetic: true } },
+		},
 		{ label: 'opted out', change: { member: { ...row.member, reminderEmailOptedOutAt: NOW } } },
+		{ label: 'email suppressed', change: { member: { ...row.member, reminderEmailSuppressedAt: NOW } } },
 		{ label: 'cancelled', change: { subscription: { ...row.subscription, cancelledAt: NOW } } },
 		{
 			label: 'suspended gym',
@@ -168,7 +196,7 @@ describe('member reminder delivery', () => {
 			uncertain: 0,
 		});
 		expect(send).not.toHaveBeenCalled();
-		expect(updateMany.mock.calls[2]?.[0]).toMatchObject({
+		expect(updateMany.mock.calls[3]?.[0]).toMatchObject({
 			data: { status: ReminderStatus.SKIPPED },
 		});
 	});
@@ -181,10 +209,10 @@ describe('member reminder delivery', () => {
 			skipped: 0,
 			uncertain: 1,
 		});
-		expect(updateMany.mock.calls[2]?.[0]).toMatchObject({
+		expect(updateMany.mock.calls[3]?.[0]).toMatchObject({
 			data: { status: ReminderStatus.UNCERTAIN },
 		});
-		expect(updateMany.mock.calls[2]?.[0]).not.toHaveProperty('data.nextAttemptAt');
+		expect(updateMany.mock.calls[3]?.[0]).not.toHaveProperty('data.nextAttemptAt');
 	});
 
 	it('retries only a definite rate limit with a bounded delay', async () => {
@@ -194,7 +222,7 @@ describe('member reminder delivery', () => {
 			retryable: true,
 		});
 		await service.runOnce(NOW);
-		expect(updateMany.mock.calls[2]?.[0]).toMatchObject({
+		expect(updateMany.mock.calls[3]?.[0]).toMatchObject({
 			data: {
 				status: ReminderStatus.FAILED,
 				lastErrorCode: 'PROVIDER_RATE_LIMITED',
@@ -206,6 +234,7 @@ describe('member reminder delivery', () => {
 	it('never retries an accepted submission after uncertain database finalization', async () => {
 		updateMany
 			.mockResolvedValueOnce({ count: 0 })
+			.mockResolvedValueOnce({ count: 1 })
 			.mockResolvedValueOnce({ count: 1 })
 			.mockResolvedValueOnce({ count: 0 });
 		await expect(service.runOnce(NOW)).rejects.toThrow('finalization is uncertain');
