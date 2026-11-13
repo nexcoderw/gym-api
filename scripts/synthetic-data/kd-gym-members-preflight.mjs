@@ -26,6 +26,8 @@ export const EXPECTED_FINAL_MEMBER_COUNT = 824;
 export const EXPECTED_PRODUCTION_DATABASE_NAME = 'neondb';
 export const EXPECTED_PRODUCTION_DATABASE_HOST =
 	'ep-rapid-violet-b4txcgks-pooler.c-6.us-east-2.aws.neon.tech';
+const PRODUCTION_DATABASE_MARKER_PATTERN =
+	/^nexcode-gym:bootstrap:[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
 export const EXPECTED_BUSINESS_START_DATE = '2025-10-18';
 // gym-db currently has durable email suppression only; synthetic phone suppression is unsupported.
 export const SMS_NOTIFICATION_SUPPRESSION_SUPPORTED = false;
@@ -38,10 +40,6 @@ export const PRODUCTION_APPROVAL_DIRECTORY = fileURLToPath(new URL('./private/',
 export const PRODUCTION_APPROVAL_PATH = join(
 	PRODUCTION_APPROVAL_DIRECTORY,
 	'production-approval.json',
-);
-export const PRODUCTION_BACKUP_ATTESTATION_PATH = join(
-	PRODUCTION_APPROVAL_DIRECTORY,
-	'production-backup-attestation.json',
 );
 
 export class PreflightConfigurationError extends Error {
@@ -289,6 +287,16 @@ export function resolveDatabaseTarget(arguments_, environment = process.env) {
 			'Set PREFLIGHT_DATABASE_TARGET=production for this production-only workflow.',
 		);
 	}
+	const databaseMarker = environment.PREFLIGHT_EXPECTED_DATABASE_MARKER;
+	if (
+		typeof databaseMarker !== 'string' ||
+		!PRODUCTION_DATABASE_MARKER_PATTERN.test(databaseMarker)
+	) {
+		throw new PreflightConfigurationError(
+			'PRODUCTION_DATABASE_MARKER_REQUIRED',
+			'Set the independently provisioned production database marker; a hostname alone cannot distinguish staging from production.',
+		);
+	}
 	if (
 		typeof environment.PREFLIGHT_DATABASE_URL !== 'string' ||
 		environment.PREFLIGHT_DATABASE_URL.trim().length === 0
@@ -350,21 +358,25 @@ export function resolveDatabaseTarget(arguments_, environment = process.env) {
 		databaseUrl: environment.PREFLIGHT_DATABASE_URL,
 		databaseName,
 		host: connection.hostname,
+		databaseMarker,
 	});
 }
 
 /** Validate the operator's attested production import approval without exposing its contents. */
-export function validateProductionApprovalArtifact(value, manifestSha256) {
+export function validateProductionApprovalArtifact(value, manifestSha256, databaseMarker) {
 	const valid =
 		isRecord(value) &&
 		value.version === 1 &&
 		value.organizationId === KD_GYM_ORGANIZATION_ID &&
 		isRecord(value.productionDatabase) &&
+		value.productionDatabase.environment === 'production' &&
 		value.productionDatabase.host === EXPECTED_PRODUCTION_DATABASE_HOST &&
 		value.productionDatabase.name === EXPECTED_PRODUCTION_DATABASE_NAME &&
+		value.productionDatabase.marker === databaseMarker &&
 		isRecord(value.historicalBusinessStartDateAttestation) &&
 		value.historicalBusinessStartDateAttestation.date === EXPECTED_BUSINESS_START_DATE &&
 		value.historicalBusinessStartDateAttestation.operatorAttested === true &&
+		isNonEmptyText(value.historicalBusinessStartDateAttestation.attestedBy, 160) &&
 		isRecord(value.dateRange) &&
 		value.dateRange.from === EXPECTED_DATE_RANGE.from &&
 		value.dateRange.to === EXPECTED_DATE_RANGE.to &&
@@ -373,7 +385,25 @@ export function validateProductionApprovalArtifact(value, manifestSha256) {
 		value.expectedExistingMemberCount === EXPECTED_BASELINE_MEMBER_COUNT &&
 		value.expectedGeneratedMemberCount === EXPECTED_RECORD_COUNT &&
 		value.expectedFinalMemberCount === EXPECTED_FINAL_MEMBER_COUNT &&
+		isRecord(value.generatedGenderCounts) &&
+		value.generatedGenderCounts.male === EXPECTED_GENDER_COUNTS.male &&
+		value.generatedGenderCounts.female === EXPECTED_GENDER_COUNTS.female &&
+		value.authorizationConfirmed === true &&
+		isNonEmptyText(value.authorizedBy, 160) &&
 		value.syntheticRecordsAcknowledged === true &&
+		isRecord(value.productionBackupVerification) &&
+		value.productionBackupVerification.verified === true &&
+		isNonEmptyText(value.productionBackupVerification.reference, 200) &&
+		isNonEmptyText(value.productionBackupVerification.verifiedBy, 160) &&
+		isValidTimestamp(value.productionBackupVerification.verifiedAt) &&
+		Date.parse(value.productionBackupVerification.verifiedAt) <= Date.now() &&
+		isRecord(value.notificationSuppressionVerification) &&
+		value.notificationSuppressionVerification.verified === true &&
+		value.notificationSuppressionVerification.emailSuppression === true &&
+		value.notificationSuppressionVerification.smsSuppression === true &&
+		isNonEmptyText(value.notificationSuppressionVerification.verifiedBy, 160) &&
+		isValidTimestamp(value.notificationSuppressionVerification.verifiedAt) &&
+		Date.parse(value.notificationSuppressionVerification.verifiedAt) <= Date.now() &&
 		isNonEmptyText(value.approvalReference, 160) &&
 		isNonEmptyText(value.operator, 160) &&
 		isValidTimestamp(value.approvedAt) &&
@@ -386,46 +416,25 @@ export function validateProductionApprovalArtifact(value, manifestSha256) {
 	}
 	return Object.freeze({
 		approvalReference: value.approvalReference,
+		authorizedBy: value.authorizedBy,
+		authorizationConfirmed: true,
 		operator: value.operator,
 		historicalBusinessStartDate: EXPECTED_BUSINESS_START_DATE,
 		approvedAt: value.approvedAt,
 		manifestSha256,
+		databaseMarker,
+		productionBackupVerification: value.productionBackupVerification,
+		notificationSuppressionVerification: value.notificationSuppressionVerification,
 	});
 }
 
 /** Read the fixed local approval artifact only when its directory and file are owner-only. */
-export function loadProductionApprovalArtifact(manifestSha256) {
+export function loadProductionApprovalArtifact(manifestSha256, databaseMarker) {
 	return validateProductionApprovalArtifact(
 		readProtectedArtifact(PRODUCTION_APPROVAL_PATH, 'approval'),
 		manifestSha256,
+		databaseMarker,
 	);
-}
-
-/** Read a separately reviewed backup attestation for the explicit APPLY path. */
-export function loadProductionBackupAttestation() {
-	const value = readProtectedArtifact(PRODUCTION_BACKUP_ATTESTATION_PATH, 'backup');
-	const valid =
-		isRecord(value) &&
-		value.version === 1 &&
-		isRecord(value.productionDatabase) &&
-		value.productionDatabase.host === EXPECTED_PRODUCTION_DATABASE_HOST &&
-		value.productionDatabase.name === EXPECTED_PRODUCTION_DATABASE_NAME &&
-		value.backupVerified === true &&
-		isNonEmptyText(value.backupReference, 200) &&
-		isNonEmptyText(value.verifiedBy, 160) &&
-		isValidTimestamp(value.verifiedAt) &&
-		Date.parse(value.verifiedAt) <= Date.now();
-	if (!valid) {
-		throw new PreflightConfigurationError(
-			'PRODUCTION_BACKUP_ATTESTATION_INVALID',
-			'The protected backup attestation is missing or does not match the approved production database.',
-		);
-	}
-	return Object.freeze({
-		backupReference: value.backupReference,
-		verifiedBy: value.verifiedBy,
-		verifiedAt: value.verifiedAt,
-	});
 }
 
 function readProtectedArtifact(path, artifactKind) {
@@ -535,7 +544,10 @@ export async function inspectDatabaseTransaction(
 		`;
 	}
 	const identityRows = await transaction.$queryRaw`
-		SELECT current_database() AS "databaseName", inet_server_port() AS "port"
+		SELECT current_database() AS "databaseName", inet_server_port() AS "port",
+			shobj_description(db_identity.oid, 'pg_database') AS "databaseMarker"
+		FROM pg_database AS db_identity
+		WHERE db_identity.datname = current_database()
 	`;
 	const identity = identityRows[0];
 	const columns = await transaction.$queryRaw`
@@ -618,11 +630,13 @@ export async function inspectDatabaseTransaction(
 			host: target.host,
 			port: identity?.port ?? null,
 		},
+		databaseMarkerMatchesExpected: identity?.databaseMarker === target.databaseMarker,
 		databaseIdentityMatchesExpected:
 			target.target === 'production' &&
 			target.host === EXPECTED_PRODUCTION_DATABASE_HOST &&
 			target.databaseName === EXPECTED_PRODUCTION_DATABASE_NAME &&
-			identity?.databaseName === EXPECTED_PRODUCTION_DATABASE_NAME,
+			identity?.databaseName === EXPECTED_PRODUCTION_DATABASE_NAME &&
+			identity?.databaseMarker === target.databaseMarker,
 		organizationId: KD_GYM_ORGANIZATION_ID,
 		organizationExists: null,
 		organizationBusinessStartDate: approval.historicalBusinessStartDate,
@@ -647,6 +661,9 @@ export async function inspectDatabaseTransaction(
 		safeToProceedToSeparatelyApprovedImport: false,
 	};
 	if (!report.databaseIdentityMatchesExpected) report.blockers.push('DATABASE_IDENTITY_MISMATCH');
+	if (!report.databaseMarkerMatchesExpected) {
+		report.blockers.push('PRODUCTION_DATABASE_MARKER_MISMATCH');
+	}
 	if (schemaChecks.organizationTable) {
 		const organizationRows = await transaction.$queryRaw`
 			SELECT id FROM public.organizations
@@ -790,7 +807,8 @@ function assertInspectionInputs(target, members, datasetReport, approval) {
 	if (
 		target.target !== 'production' ||
 		target.host !== EXPECTED_PRODUCTION_DATABASE_HOST ||
-		target.databaseName !== EXPECTED_PRODUCTION_DATABASE_NAME
+		target.databaseName !== EXPECTED_PRODUCTION_DATABASE_NAME ||
+		!PRODUCTION_DATABASE_MARKER_PATTERN.test(target.databaseMarker ?? '')
 	) {
 		throw new PreflightConfigurationError(
 			'DATABASE_IDENTITY_EXPECTATION_MISMATCH',
@@ -800,7 +818,12 @@ function assertInspectionInputs(target, members, datasetReport, approval) {
 	if (
 		!isRecord(approval) ||
 		approval.historicalBusinessStartDate !== EXPECTED_BUSINESS_START_DATE ||
-		approval.manifestSha256 !== datasetReport.manifestSha256
+		approval.manifestSha256 !== datasetReport.manifestSha256 ||
+		approval.databaseMarker !== target.databaseMarker ||
+		approval.authorizationConfirmed !== true ||
+		!isNonEmptyText(approval.authorizedBy, 160) ||
+		!isNonEmptyText(approval.approvalReference, 160) ||
+		!isNonEmptyText(approval.operator, 160)
 	) {
 		throw new PreflightConfigurationError(
 			'PRODUCTION_APPROVAL_ARTIFACT_INVALID',
