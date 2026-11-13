@@ -36,12 +36,14 @@ export interface DatabasePreflightTarget {
 	readonly databaseUrl: string;
 	readonly databaseName: string;
 	readonly host: string;
+	readonly databaseMarker: string;
 }
 
 export interface DatabasePreflightReport {
 	readonly performed: boolean;
 	readonly target: string;
 	readonly databaseIdentity: Readonly<Record<string, string | number | null>>;
+	readonly databaseMarkerMatchesExpected: boolean;
 	readonly organizationId: string;
 	readonly organizationExists: boolean | null;
 	readonly organizationBusinessStartDate: string | null;
@@ -91,23 +93,24 @@ export function resolveDatabaseTarget(
 export function validateProductionApprovalArtifact(
 	value: unknown,
 	manifestSha256: string | null,
-): Readonly<Record<string, string>>;
+	databaseMarker: string,
+): Readonly<Record<string, unknown>>;
 export function loadProductionApprovalArtifact(
 	manifestSha256: string | null,
-): Readonly<Record<string, string>>;
-export function loadProductionBackupAttestation(): Readonly<Record<string, string>>;
+	databaseMarker: string,
+): Readonly<Record<string, unknown>>;
 export function inspectDatabase(
 	prisma: unknown,
 	target: DatabasePreflightTarget,
 	members: readonly Readonly<Record<string, string | boolean | null>>[],
 	datasetReport: DatasetPreflightReport,
-	approval: Readonly<Record<string, string>>,
+	approval: Readonly<Record<string, unknown>>,
 ): Promise<DatabasePreflightReport>;
 export function inspectDatabaseTransaction(
 	transaction: unknown,
 	target: DatabasePreflightTarget,
 	members: readonly Readonly<Record<string, string | boolean | null>>[],
 	datasetReport: DatasetPreflightReport,
-	approval: Readonly<Record<string, string>>,
+	approval: Readonly<Record<string, unknown>>,
 	options: Readonly<{ expectedReadOnly: boolean; lockOrganization?: boolean }>,
 ): Promise<DatabasePreflightReport>;
