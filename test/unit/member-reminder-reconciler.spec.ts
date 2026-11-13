@@ -81,7 +81,11 @@ describe('member reminder reconciler', () => {
 			unavailable: 0,
 		});
 		expect(findMany.mock.calls[0]?.[0]).toMatchObject({
-			where: { status: ReminderStatus.ACCEPTED, providerMessageId: { not: null } },
+			where: {
+				status: ReminderStatus.ACCEPTED,
+				providerMessageId: { not: null },
+				member: { is: { isSynthetic: false } },
+			},
 			take: 25,
 		});
 		expect(get).toHaveBeenCalledWith(MESSAGE_ID, 'member@example.com');
