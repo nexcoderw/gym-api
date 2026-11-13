@@ -22,7 +22,9 @@ import {
 	inspectDatabaseTransaction,
 } from './kd-gym-members-preflight.mjs';
 
-/** Production-only transactional importer. This function is called only by explicit --apply mode. */
+/**
+ * Production-only transactional importer. This function is called only by explicit --apply mode.
+ */
 export async function applyHistoricalMembers(
 	prisma,
 	target,
@@ -40,7 +42,9 @@ export async function applyHistoricalMembers(
 		!backup?.backupReference ||
 		!backup?.verifiedBy
 	) {
-		throw new Error('Fresh validated fixtures, production approval and backup attestation are required.');
+		throw new Error(
+			'Fresh validated fixtures, production approval and backup attestation are required.',
+		);
 	}
 	if (!SMS_NOTIFICATION_SUPPRESSION_SUPPORTED) {
 		throw new Error(
@@ -85,8 +89,13 @@ export async function applyHistoricalMembers(
 					throw new Error('Fresh in-transaction production baseline validation failed.');
 				}
 				const data = buildMemberInsertData(members, insertedAt);
-				const insertion = await transaction.organizationMember.createMany({ data, skipDuplicates: false });
-				if (insertion.count !== 823) throw new Error('Unexpected inserted member count; aborting transaction.');
+				const insertion = await transaction.organizationMember.createMany({
+					data,
+					skipDuplicates: false,
+				});
+				if (insertion.count !== 823) {
+					throw new Error('Unexpected inserted member count; aborting transaction.');
+				}
 				const finalCount = await transaction.organizationMember.count({
 					where: { organizationId: KD_GYM_ORGANIZATION_ID },
 				});
@@ -101,7 +110,9 @@ export async function applyHistoricalMembers(
 						reminderEmailSuppressedAt: insertedAt,
 					},
 				});
-				if (verified !== 823) throw new Error('Inserted synthetic member verification failed.');
+				if (verified !== 823) {
+					throw new Error('Inserted synthetic member verification failed.');
+				}
 				return { insertedCount: insertion.count, finalMemberCount: finalCount };
 			},
 		);
@@ -144,7 +155,10 @@ export function buildMemberInsertData(members, insertedAt) {
 }
 
 export function runSerializableImportTransaction(prisma, operation) {
-	return prisma.$transaction(operation, { isolationLevel: 'Serializable', timeout: 120_000 });
+	return prisma.$transaction(operation, {
+		isolationLevel: 'Serializable',
+		timeout: 120_000,
+	});
 }
 
 export function assertProductionTarget(target) {
@@ -153,7 +167,9 @@ export function assertProductionTarget(target) {
 		target?.databaseName !== EXPECTED_PRODUCTION_DATABASE_NAME ||
 		target?.host !== EXPECTED_PRODUCTION_DATABASE_HOST
 	) {
-		throw new Error('Refusing member import outside the explicitly approved production database.');
+		throw new Error(
+			'Refusing member import outside the explicitly approved production database.',
+		);
 	}
 }
 
@@ -174,13 +190,19 @@ export function writeImportManifestOnce(path, value, directory = PRODUCTION_APPR
 	validatePrivateDirectory(directory);
 	let descriptor;
 	try {
-		descriptor = openSync(path, fsConstants.O_WRONLY | fsConstants.O_CREAT | fsConstants.O_EXCL, 0o600);
+		descriptor = openSync(
+			path,
+			fsConstants.O_WRONLY | fsConstants.O_CREAT | fsConstants.O_EXCL,
+			0o600,
+		);
 		writeFileSync(descriptor, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
 		fchmodSync(descriptor, 0o600);
 		fsyncSync(descriptor);
 		fsyncPrivateDirectory(directory);
 	} catch {
-		throw new Error('Unable to create a unique private import manifest; duplicate or unsafe import state.');
+		throw new Error(
+			'Unable to create a unique private import manifest; duplicate or unsafe import state.',
+		);
 	} finally {
 		if (descriptor !== undefined) closeSync(descriptor);
 	}
@@ -191,7 +213,11 @@ function writePrivateJsonReplace(path, value) {
 	const temporary = join(PRODUCTION_APPROVAL_DIRECTORY, `.import-${randomUUID()}.tmp`);
 	let descriptor;
 	try {
-		descriptor = openSync(temporary, fsConstants.O_WRONLY | fsConstants.O_CREAT | fsConstants.O_EXCL, 0o600);
+		descriptor = openSync(
+			temporary,
+			fsConstants.O_WRONLY | fsConstants.O_CREAT | fsConstants.O_EXCL,
+			0o600,
+		);
 		writeFileSync(descriptor, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
 		fchmodSync(descriptor, 0o600);
 		fsyncSync(descriptor);
@@ -200,7 +226,9 @@ function writePrivateJsonReplace(path, value) {
 		renameSync(temporary, path);
 		fsyncPrivateDirectory();
 	} catch {
-		throw new Error('Database commit completed but durable manifest finalization failed; reconcile before retry.');
+		throw new Error(
+			'Database commit completed but durable manifest finalization failed; reconcile before retry.',
+		);
 	} finally {
 		if (descriptor !== undefined) closeSync(descriptor);
 	}
