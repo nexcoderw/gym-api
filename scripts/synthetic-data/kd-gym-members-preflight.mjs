@@ -271,6 +271,12 @@ export function resolveDatabaseTarget(arguments_, environment = process.env) {
 		target = candidate;
 		index += 1;
 	}
+	if (target === undefined) {
+		throw new PreflightConfigurationError(
+			'DATABASE_TARGET_REQUIRED',
+			'Supply an explicit --database-target production value.',
+		);
+	}
 	if (target !== 'production') {
 		throw new PreflightConfigurationError(
 			'PRODUCTION_TARGET_REQUIRED',
@@ -289,7 +295,7 @@ export function resolveDatabaseTarget(arguments_, environment = process.env) {
 	) {
 		throw new PreflightConfigurationError(
 			'PREFLIGHT_DATABASE_URL_REQUIRED',
-			'Set a non-empty PREFLIGHT_DATABASE_URL; .env files and DATABASE_URL are not used.',
+			'Set a non-empty PREFLIGHT_DATABASE_URL. If referencing KD_GYM_PREFLIGHT_DATABASE_URL, export that variable first; .env files and DATABASE_URL are not read.',
 		);
 	}
 	let connection;
