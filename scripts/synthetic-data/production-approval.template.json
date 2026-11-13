@@ -42,6 +42,7 @@
 		"verifiedBy": "",
 		"verifiedAt": "",
 		"emailSuppression": false,
-		"smsSuppression": false
+		"smsSuppression": false,
+		"applicationProtectionVersion": ""
 	}
 }
