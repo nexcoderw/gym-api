@@ -453,11 +453,7 @@ function readProtectedArtifact(path, artifactKind) {
 		if (typeof fsConstants.O_NOFOLLOW !== 'number') throw new Error('unsupported');
 		descriptor = openSync(path, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
 		const metadata = fstatSync(descriptor);
-		if (
-			!metadata.isFile() ||
-			(metadata.mode & 0o777) !== 0o600 ||
-			metadata.size > 16_384
-		) {
+		if (!metadata.isFile() || (metadata.mode & 0o777) !== 0o600 || metadata.size > 16_384) {
 			throw new PreflightConfigurationError(
 				`PRODUCTION_${artifactKind.toUpperCase()}_ARTIFACT_UNPROTECTED`,
 				'The protected artifact must be a regular file no larger than 16 KiB with mode 0600.',
@@ -502,14 +498,9 @@ export async function inspectDatabase(prisma, target, members, datasetReport, ap
 	return prisma.$transaction(
 		async (transaction) => {
 			await transaction.$executeRaw`SET TRANSACTION READ ONLY`;
-			return inspectDatabaseTransaction(
-				transaction,
-				target,
-				members,
-				datasetReport,
-				approval,
-				{ expectedReadOnly: true },
-			);
+			return inspectDatabaseTransaction(transaction, target, members, datasetReport, approval, {
+				expectedReadOnly: true,
+			});
 		},
 		{ isolationLevel: 'RepeatableRead', timeout: 30_000 },
 	);
