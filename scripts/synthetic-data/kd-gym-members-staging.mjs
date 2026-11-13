@@ -49,18 +49,37 @@ const MEMBER_SELECT = Object.freeze({
 	reminderSmsSuppressionReason: true,
 });
 
+export class StagingSeedError extends Error {
+	constructor(code, message) {
+		super(message);
+		this.name = 'StagingSeedError';
+		this.code = code;
+	}
+}
+
 export function loadStagingFixtures(directory) {
 	const fixture = validateFixtureFiles(directory);
 	if (!fixture.report.valid || fixture.members.length !== EXPECTED_RECORD_COUNT) {
-		throw new Error('The validated KD GYM member fixtures are unavailable or invalid.');
+		throw new StagingSeedError(
+			'FIXTURES_INVALID',
+			'The local KD GYM fixture files are missing or failed validation.',
+		);
 	}
 	return fixture;
 }
 
 /** Inserts the complete fixture batch in one serializable transaction, or reports an exact rerun. */
-export async function seedStagingMembers(prisma, members, insertedAt = new Date()) {
+export async function seedStagingMembers(
+	prisma,
+	members,
+	insertedAt = new Date(),
+	onWriteStart = () => {},
+) {
 	if (!Array.isArray(members) || members.length !== EXPECTED_RECORD_COUNT) {
-		throw new Error('The KD GYM staging seed requires exactly 823 validated fixture members.');
+		throw new StagingSeedError(
+			'FIXTURE_COUNT_INVALID',
+			'The KD GYM staging seed requires exactly 823 validated fixture members.',
+		);
 	}
 	return runSerializableImportTransaction(prisma, async (transaction) => {
 		await assertRequiredSchema(transaction);
@@ -69,7 +88,10 @@ export async function seedStagingMembers(prisma, members, insertedAt = new Date(
 			select: { id: true, name: true },
 		});
 		if (organization?.name !== 'KD GYM') {
-			throw new Error('The expected KD GYM organization was not found.');
+			throw new StagingSeedError(
+				'ORGANIZATION_NOT_FOUND',
+				'The configured database does not contain the expected KD GYM organization.',
+			);
 		}
 
 		const existingCount = await transaction.organizationMember.count({
@@ -92,19 +114,28 @@ export async function seedStagingMembers(prisma, members, insertedAt = new Date(
 				existingCount !== EXPECTED_FINAL_MEMBER_COUNT ||
 				existingRealMemberCount !== EXPECTED_BASELINE_MEMBER_COUNT
 			) {
-				throw new Error('The existing synthetic batch has an unexpected organization member total.');
+				throw new StagingSeedError(
+					'EXISTING_BATCH_TOTAL_MISMATCH',
+					'The existing synthetic batch has an unexpected organization member total.',
+				);
 			}
 			assertBatchMatchesFixtures(existingBatch, members);
 			return { status: 'ALREADY_SEEDED', insertedCount: 0, totalCount: existingCount };
 		}
 		if (existingBatch.length !== 0) {
-			throw new Error('A partial or unexpected synthetic batch exists; refusing to continue.');
+			throw new StagingSeedError(
+				'PARTIAL_SYNTHETIC_BATCH',
+				'A partial or unexpected synthetic batch exists; refusing to continue.',
+			);
 		}
 		if (
 			existingCount !== EXPECTED_BASELINE_MEMBER_COUNT ||
 			existingRealMemberCount !== EXPECTED_BASELINE_MEMBER_COUNT
 		) {
-			throw new Error('The existing KD GYM member baseline changed; refusing to continue.');
+			throw new StagingSeedError(
+				'MEMBER_BASELINE_MISMATCH',
+				'The existing KD GYM member baseline changed; refusing to continue.',
+			);
 		}
 
 		const collisions = await transaction.organizationMember.findMany({
@@ -119,15 +150,22 @@ export async function seedStagingMembers(prisma, members, insertedAt = new Date(
 			select: { id: true },
 		});
 		if (collisions.length !== 0) {
-			throw new Error('A member ID, normalized name, or phone collision exists; refusing to continue.');
+			throw new StagingSeedError(
+				'MEMBER_COLLISION',
+				'A member ID, normalized name, or phone collision exists; refusing to continue.',
+			);
 		}
 
+		if (typeof onWriteStart === 'function') onWriteStart();
 		const insertion = await transaction.organizationMember.createMany({
 			data: buildMemberInsertData(members, insertedAt),
 			skipDuplicates: false,
 		});
 		if (insertion.count !== EXPECTED_RECORD_COUNT) {
-			throw new Error('The full synthetic member batch was not inserted; rolling back.');
+			throw new StagingSeedError(
+				'INSERT_COUNT_MISMATCH',
+				'The full synthetic member batch was not inserted; the transaction was rolled back.',
+			);
 		}
 		const insertedMembers = await transaction.organizationMember.findMany({
 			where: {
@@ -141,7 +179,10 @@ export async function seedStagingMembers(prisma, members, insertedAt = new Date(
 			where: { organizationId: KD_GYM_ORGANIZATION_ID },
 		});
 		if (totalCount !== EXPECTED_FINAL_MEMBER_COUNT) {
-			throw new Error('The final KD GYM member total is unexpected; rolling back.');
+			throw new StagingSeedError(
+				'FINAL_MEMBER_COUNT_MISMATCH',
+				'The final KD GYM member total is unexpected; the transaction was rolled back.',
+			);
 		}
 		return { status: 'INSERTED', insertedCount: insertion.count, totalCount };
 	});
@@ -149,7 +190,10 @@ export async function seedStagingMembers(prisma, members, insertedAt = new Date(
 
 export function assertBatchMatchesFixtures(rows, members, insertedAt) {
 	if (rows.length !== EXPECTED_RECORD_COUNT || members.length !== EXPECTED_RECORD_COUNT) {
-		throw new Error('The synthetic batch does not contain exactly 823 members.');
+		throw new StagingSeedError(
+			'BATCH_VERIFICATION_FAILED',
+			'The synthetic batch does not contain exactly 823 members.',
+		);
 	}
 	const expectedById = new Map(members.map((member) => [member.id, member]));
 	const seenIds = new Set();
@@ -175,7 +219,10 @@ export function assertBatchMatchesFixtures(rows, members, insertedAt) {
 				(row.createdAt?.getTime() !== insertedAt.getTime() ||
 					row.updatedAt?.getTime() !== insertedAt.getTime()))
 		) {
-			throw new Error('Stored synthetic members do not match the validated fixture batch.');
+			throw new StagingSeedError(
+				'BATCH_VERIFICATION_FAILED',
+				'Stored synthetic members do not match the validated fixture batch.',
+			);
 		}
 		seenIds.add(row.id);
 	}
@@ -211,7 +258,10 @@ async function assertRequiredSchema(transaction) {
 	}
 	for (const [tableName, columns] of Object.entries(REQUIRED_COLUMNS)) {
 		if (!columns.every((column) => available.get(tableName)?.has(column))) {
-			throw new Error('Required KD GYM member tables or columns are missing.');
+			throw new StagingSeedError(
+				'SCHEMA_REQUIREMENTS_MISSING',
+				'Required KD GYM member tables or columns are missing from the configured database.',
+			);
 		}
 	}
 }
