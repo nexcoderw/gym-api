@@ -21,9 +21,10 @@ export const EXPECTED_DATABASE_MIGRATIONS: readonly string[];
 export const EXPECTED_PRODUCTION_DATABASE_NAME: string;
 export const EXPECTED_PRODUCTION_DATABASE_HOST: string;
 export const EXPECTED_FINAL_MEMBER_COUNT: number;
+export const EXPECTED_GENERATION_SEED: string;
+export const APPLICATION_NOTIFICATION_PROTECTION_VERSION: string;
 export const EXPECTED_DATE_RANGE: Readonly<{ from: string; to: string; timezone: string }>;
 export const PRODUCTION_APPROVAL_DIRECTORY: string;
-export const SMS_NOTIFICATION_SUPPRESSION_SUPPORTED: boolean;
 
 export interface FixturePreflightResult {
 	readonly members: readonly Readonly<Record<string, string | boolean | null>>[];
@@ -50,6 +51,7 @@ export interface DatabasePreflightReport {
 	readonly businessStartDateAttestationVerified: boolean;
 	readonly approvalReference: string;
 	readonly approvalOperator: string;
+	readonly applicationNotificationSafeguardsVerified: boolean;
 	readonly existingMemberCount: number | null;
 	readonly generatedMemberCount: number;
 	readonly expectedTotalMemberCount: number;
@@ -65,12 +67,21 @@ export interface DatabasePreflightReport {
 		genderColumn: boolean;
 		reminderEmailSuppressedAtColumn: boolean;
 		reminderEmailSuppressionReasonColumn: boolean;
+		isSyntheticColumn: boolean;
+		syntheticBatchIdColumn: boolean;
+		reminderSmsSuppressedAtColumn: boolean;
+		reminderSmsSuppressionReasonColumn: boolean;
 		manualSuppressionReasonAvailable: boolean;
+		smsSuppressionReasonAvailable: boolean;
 		suppressionPairConstraintAvailable: boolean;
+		smsSuppressionPairConstraintVerified: boolean;
+		syntheticProtectionConstraintVerified: boolean;
 		migrationHistoryAvailable: boolean;
 		suppressionMigrationApplied: boolean;
 		genderMigrationApplied: boolean;
 		joinedOnMigrationApplied: boolean;
+		syntheticIdentityMigrationApplied: boolean;
+		syntheticProtectionMigrationApplied: boolean;
 	}>;
 	readonly genderCounts: Readonly<Record<string, number>> | null;
 	readonly monthlyRegistrationCounts: readonly Readonly<Record<string, string | number>>[] | null;
