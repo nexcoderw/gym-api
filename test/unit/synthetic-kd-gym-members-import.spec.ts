@@ -32,9 +32,15 @@ const DATASET = { valid: true, recordCount: 823, manifestSha256: APPROVAL.manife
 describe('KD GYM production member import safeguards', () => {
 	it('accepts only the approved production endpoint and database', () => {
 		expect(() => assertProductionTarget(TARGET)).not.toThrow();
-		expect(() => assertProductionTarget({ ...TARGET, target: 'development' })).toThrow();
-		expect(() => assertProductionTarget({ ...TARGET, databaseName: 'another-db' })).toThrow();
-		expect(() => assertProductionTarget({ ...TARGET, host: 'localhost' })).toThrow();
+		expect(() => {
+			assertProductionTarget({ ...TARGET, target: 'development' });
+		}).toThrow();
+		expect(() => {
+			assertProductionTarget({ ...TARGET, databaseName: 'another-db' });
+		}).toThrow();
+		expect(() => {
+			assertProductionTarget({ ...TARGET, host: 'localhost' });
+		}).toThrow();
 	});
 
 	it('maps only synthetic member fields, retaining joined dates and suppressing email', () => {
@@ -60,9 +66,12 @@ describe('KD GYM production member import safeguards', () => {
 	it('rejects fixtures assigned to another organization before any transaction starts', async () => {
 		const transaction = jest.fn();
 		const prisma = { $transaction: transaction };
-		expect(() =>
-			buildMemberInsertData([{ ...fixture(), organizationId: '11111111-1111-4111-8111-111111111111' }], new Date()),
-		).toThrow(/organization/u);
+		expect(() => {
+			buildMemberInsertData(
+				[{ ...fixture(), organizationId: '11111111-1111-4111-8111-111111111111' }],
+				new Date(),
+			);
+		}).toThrow(/organization/u);
 		await expect(
 			applyHistoricalMembers(
 				prisma,
@@ -80,7 +89,14 @@ describe('KD GYM production member import safeguards', () => {
 		const transaction = jest.fn();
 		const prisma = { $transaction: transaction };
 		await expect(
-			applyHistoricalMembers(prisma, TARGET, [], { ...DATASET, recordCount: 822 }, APPROVAL, BACKUP),
+			applyHistoricalMembers(
+				prisma,
+				TARGET,
+				[],
+				{ ...DATASET, recordCount: 822 },
+				APPROVAL,
+				BACKUP,
+			),
 		).rejects.toThrow(/fixtures, production approval and backup/u);
 		await expect(
 			applyHistoricalMembers(prisma, TARGET, [], DATASET, APPROVAL, null),
@@ -114,9 +130,9 @@ describe('KD GYM production member import safeguards', () => {
 		try {
 			writeImportManifestOnce(path, { status: 'PREPARED' }, directory);
 			expect(statSync(path).mode & 0o777).toBe(0o600);
-			expect(() => writeImportManifestOnce(path, { status: 'PREPARED' }, directory)).toThrow(
-				/unique private import manifest/u,
-			);
+			expect(() => {
+				writeImportManifestOnce(path, { status: 'PREPARED' }, directory);
+			}).toThrow(/unique private import manifest/u);
 		} finally {
 			rmSync(directory, { recursive: true, force: true });
 		}
@@ -124,8 +140,13 @@ describe('KD GYM production member import safeguards', () => {
 
 	it('propagates transaction failures so Prisma rolls the whole insert back', async () => {
 		const rollback = jest.fn();
+		const transactionOptions: unknown[] = [];
 		const prisma = {
-			$transaction: jest.fn(async (operation: (transaction: unknown) => Promise<unknown>) => {
+			$transaction: jest.fn(async (
+				operation: (transaction: unknown) => Promise<unknown>,
+				options: unknown,
+			) => {
+				transactionOptions.push(options);
 				try {
 					return await operation({});
 				} catch (error) {
@@ -135,12 +156,13 @@ describe('KD GYM production member import safeguards', () => {
 			}),
 		};
 		await expect(
-			runSerializableImportTransaction(prisma, async () => {
-				throw new Error('insert verification failed');
-			}),
+			runSerializableImportTransaction(
+				prisma,
+				() => Promise.reject(new Error('insert verification failed')),
+			),
 		).rejects.toThrow('insert verification failed');
 		expect(rollback).toHaveBeenCalledTimes(1);
-		expect(prisma.$transaction.mock.calls[0]?.[1]).toEqual({
+		expect(transactionOptions[0]).toEqual({
 			isolationLevel: 'Serializable',
 			timeout: 120_000,
 		});
