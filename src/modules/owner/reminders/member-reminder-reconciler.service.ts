@@ -41,6 +41,7 @@ export class MemberReminderReconcilerService {
 				providerMessageId: { not: null },
 				acceptedAt: { gte: new Date(now.getTime() - PROVIDER_RETENTION_MS) },
 				updatedAt: { lte: new Date(now.getTime() - POLL_INTERVAL_MS) },
+				member: { is: { isSynthetic: false } },
 			},
 			select: {
 				id: true,
