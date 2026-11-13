@@ -98,7 +98,8 @@ describe('owner registration payment', () => {
 
 	const createMember =
 		jest.fn<
-			(input: { data: { organizationId: string; joinedOn: Date } }) => Promise<{ id: string }>
+			(input: { data: { organizationId: string; joinedOn: Date; isSynthetic: boolean } }) =>
+				Promise<{ id: string }>
 		>();
 
 	const createSubscription = jest.fn<
@@ -219,6 +220,7 @@ describe('owner registration payment', () => {
 		expect(result.status).toBe(OrganizationPaymentStatus.CONFIRMED);
 
 		const memberInput = createMember.mock.calls[0]?.[0];
+		expect(memberInput?.data.isSynthetic).toBe(false);
 
 		expect(memberInput?.data.organizationId).toBe(ORGANIZATION_ID);
 		expect(memberInput?.data).toMatchObject({ gender: 'FEMALE' });
