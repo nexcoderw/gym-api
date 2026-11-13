@@ -22,7 +22,7 @@ export type MemberReminderProviderOutcome =
 export interface MemberReminderEmail {
 	readonly recipient: string;
 	readonly member: {
-		readonly isSynthetic: boolean;
+		readonly isSynthetic: boolean | null;
 		readonly email: string | null;
 		readonly reminderEmailOptedOutAt: Date | null;
 		readonly reminderEmailSuppressedAt: Date | null;
