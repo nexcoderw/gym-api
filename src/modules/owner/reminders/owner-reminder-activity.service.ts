@@ -111,9 +111,7 @@ export class OwnerReminderActivityService {
 				planName: row.planName,
 				endDate: row.endDate.toISOString().slice(0, 10),
 				daysRemaining: daysBetween(today, row.endDate.toISOString().slice(0, 10)),
-				canSend:
-					memberMayReceiveEmailReminder(row.member) &&
-					row.reminderDeliveries.length === 0,
+				canSend: memberMayReceiveEmailReminder(row.member) && row.reminderDeliveries.length === 0,
 				manualStatus: row.reminderDeliveries[0]?.status ?? null,
 			})),
 			nextCursor: hasMore ? (rows[query.limit - 1]?.id ?? null) : null,
