@@ -202,7 +202,10 @@ export function generateHistoricalPayments(subscriptions, recordedByUserId, inse
 	for (const subscription of subscriptions) {
 		assertSyntheticSubscription(subscription);
 		const amountRwf = subscription.priceRwf;
-		if (amountRwf < 1n || randomFraction(subscription.id, 'payment-exists') < SKIP_PAYMENT_PROBABILITY)
+		if (
+			amountRwf < 1n ||
+			randomFraction(subscription.id, 'payment-exists') < SKIP_PAYMENT_PROBABILITY
+		)
 			continue;
 		if (amountRwf > 1_000_000_000n) {
 			throw new StagingSeedError(
@@ -464,7 +467,9 @@ export async function seedStagingPayments(prisma, onWriteStart = () => {}) {
 			}
 			for (const subscription of subscriptions) assertSyntheticSubscription(subscription);
 
-			const subscriptionCreators = [...new Set(subscriptions.map(({ createdByUserId }) => createdByUserId))];
+			const subscriptionCreators = [
+				...new Set(subscriptions.map(({ createdByUserId }) => createdByUserId)),
+			];
 			const actorMembership = await resolveRecorder(transaction, subscriptionCreators);
 			if (actorMembership === null && subscriptions.length > 0) {
 				throw new StagingSeedError(
@@ -643,7 +648,9 @@ function historicalPaymentTime(subscription) {
 	}
 	const hour = 8 + Math.floor(randomFraction(subscription.id, 'payment-hour') * 10);
 	const minute = Math.floor(randomFraction(subscription.id, 'payment-minute') * 60);
-	return new Date(`${paymentDay}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00${KIGALI_OFFSET}`);
+	return new Date(
+		`${paymentDay}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00${KIGALI_OFFSET}`,
+	);
 }
 
 function chooseMethod(value) {
