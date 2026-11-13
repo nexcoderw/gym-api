@@ -52,7 +52,9 @@ async function main(arguments_) {
 			new Date(),
 			() => {
 				writesMayHaveStarted = true;
-				currentStage = 'database_write';
+			},
+			(stage) => {
+				currentStage = stage;
 			},
 		);
 		currentStage = 'summary';
@@ -112,12 +114,14 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
 			error instanceof StagingSeedError
 				? error.message
 				: stageFailureMessage(currentStage);
+		const databaseErrorCode = getSafeDatabaseErrorCode(error);
 		process.stderr.write(
 			`${JSON.stringify({
 				seeder: 'kd-gym-staging-member-seed',
 				failed: true,
 				stage: currentStage,
 				code: failureCode,
+				...(databaseErrorCode === undefined ? {} : { databaseErrorCode }),
 				writesMayHaveCommitted: writesMayHaveStarted,
 				databaseCloseFailed,
 				message: failureMessage,
@@ -125,6 +129,12 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
 		);
 		process.exitCode = 2;
 	});
+}
+
+function getSafeDatabaseErrorCode(error) {
+	if (typeof error !== 'object' || error === null || !('code' in error)) return undefined;
+	const { code } = error;
+	return typeof code === 'string' && /^(?:P\d{4}|\d{5})$/u.test(code) ? code : undefined;
 }
 
 function stageFailureMessage(stage) {
@@ -139,10 +149,22 @@ function stageFailureMessage(stage) {
 			return 'Check that the API database package can be loaded.';
 		case 'database_startup':
 			return 'Check database connectivity and the configured staging database.';
-		case 'database_preflight':
-			return 'Check the schema, KD GYM baseline, and fixture collisions.';
-		case 'database_write':
-			return 'Inspect staging records before retrying; the transaction outcome may be uncertain.';
+		case 'schema_check':
+			return 'Could not inspect the required member schema.';
+		case 'organization_check':
+			return 'Could not confirm the KD GYM organization.';
+		case 'baseline_check':
+			return 'Could not verify the existing KD GYM member baseline.';
+		case 'batch_check':
+			return 'Could not inspect the existing synthetic batch.';
+		case 'collision_check':
+			return 'Could not check fixture collisions.';
+		case 'member_write':
+			return 'Check staging records before retrying; write outcome is uncertain.';
+		case 'member_verification':
+			return 'Could not verify inserted members; inspect staging records before retrying.';
+		case 'final_count_check':
+			return 'Could not verify final member total; inspect staging records before retrying.';
 		case 'summary':
 			return 'The database operation completed; inspect the staging member totals before retrying.';
 		case 'database_shutdown':
