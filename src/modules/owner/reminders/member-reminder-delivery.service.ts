@@ -14,6 +14,7 @@ import {
 	type MemberReminderProviderOutcome,
 } from '../../../infrastructure/email/resend-member-reminder-email.service.js';
 import { memberToday } from '../members/owner-member-mapping.js';
+import { memberMayReceiveEmailReminder } from './member-reminder-policy.js';
 
 const BATCH_SIZE = 25;
 const MAX_ATTEMPTS = 3;
@@ -49,6 +50,22 @@ export class MemberReminderDeliveryService {
 				messageBody: null,
 			},
 		});
+		const syntheticQueued = await this.prisma.organizationMemberReminderDelivery.updateMany({
+			where: {
+				kind: ReminderKind.MANUAL,
+				channel: ReminderChannel.EMAIL,
+				status: { in: [ReminderStatus.QUEUED, ReminderStatus.FAILED] },
+				member: { is: { isSynthetic: true } },
+			},
+			data: {
+				status: ReminderStatus.SKIPPED,
+				nextAttemptAt: null,
+				leaseExpiresAt: null,
+				lastErrorCode: 'SYNTHETIC_MEMBER_BLOCKED',
+				messageSubject: null,
+				messageBody: null,
+			},
+		});
 		const candidates = await this.prisma.organizationMemberReminderDelivery.findMany({
 			where: {
 				kind: ReminderKind.MANUAL,
@@ -56,6 +73,7 @@ export class MemberReminderDeliveryService {
 				status: { in: [ReminderStatus.QUEUED, ReminderStatus.FAILED] },
 				attemptCount: { lt: MAX_ATTEMPTS },
 				nextAttemptAt: { lte: now },
+				member: { is: { isSynthetic: false } },
 			},
 			select: { id: true, organizationId: true, status: true, attemptCount: true },
 			orderBy: [{ nextAttemptAt: 'asc' }, { id: 'asc' }],
@@ -63,7 +81,7 @@ export class MemberReminderDeliveryService {
 		});
 		let claimed = 0;
 		let accepted = 0;
-		let skipped = 0;
+		let skipped = syntheticQueued.count;
 		let uncertain = 0;
 		for (const candidate of candidates) {
 			const lease = new Date(now.getTime() + LEASE_MS);
@@ -102,7 +120,7 @@ export class MemberReminderDeliveryService {
 				row.kind === ReminderKind.MANUAL &&
 				row.organization.status === OrganizationStatus.ACTIVE &&
 				row.recipientEmail !== null &&
-				row.member.email?.toLowerCase() === row.recipientEmail.toLowerCase() &&
+				memberMayReceiveEmailReminder(row.member, row.recipientEmail) &&
 				row.dueDate.toISOString().slice(0, 10) <= today &&
 				row.member.archivedAt === null &&
 				row.member.reminderEmailOptedOutAt === null &&
@@ -132,6 +150,7 @@ export class MemberReminderDeliveryService {
 			try {
 				outcome = await this.email.send({
 					recipient: row.recipientEmail,
+					member: row.member,
 					organizationName: row.organization.name,
 					subject: row.messageSubject,
 					body: row.messageBody,
