@@ -138,7 +138,10 @@ export function calculateSubscriptionPeriod(start, periodUnit, periodCount) {
 		periodCount < 1 ||
 		periodCount > maximum
 	) {
-		throw new StagingSeedError('SUBSCRIPTION_PERIOD_INVALID', 'The subscription period is invalid.');
+		throw new StagingSeedError(
+			'SUBSCRIPTION_PERIOD_INVALID',
+			'The subscription period is invalid.',
+		);
 	}
 	const boundary = new Date(startDate);
 	if (periodUnit === 'DAYS' || periodUnit === 'WEEKS') {
@@ -583,7 +586,11 @@ function assertPlanSet(plans) {
 function canonicalPlanName(plan) {
 	const fromName = normalizePlanLabel(plan.name);
 	const fromNormalizedName = normalizePlanLabel(plan.normalizedName);
-	if (fromName !== undefined && fromNormalizedName !== undefined && fromName !== fromNormalizedName) {
+	if (
+		fromName !== undefined &&
+		fromNormalizedName !== undefined &&
+		fromName !== fromNormalizedName
+	) {
 		return undefined;
 	}
 	return fromNormalizedName ?? fromName;
@@ -698,7 +705,10 @@ function deterministicUuid(value) {
 function normalizeDate(value) {
 	if (value instanceof Date) return dateToIso(value);
 	if (typeof value !== 'string') {
-		throw new StagingSeedError('SUBSCRIPTION_DATE_INVALID', 'A fixture date is missing or invalid.');
+		throw new StagingSeedError(
+			'SUBSCRIPTION_DATE_INVALID',
+			'A fixture date is missing or invalid.',
+		);
 	}
 	dateFromIso(value);
 	return value;
@@ -707,7 +717,10 @@ function normalizeDate(value) {
 function dateFromIso(value) {
 	const date = new Date(`${value}T00:00:00.000Z`);
 	if (!Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== value) {
-		throw new StagingSeedError('SUBSCRIPTION_DATE_INVALID', 'A fixture date is missing or invalid.');
+		throw new StagingSeedError(
+			'SUBSCRIPTION_DATE_INVALID',
+			'A fixture date is missing or invalid.',
+		);
 	}
 	return date;
 }
