@@ -54,7 +54,8 @@ describe('member registration workflow', () => {
 	let storedFingerprint: string;
 	const createMember =
 		jest.fn<
-			(input: { data: { organizationId: string; joinedOn: Date } }) => Promise<typeof MEMBER>
+			(input: { data: { organizationId: string; joinedOn: Date; isSynthetic: boolean } }) =>
+				Promise<typeof MEMBER>
 		>();
 	const createSubscription = jest.fn<
 		(input: {
@@ -121,6 +122,7 @@ describe('member registration workflow', () => {
 		const subscriptionInput = createSubscription.mock.calls[0]?.[0];
 		expect(memberInput?.data.organizationId).toBe(ORGANIZATION_ID);
 		expect(memberInput?.data).toMatchObject({ gender: null });
+		expect(memberInput?.data.isSynthetic).toBe(false);
 		expect(memberInput?.data.joinedOn).toBeInstanceOf(Date);
 		expect(memberInput?.data.joinedOn.toISOString()).toMatch(/^\d{4}-\d{2}-\d{2}T00:00:00\.000Z$/u);
 		expect(subscriptionInput?.data).toMatchObject({
@@ -153,6 +155,7 @@ describe('member registration workflow', () => {
 		const input = { ...INPUT, gender: 'FEMALE' as const };
 		await service.create(CONTEXT, input, KEY);
 		expect(createMember.mock.calls[0]?.[0].data).toMatchObject({ gender: 'FEMALE' });
+		expect(createMember.mock.calls[0]?.[0].data.isSynthetic).toBe(false);
 		const firstFingerprint = createSubscription.mock.calls[0]?.[0].data.requestFingerprint;
 		lock
 			.mockResolvedValueOnce([{ id: MEMBER_ID }])
