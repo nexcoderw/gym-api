@@ -58,7 +58,9 @@ async function main(arguments_) {
 			},
 		);
 		currentStage = 'summary';
-		process.stdout.write(`${JSON.stringify(makeStagingSummary(result, fixture.members), null, 2)}\n`);
+		process.stdout.write(
+			`${JSON.stringify(makeStagingSummary(result, fixture.members), null, 2)}\n`,
+		);
 	} catch (error) {
 		seedFailed = true;
 		throw error;
