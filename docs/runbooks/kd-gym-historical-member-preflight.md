@@ -60,6 +60,66 @@ the exact same `productionDatabase`, `backupVerified: true`, a durable `backupRe
 `verifiedBy`, and ISO-8601 `verifiedAt`. The tool verifies the format and database identity; the
 human operator is responsible for verifying the backup itself and approval authority.
 
+## Step-by-step: where to run the commands
+
+Run all commands in this runbook from the **API application project**, `api/api`:
+
+```bash
+cd /Users/test/Desktop/project/gym/api/api
+```
+
+Do not run the preflight, import, or API test commands from `api/db`. This task does not change the
+database package or require database-package commands. The script deliberately ignores `.env.local`
+and generic `DATABASE_URL` values.
+
+The reported `PREFLIGHT_DATABASE_URL_REQUIRED` error means the command received an empty URL. In
+the reported shell, `KD_GYM_PREFLIGHT_DATABASE_URL` was unset, and that dedicated variable is not
+defined in either project `.env.local`. Both files contain a generic `DATABASE_URL`, but its value
+was not inspected and must not be assumed to identify the approved production target.
+
+1. If the generated fixture output is missing, generate it in `api/api`:
+
+   ```bash
+   node scripts/synthetic-data/generate-kd-gym-members.mjs \
+     --seed kd-gym-members-2026-11-12-v1
+   ```
+
+2. Validate the local files and copy `dataset.manifestSha256` from the output:
+
+   ```bash
+   node scripts/synthetic-data/preflight-kd-gym-members.mjs
+   ```
+
+3. After independent approval, create `scripts/synthetic-data/private/` with mode 0700 and place
+   the approval JSON there as `production-approval.json`, mode 0600. Its checksum must match the
+   offline report. Do not put a database URL or password in the artifact.
+
+4. In the same zsh terminal, read the approved production URL without echoing it or saving it in
+   shell history. Get it from the protected production secrets source and confirm its host:
+
+   ```zsh
+   read -s 'KD_GYM_PREFLIGHT_DATABASE_URL?Paste the approved production PostgreSQL URL: '
+   print
+   export KD_GYM_PREFLIGHT_DATABASE_URL
+   if [[ -n "$KD_GYM_PREFLIGHT_DATABASE_URL" ]]; then
+     print 'Production URL loaded into this shell.'
+   else
+     print 'URL is empty; load it before continuing.'
+   fi
+   ```
+
+   Keep using this terminal and do not print the variable or replace it with `$DATABASE_URL`.
+   If the terminal closes, load the secret again. Do not copy a value from `api/db/.env.local`
+   without independently confirming that it is the approved production URL.
+
+5. Run the read-only preflight below. It should get past the missing-URL error; the SMS suppression
+   blocker will still prevent readiness.
+
+6. Run the dry run below. It will report `plannedInsertCount: 0` while that blocker remains.
+
+7. Run the API tests and checks from `api/api`, as listed at the end of this runbook. The `api/db`
+   project is not used for these commands.
+
 ## Offline fixture check
 
 From `api/api`:
@@ -129,9 +189,10 @@ those technical controls exist, the production preflight reports
 Do not run APPLY. It is currently hard-blocked because the database schema has no durable SMS
 suppression marker. After a separately reviewed schema/client change adds and validates that
 technical safeguard, the human operator must review a successful fresh production dry run, obtain
-separate explicit approval, verify a recoverable production backup, and record the backup attestation above. Apply requires a
-separate typed confirmation and fresh preflight. It takes a serializable transaction, locks the fixed
-organization row, rechecks baseline and collisions, inserts only the 823 member rows with actual
+separate explicit approval, verify a recoverable production backup, and record the backup attestation
+above. Apply requires a separate typed confirmation and fresh preflight. It takes a serializable
+transaction, locks the fixed organization row, rechecks baseline and collisions, inserts only the 823
+member rows with actual
 insertion timestamps, and rolls back on any conflict or verification failure. It never skips
 conflicts. A durable private import manifest is created before the transaction and finalized after
 commit; a leftover `PREPARED` manifest requires manual reconciliation and blocks rerun by checksum.
