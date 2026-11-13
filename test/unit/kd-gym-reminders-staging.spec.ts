@@ -131,8 +131,13 @@ describe('KD GYM staging reminder seed', () => {
 
 	it('accepts only an exact batch during reruns', () => {
 		const expected = generateHistoricalReminders(SUBSCRIPTIONS, INSERTED_AT);
+		const stored = expected.map((row) => ({
+			...row,
+			createdAt: new Date('2026-11-13T10:00:00.000Z'),
+			updatedAt: new Date('2026-11-13T10:00:01.000Z'),
+		}));
 		expect(() => {
-			assertReminderBatchMatches(expected, expected);
+			assertReminderBatchMatches(stored, expected);
 		}).not.toThrow();
 		expect(() => {
 			assertReminderBatchMatches(expected.slice(1), expected);
@@ -169,7 +174,8 @@ describe('KD GYM staging reminder seed', () => {
 	it('returns an exact rerun without inserting duplicate rows', async () => {
 		const expected = generateHistoricalReminders(SUBSCRIPTIONS, INSERTED_AT);
 		const prisma = makePrisma({ existing: expected });
-		const result = await seedStagingReminders(prisma, INSERTED_AT);
+		const rerunAt = new Date('2026-11-14T10:00:00.000Z');
+		const result = await seedStagingReminders(prisma, rerunAt);
 		expect(result.status).toBe('ALREADY_SEEDED');
 		expect(prisma.organizationMemberReminderDelivery.createMany).not.toHaveBeenCalled();
 	});
