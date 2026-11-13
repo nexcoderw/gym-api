@@ -22,12 +22,14 @@ const SCRIPT_PATH = fileURLToPath(
 );
 const OUTPUT_ROOT = fileURLToPath(new URL('../../scripts/synthetic-data/output/', import.meta.url));
 const SEED = 'kd-gym-members-2026-11-12-v1';
+const DATABASE_MARKER = 'nexcode-gym:bootstrap:724fbc40-515c-4a30-a4bb-8a6458a24396';
 const DATABASE_ENV = {
 	PREFLIGHT_DATABASE_TARGET: 'production',
 	PREFLIGHT_DATABASE_URL:
 		'postgresql://user:password@ep-rapid-violet-b4txcgks-pooler.c-6.us-east-2.aws.neon.tech/neondb',
 	PREFLIGHT_EXPECTED_DATABASE_HOST: 'ep-rapid-violet-b4txcgks-pooler.c-6.us-east-2.aws.neon.tech',
 	PREFLIGHT_EXPECTED_DATABASE_NAME: 'neondb',
+	PREFLIGHT_EXPECTED_DATABASE_MARKER: DATABASE_MARKER,
 	PREFLIGHT_PRODUCTION_READ_ONLY_CONFIRMATION: 'KD-GYM-READ-ONLY-PREFLIGHT',
 };
 const DATABASE_TARGET = {
@@ -35,6 +37,7 @@ const DATABASE_TARGET = {
 	databaseUrl: DATABASE_ENV.PREFLIGHT_DATABASE_URL,
 	databaseName: 'neondb',
 	host: 'ep-rapid-violet-b4txcgks-pooler.c-6.us-east-2.aws.neon.tech',
+	databaseMarker: DATABASE_MARKER,
 };
 const DATASET_REPORT = {
 	valid: true,
@@ -48,8 +51,24 @@ const DATASET_REPORT = {
 const APPROVAL = {
 	historicalBusinessStartDate: '2025-10-18',
 	approvalReference: 'TEST-APPROVAL',
+	authorizedBy: 'test approver',
+	authorizationConfirmed: true,
 	operator: 'test operator',
 	manifestSha256: DATASET_REPORT.manifestSha256,
+	databaseMarker: DATABASE_MARKER,
+	productionBackupVerification: {
+		verified: true,
+		reference: 'TEST-BACKUP',
+		verifiedBy: 'test operator',
+		verifiedAt: '2020-01-01T10:00:00.000Z',
+	},
+	notificationSuppressionVerification: {
+		verified: true,
+		verifiedBy: 'test operator',
+		verifiedAt: '2020-01-01T10:00:00.000Z',
+		emailSuppression: true,
+		smsSuppression: true,
+	},
 };
 
 let baselineDirectory: string;
@@ -186,6 +205,7 @@ describe('offline KD GYM historical member preflight', () => {
 			expect(() =>
 				resolveDatabaseTarget(['--database-target', 'production'], {
 					PREFLIGHT_DATABASE_TARGET: 'production',
+					PREFLIGHT_EXPECTED_DATABASE_MARKER: DATABASE_MARKER,
 				}),
 			).toThrow(/non-empty PREFLIGHT_DATABASE_URL/u);
 			expect(() =>
@@ -200,6 +220,12 @@ describe('offline KD GYM historical member preflight', () => {
 					DATABASE_ENV,
 				),
 			).not.toThrow();
+			expect(() =>
+				resolveDatabaseTarget(['--database-target', 'production', '--allow-production-read-only'], {
+					...DATABASE_ENV,
+					PREFLIGHT_EXPECTED_DATABASE_MARKER: undefined,
+				}),
+			).toThrow(/database marker/u);
 		});
 
 		it('rejects accidental production selection without two independent confirmations', () => {
@@ -217,27 +243,59 @@ describe('offline KD GYM historical member preflight', () => {
 				version: 1,
 				organizationId: KD_GYM_ORGANIZATION_ID,
 				productionDatabase: {
+					environment: 'production',
 					host: EXPECTED_PRODUCTION_DATABASE_HOST,
 					name: EXPECTED_PRODUCTION_DATABASE_NAME,
+					marker: DATABASE_MARKER,
 				},
 				historicalBusinessStartDateAttestation: {
 					date: '2025-10-18',
 					operatorAttested: true,
+					attestedBy: 'test approver',
 				},
 				dateRange: EXPECTED_DATE_RANGE,
 				datasetManifestSha256: DATASET_REPORT.manifestSha256,
 				expectedExistingMemberCount: 1,
 				expectedGeneratedMemberCount: 823,
 				expectedFinalMemberCount: 824,
+				generatedGenderCounts: { male: 709, female: 114 },
+				authorizationConfirmed: true,
+				authorizedBy: 'test approver',
 				syntheticRecordsAcknowledged: true,
+				productionBackupVerification: {
+					verified: true,
+					reference: 'TEST-BACKUP',
+					verifiedBy: 'test operator',
+					verifiedAt: '2020-01-01T10:00:00.000Z',
+				},
+				notificationSuppressionVerification: {
+					verified: true,
+					verifiedBy: 'test operator',
+					verifiedAt: '2020-01-01T10:00:00.000Z',
+					emailSuppression: true,
+					smsSuppression: true,
+				},
 				approvalReference: 'TEST-APPROVAL',
 				operator: 'test operator',
 				approvedAt: '2020-01-01T10:00:00.000Z',
 			};
 			expect(() =>
-				validateProductionApprovalArtifact(artifact, DATASET_REPORT.manifestSha256),
+				validateProductionApprovalArtifact(
+					artifact,
+					DATASET_REPORT.manifestSha256,
+					DATABASE_MARKER,
+				),
 			).not.toThrow();
-			expect(() => validateProductionApprovalArtifact(artifact, 'b'.repeat(64))).toThrow();
+			expect(() =>
+				validateProductionApprovalArtifact(artifact, 'b'.repeat(64), DATABASE_MARKER),
+			).toThrow();
+			expect(() =>
+				validateProductionApprovalArtifact(
+					artifact,
+					DATASET_REPORT.manifestSha256,
+					'nexcode-gym:bootstrap:11111111-1111-4111-8111-111111111111',
+				),
+			).toThrow();
 			expect(() =>
 				validateProductionApprovalArtifact(
 					{
@@ -245,9 +303,11 @@ describe('offline KD GYM historical member preflight', () => {
 						historicalBusinessStartDateAttestation: {
 							date: '2025-10-18',
 							operatorAttested: false,
+							attestedBy: 'test approver',
 						},
 					},
 					DATASET_REPORT.manifestSha256,
+					DATABASE_MARKER,
 				),
 			).toThrow();
 		});
@@ -263,6 +323,22 @@ describe('offline KD GYM historical member preflight', () => {
 			);
 			expect(report.organizationExists).toBe(false);
 			expect(report.blockers).toContain('ORGANIZATION_NOT_FOUND');
+			expect(report.safeToProceedToSeparatelyApprovedImport).toBe(false);
+		});
+
+		it('rejects a staging database marker even when host and database name match production', async () => {
+			const { prisma } = mockPrisma({
+				databaseMarker: 'nexcode-gym:bootstrap:11111111-1111-4111-8111-111111111111',
+			});
+			const report = await inspectDatabase(
+				prisma,
+				DATABASE_TARGET,
+				fixtureIds(),
+				DATASET_REPORT,
+				APPROVAL,
+			);
+			expect(report.databaseMarkerMatchesExpected).toBe(false);
+			expect(report.blockers).toContain('PRODUCTION_DATABASE_MARKER_MISMATCH');
 			expect(report.safeToProceedToSeparatelyApprovedImport).toBe(false);
 		});
 
@@ -491,6 +567,7 @@ function mockPrisma(
 		matchingFixture?: number;
 		missingJoinedOnColumn?: boolean;
 		missingMigration?: boolean;
+		databaseMarker?: string;
 	} = {},
 ) {
 	const events: string[] = [];
@@ -502,7 +579,12 @@ function mockPrisma(
 		}
 		if (sql.includes('current_database()')) {
 			return Promise.resolve([
-				{ databaseName: DATABASE_TARGET.databaseName, host: DATABASE_TARGET.host, port: 5432 },
+				{
+					databaseName: DATABASE_TARGET.databaseName,
+					host: DATABASE_TARGET.host,
+					port: 5432,
+					databaseMarker: options.databaseMarker ?? DATABASE_TARGET.databaseMarker,
+				},
 			]);
 		}
 		if (sql.includes('FROM public.organizations')) {
