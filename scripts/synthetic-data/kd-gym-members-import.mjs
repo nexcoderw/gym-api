@@ -215,8 +215,7 @@ export function assertImportedMembersMatchFixtures(insertedMembers, members, ins
 			inserted.createdAt.getTime() !== insertedAt.getTime() ||
 			inserted.updatedAt.getTime() !== insertedAt.getTime() ||
 			inserted.reminderEmailSuppressedAt?.getTime() !== insertedAt.getTime() ||
-			inserted.reminderEmailSuppressionReason !==
-				OrganizationMemberEmailSuppressionReason.MANUAL ||
+			inserted.reminderEmailSuppressionReason !== OrganizationMemberEmailSuppressionReason.MANUAL ||
 			inserted.reminderSmsSuppressedAt?.getTime() !== insertedAt.getTime() ||
 			inserted.reminderSmsSuppressionReason !== OrganizationMemberSmsSuppressionReason.MANUAL
 		) {
