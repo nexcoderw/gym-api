@@ -30,6 +30,7 @@ export function seedStagingMembers(
 	members: readonly Readonly<Record<string, unknown>>[],
 	insertedAt?: Date,
 	onWriteStart?: () => void,
+	onStage?: (stage: string) => void,
 ): Promise<StagingSeedResult>;
 export function assertBatchMatchesFixtures(
 	rows: readonly Readonly<Record<string, unknown>>[],
