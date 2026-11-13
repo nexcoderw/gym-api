@@ -45,7 +45,7 @@ async function main(arguments_) {
 	);
 	let seedFailed = false;
 	try {
-		currentStage = 'database_preflight';
+		currentStage = 'transaction_startup';
 		const result = await seedStagingMembers(
 			application.get(PrismaService),
 			fixture.members,
@@ -149,6 +149,8 @@ function stageFailureMessage(stage) {
 			return 'Check that the API database package can be loaded.';
 		case 'database_startup':
 			return 'Check database connectivity and the configured staging database.';
+		case 'transaction_startup':
+			return 'Prisma could not start a transaction; check database availability and pool capacity.';
 		case 'schema_check':
 			return 'Could not inspect the required member schema.';
 		case 'organization_check':
