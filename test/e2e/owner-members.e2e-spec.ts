@@ -165,7 +165,7 @@ describe('owner members HTTP security', () => {
 			{ ...INPUT, gender: 'UNKNOWN' },
 			{ ...INPUT, isSynthetic: true },
 			{ ...INPUT, syntheticBatchId: 'client-batch' },
-			{ ...INPUT, reminderSmsSuppressedAt: AT.toISOString() },
+			{ ...INPUT, reminderSmsSuppressedAt: AT },
 			{ ...INPUT, reminderSmsSuppressionReason: 'MANUAL' },
 		]) {
 			await ownerRequest('post', ROOT).set('Idempotency-Key', KEY).send(body).expect(400);
@@ -202,7 +202,7 @@ describe('owner members HTTP security', () => {
 		for (const payload of [
 			{ isSynthetic: true },
 			{ syntheticBatchId: 'untrusted-batch' },
-			{ reminderSmsSuppressedAt: AT.toISOString() },
+			{ reminderSmsSuppressedAt: AT },
 			{ reminderSmsSuppressionReason: 'MANUAL' },
 		]) {
 			await ownerRequest('patch', `${ROOT}/${MEMBER_ID}`)
