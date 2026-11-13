@@ -1,7 +1,11 @@
-import { ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiHideProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { OrganizationPaymentMethod, OrganizationPaymentStatus } from '@nexcoderw/gym-db';
 import { Transform } from 'class-transformer';
 import {
+	ArrayMaxSize,
+	ArrayMinSize,
+	ArrayUnique,
+	IsArray,
 	IsEnum,
 	IsInt,
 	IsOptional,
@@ -63,6 +67,18 @@ export class ListPaymentsQueryDto {
 	@IsOptional()
 	@IsUUID('loose')
 	memberId?: string;
+
+	@ApiHideProperty()
+	@Transform(({ value }: { value: unknown }) =>
+		typeof value === 'string' ? value.split(',').map((id) => id.trim()) : value,
+	)
+	@IsOptional()
+	@IsArray()
+	@ArrayMinSize(1)
+	@ArrayMaxSize(24)
+	@ArrayUnique()
+	@IsUUID('loose', { each: true })
+	membershipPlanIds?: string[];
 
 	@ApiPropertyOptional({ enum: PaymentOrder, default: PaymentOrder.NEWEST })
 	@IsEnum(PaymentOrder)
