@@ -29,29 +29,29 @@ operator and timestamp with approved values):
 
 ```json
 {
-  "version": 1,
-  "organizationId": "f6e417be-b93e-40ef-b028-d9d03666e69f",
-  "productionDatabase": {
-    "host": "ep-rapid-violet-b4txcgks-pooler.c-6.us-east-2.aws.neon.tech",
-    "name": "neondb"
-  },
-  "historicalBusinessStartDateAttestation": {
-    "date": "2025-10-18",
-    "operatorAttested": true
-  },
-  "dateRange": {
-    "from": "2025-10-18",
-    "to": "2026-11-12",
-    "timezone": "Africa/Kigali"
-  },
-  "datasetManifestSha256": "<64-character-sha256>",
-  "expectedExistingMemberCount": 1,
-  "expectedGeneratedMemberCount": 823,
-  "expectedFinalMemberCount": 824,
-  "syntheticRecordsAcknowledged": true,
-  "approvalReference": "<approved-reference>",
-  "operator": "<operator-name>",
-  "approvedAt": "<ISO-8601-timestamp>"
+	"version": 1,
+	"organizationId": "f6e417be-b93e-40ef-b028-d9d03666e69f",
+	"productionDatabase": {
+		"host": "ep-rapid-violet-b4txcgks-pooler.c-6.us-east-2.aws.neon.tech",
+		"name": "neondb"
+	},
+	"historicalBusinessStartDateAttestation": {
+		"date": "2025-10-18",
+		"operatorAttested": true
+	},
+	"dateRange": {
+		"from": "2025-10-18",
+		"to": "2026-11-12",
+		"timezone": "Africa/Kigali"
+	},
+	"datasetManifestSha256": "<64-character-sha256>",
+	"expectedExistingMemberCount": 1,
+	"expectedGeneratedMemberCount": 823,
+	"expectedFinalMemberCount": 824,
+	"syntheticRecordsAcknowledged": true,
+	"approvalReference": "<approved-reference>",
+	"operator": "<operator-name>",
+	"approvedAt": "<ISO-8601-timestamp>"
 }
 ```
 
