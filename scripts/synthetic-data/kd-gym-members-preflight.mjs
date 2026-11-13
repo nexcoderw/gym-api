@@ -26,15 +26,17 @@ export const EXPECTED_FINAL_MEMBER_COUNT = 824;
 export const EXPECTED_PRODUCTION_DATABASE_NAME = 'neondb';
 export const EXPECTED_PRODUCTION_DATABASE_HOST =
 	'ep-rapid-violet-b4txcgks-pooler.c-6.us-east-2.aws.neon.tech';
+export const APPLICATION_NOTIFICATION_PROTECTION_VERSION =
+	'kd-gym-member-notification-protection-v1';
 const PRODUCTION_DATABASE_MARKER_PATTERN =
 	/^nexcode-gym:bootstrap:[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
 export const EXPECTED_BUSINESS_START_DATE = '2025-10-18';
-// gym-db currently has durable email suppression only; synthetic phone suppression is unsupported.
-export const SMS_NOTIFICATION_SUPPRESSION_SUPPORTED = false;
 export const EXPECTED_DATABASE_MIGRATIONS = Object.freeze([
 	'20261019202006_add_member_email_reminder_outbox',
 	'20261112193052_add_organization_member_gender',
 	'20261112212705_add_organization_member_joined_on',
+	'20261113005446_add_member_synthetic_identity_and_sms_suppression',
+	'20261113015549_enforce_member_synthetic_suppression_checks_forward',
 ]);
 export const PRODUCTION_APPROVAL_DIRECTORY = fileURLToPath(new URL('./private/', import.meta.url));
 export const PRODUCTION_APPROVAL_PATH = join(
@@ -401,6 +403,8 @@ export function validateProductionApprovalArtifact(value, manifestSha256, databa
 		value.notificationSuppressionVerification.verified === true &&
 		value.notificationSuppressionVerification.emailSuppression === true &&
 		value.notificationSuppressionVerification.smsSuppression === true &&
+		value.notificationSuppressionVerification.applicationProtectionVersion ===
+			APPLICATION_NOTIFICATION_PROTECTION_VERSION &&
 		isNonEmptyText(value.notificationSuppressionVerification.verifiedBy, 160) &&
 		isValidTimestamp(value.notificationSuppressionVerification.verifiedAt) &&
 		Date.parse(value.notificationSuppressionVerification.verifiedAt) <= Date.now() &&
@@ -570,7 +574,9 @@ export async function inspectDatabaseTransaction(
 				AND migration_name IN (
 					'20261019202006_add_member_email_reminder_outbox',
 					'20261112193052_add_organization_member_gender',
-					'20261112212705_add_organization_member_joined_on'
+					'20261112212705_add_organization_member_joined_on',
+					'20261113005446_add_member_synthetic_identity_and_sms_suppression',
+					'20261113015549_enforce_member_synthetic_suppression_checks_forward'
 				)
 		`
 		: [];
@@ -580,6 +586,16 @@ export async function inspectDatabaseTransaction(
 			SELECT 1 FROM pg_type AS type
 			JOIN pg_enum AS enum ON enum.enumtypid = type.oid
 			WHERE type.typname = 'organization_member_email_suppression_reason'
+				AND type.typnamespace = 'public'::regnamespace
+				AND enum.enumlabel = 'manual'
+		) AS "exists"
+	`;
+	const smsReasonRows = await transaction.$queryRaw`
+		SELECT EXISTS (
+			SELECT 1 FROM pg_type AS type
+			JOIN pg_enum AS enum ON enum.enumtypid = type.oid
+			WHERE type.typname = 'organization_member_sms_suppression_reason'
+				AND type.typnamespace = 'public'::regnamespace
 				AND enum.enumlabel = 'manual'
 		) AS "exists"
 	`;
@@ -589,8 +605,40 @@ export async function inspectDatabaseTransaction(
 			WHERE conrelid = 'public.organization_members'::regclass
 				AND conname = 'members_reminder_suppression_pair_check'
 				AND contype = 'c'
+				AND convalidated
 		) AS "exists"
 	`;
+	const syntheticConstraintRows = await transaction.$queryRaw`
+		SELECT conname AS "name", contype AS "type", convalidated AS "validated",
+			pg_get_constraintdef(oid) AS "definition"
+		FROM pg_constraint
+		WHERE conrelid = 'public.organization_members'::regclass
+			AND conname IN (
+				'organization_members_sms_suppression_pair_check',
+				'organization_members_synthetic_protection_check'
+			)
+	`;
+	const smsPairConstraintVerified = isVerifiedConstraint(
+		syntheticConstraintRows,
+		'organization_members_sms_suppression_pair_check',
+		['reminder_sms_suppressed_at IS NULL', 'reminder_sms_suppression_reason IS NULL', '='],
+	);
+	const syntheticProtectionConstraintVerified = isVerifiedConstraint(
+		syntheticConstraintRows,
+		'organization_members_synthetic_protection_check',
+		[
+			'is_synthetic = false',
+			'synthetic_batch_id IS NULL',
+			'is_synthetic = true',
+			'synthetic_batch_id IS NOT NULL',
+			'length(btrim(synthetic_batch_id)) BETWEEN 1 AND 120',
+			'email IS NULL',
+			'reminder_email_suppressed_at IS NOT NULL',
+			'reminder_email_suppression_reason IS NOT NULL',
+			'reminder_sms_suppressed_at IS NOT NULL',
+			'reminder_sms_suppression_reason IS NOT NULL',
+		],
+	);
 	const schemaChecks = {
 		organizationTable: columnSet.has('organizations.id'),
 		memberTable: columnSet.has('organization_members.id'),
@@ -609,18 +657,34 @@ export async function inspectDatabaseTransaction(
 		reminderEmailSuppressionReasonColumn: columnSet.has(
 			'organization_members.reminder_email_suppression_reason',
 		),
+		isSyntheticColumn: columnSet.has('organization_members.is_synthetic'),
+		syntheticBatchIdColumn: columnSet.has('organization_members.synthetic_batch_id'),
+		reminderSmsSuppressedAtColumn: columnSet.has(
+			'organization_members.reminder_sms_suppressed_at',
+		),
+		reminderSmsSuppressionReasonColumn: columnSet.has(
+			'organization_members.reminder_sms_suppression_reason',
+		),
 		manualSuppressionReasonAvailable: manualReasonRows[0]?.exists === true,
+		smsSuppressionReasonAvailable: smsReasonRows[0]?.exists === true,
 		suppressionPairConstraintAvailable: suppressionConstraintRows[0]?.exists === true,
+		smsSuppressionPairConstraintVerified: smsPairConstraintVerified,
+		syntheticProtectionConstraintVerified,
 		migrationHistoryAvailable: migrationTableRows[0]?.exists === true,
 		suppressionMigrationApplied: migrationSet.has(EXPECTED_DATABASE_MIGRATIONS[0]),
 		genderMigrationApplied: migrationSet.has(EXPECTED_DATABASE_MIGRATIONS[1]),
 		joinedOnMigrationApplied: migrationSet.has(EXPECTED_DATABASE_MIGRATIONS[2]),
+		syntheticIdentityMigrationApplied: migrationSet.has(EXPECTED_DATABASE_MIGRATIONS[3]),
+		syntheticProtectionMigrationApplied: migrationSet.has(EXPECTED_DATABASE_MIGRATIONS[4]),
 	};
 	const blockers = Object.entries(schemaChecks)
 		.filter(([, passed]) => !passed)
 		.map(([name]) => `SCHEMA_${name.replace(/[A-Z]/gu, (letter) => `_${letter}`).toUpperCase()}`);
-	if (!SMS_NOTIFICATION_SUPPRESSION_SUPPORTED) {
-		blockers.push('SMS_NOTIFICATION_SUPPRESSION_UNAVAILABLE');
+	const applicationNotificationSafeguardsVerified =
+		approval.notificationSuppressionVerification?.applicationProtectionVersion ===
+		APPLICATION_NOTIFICATION_PROTECTION_VERSION;
+	if (!applicationNotificationSafeguardsVerified) {
+		blockers.push('APPLICATION_NOTIFICATION_SAFEGUARDS_UNVERIFIED');
 	}
 	const report = {
 		performed: true,
@@ -643,6 +707,7 @@ export async function inspectDatabaseTransaction(
 		businessStartDateAttestationVerified: true,
 		approvalReference: approval.approvalReference,
 		approvalOperator: approval.operator,
+		applicationNotificationSafeguardsVerified,
 		datasetManifestSha256: datasetReport.manifestSha256,
 		existingMemberCount: null,
 		generatedMemberCount: datasetReport.recordCount,
@@ -685,12 +750,21 @@ export async function inspectDatabaseTransaction(
 		schemaChecks.genderColumn &&
 		schemaChecks.reminderEmailSuppressedAtColumn &&
 		schemaChecks.reminderEmailSuppressionReasonColumn &&
+		schemaChecks.isSyntheticColumn &&
+		schemaChecks.syntheticBatchIdColumn &&
+		schemaChecks.reminderSmsSuppressedAtColumn &&
+		schemaChecks.reminderSmsSuppressionReasonColumn &&
 		schemaChecks.manualSuppressionReasonAvailable &&
+		schemaChecks.smsSuppressionReasonAvailable &&
 		schemaChecks.suppressionPairConstraintAvailable &&
+		schemaChecks.smsSuppressionPairConstraintVerified &&
+		schemaChecks.syntheticProtectionConstraintVerified &&
 		schemaChecks.migrationHistoryAvailable &&
 		schemaChecks.suppressionMigrationApplied &&
 		schemaChecks.genderMigrationApplied &&
-		schemaChecks.joinedOnMigrationApplied;
+		schemaChecks.joinedOnMigrationApplied &&
+		schemaChecks.syntheticIdentityMigrationApplied &&
+		schemaChecks.syntheticProtectionMigrationApplied;
 	if (report.organizationExists === true && memberSchemaReady) {
 		const organizationId = KD_GYM_ORGANIZATION_ID;
 		const [existingMemberCount, idCollisions, nameCollisions, phoneCollisions, matchingAnyFixture] =
@@ -774,7 +848,7 @@ export async function inspectDatabaseTransaction(
 		report.organizationExists === true &&
 		report.existingMemberCount === EXPECTED_BASELINE_MEMBER_COUNT &&
 		Object.values(schemaChecks).every(Boolean) &&
-		SMS_NOTIFICATION_SUPPRESSION_SUPPORTED &&
+		applicationNotificationSafeguardsVerified &&
 		report.collisions.memberId === 0 &&
 		report.collisions.normalizedName === 0 &&
 		report.collisions.phoneNumber === 0 &&
@@ -994,4 +1068,17 @@ function countMonthlyUnknown(rows, month) {
 	return rows
 		.filter((row) => row.month === month && row.gender === null)
 		.reduce((total, row) => total + Number(row.count), 0);
+}
+
+function isVerifiedConstraint(rows, name, requiredTokens) {
+	const constraint = rows.find((row) => row.name === name);
+	if (
+		constraint?.type !== 'c' ||
+		constraint.validated !== true ||
+		typeof constraint.definition !== 'string'
+	) {
+		return false;
+	}
+	const definition = constraint.definition.toLowerCase().replaceAll('"', '');
+	return requiredTokens.every((token) => definition.includes(token.toLowerCase()));
 }
