@@ -65,7 +65,13 @@ export function assertReminderBatchMatches(
 ): void;
 
 export function makeReminderSummary(
-	result: Readonly<{ status: string; insertedCount: number; originalReminderCount: number; totalOrganizationReminders: number; eligibleSubscriptionIds: readonly string[] }>,
+	result: Readonly<{
+		status: string;
+		insertedCount: number;
+		originalReminderCount: number;
+		totalOrganizationReminders: number;
+		eligibleSubscriptionIds: readonly string[];
+	}>,
 	subscriptions: readonly SyntheticReminderSubscription[],
 	storedReminders: readonly SyntheticReminderRecord[],
 ): Readonly<Record<string, unknown>>;
