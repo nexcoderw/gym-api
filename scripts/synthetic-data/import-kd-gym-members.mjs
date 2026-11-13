@@ -1,10 +1,10 @@
 import {
+	inspectDatabase,
 	loadProductionApprovalArtifact,
 	loadProductionBackupAttestation,
 	PreflightConfigurationError,
 	resolveDatabaseTarget,
 	validateFixtureFiles,
-	inspectDatabase,
 } from './kd-gym-members-preflight.mjs';
 import { applyHistoricalMembers } from './kd-gym-members-import.mjs';
 
@@ -49,21 +49,34 @@ async function main(args) {
 		);
 	}
 	const { NestFactory } = await import('@nestjs/core');
-	const { DatabaseModule, PrismaService, loadDatabaseConfig } = await import('@nexcoderw/gym-db');
-	const databaseConfig = loadDatabaseConfig({ DATABASE_URL: target.databaseUrl, DATABASE_POOL_MAX: '1' });
+	const { DatabaseModule, PrismaService, loadDatabaseConfig } = await import(
+		'@nexcoderw/gym-db'
+	);
+	const databaseConfig = loadDatabaseConfig({
+		DATABASE_URL: target.databaseUrl,
+		DATABASE_POOL_MAX: '1',
+	});
 	const application = await NestFactory.createApplicationContext(
 		DatabaseModule.forRoot(databaseConfig),
 		{ logger: false },
 	);
 	try {
 		const prisma = application.get(PrismaService);
-		const preflight = await inspectDatabase(prisma, target, fixture.members, fixture.report, approval);
+		const preflight = await inspectDatabase(
+			prisma,
+			target,
+			fixture.members,
+			fixture.report,
+			approval,
+		);
 		if (!apply) {
 			printReport({
 				mode: 'DRY_RUN',
 				database: preflight,
 				blockers: preflight.blockers,
-				plannedInsertCount: preflight.safeToProceedToSeparatelyApprovedImport ? 823 : 0,
+				plannedInsertCount: preflight.safeToProceedToSeparatelyApprovedImport
+					? 823
+					: 0,
 				writesPerformed: false,
 			});
 			if (!preflight.safeToProceedToSeparatelyApprovedImport) process.exitCode = 2;
@@ -100,12 +113,18 @@ function printReport(report) {
 
 main(process.argv.slice(2)).catch((error) => {
 	const known = error instanceof PreflightConfigurationError;
-	process.stderr.write(`${JSON.stringify({
-		preflight: 'kd-gym-historical-member-import',
-		failed: true,
-		blockers: [known ? error.code : 'IMPORT_ABORTED'],
-		...(known ? { message: error.message } : {}),
-		writesMayHaveCommitted: !known && process.argv.includes('--apply'),
-	}, null, 2)}\n`);
+	process.stderr.write(
+		`${JSON.stringify(
+			{
+				preflight: 'kd-gym-historical-member-import',
+				failed: true,
+				blockers: [known ? error.code : 'IMPORT_ABORTED'],
+				...(known ? { message: error.message } : {}),
+				writesMayHaveCommitted: !known && process.argv.includes('--apply'),
+			},
+			null,
+			2,
+		)}\n`,
+	);
 	process.exitCode = 2;
 });
