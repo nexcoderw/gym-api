@@ -585,7 +585,7 @@ async function recordPayment(
 	return payment;
 }
 
-function paymentWhere(
+export function paymentWhere(
 	organizationId: string,
 	query: ListPaymentsQueryDto,
 ): Prisma.OrganizationPaymentWhereInput {
@@ -604,6 +604,17 @@ function paymentWhere(
 		...(query.status === undefined ? {} : { status: query.status }),
 		...(query.method === undefined ? {} : { method: query.method }),
 		...(query.memberId === undefined ? {} : { memberId: query.memberId }),
+		...(query.membershipPlanIds === undefined
+			? {}
+			: {
+					allocations: {
+						some: {
+							memberSubscription: {
+								is: { membershipPlanId: { in: query.membershipPlanIds } },
+							},
+						},
+					},
+				}),
 		...(Object.keys(dateRange).length ? { occurredAt: dateRange } : {}),
 	};
 }
