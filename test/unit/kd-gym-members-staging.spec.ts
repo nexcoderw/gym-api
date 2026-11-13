@@ -13,8 +13,23 @@ import {
 } from '../../scripts/synthetic-data/kd-gym-members-preflight.mjs';
 
 const INSERTED_AT = new Date('2026-11-13T10:00:00.000Z');
-const MEMBERS = makeFixtures();
-const COLUMNS: Array<[string, string]> = [
+type Fixture = Readonly<Record<string, unknown> & {
+	id: string;
+	organizationId: string;
+	name: string;
+	normalizedName: string;
+	phoneNumber: string;
+	gender: 'MALE' | 'FEMALE';
+	email: null;
+	joinedOn: string;
+	synthetic: true;
+	generationBatch: string;
+	}>;
+
+const MEMBERS: Fixture[] = makeFixtures();
+const FIRST_MEMBER = MEMBERS[0];
+if (FIRST_MEMBER === undefined) throw new Error('Test fixtures must include a member.');
+const COLUMNS: [string, string][] = [
 	['organizations', 'id'],
 	['organizations', 'name'],
 	...[
@@ -51,15 +66,16 @@ describe('KD GYM staging member seed', () => {
 	});
 
 	it('maps fixtures to durable synthetic identity and email/SMS suppression fields', () => {
-		const [member] = buildMemberInsertData([MEMBERS[0]], INSERTED_AT);
+		const [member] = buildMemberInsertData([FIRST_MEMBER], INSERTED_AT);
+		if (member === undefined) throw new Error('Mapped fixture must include a member.');
 		expect(member).toMatchObject({
-			id: MEMBERS[0].id,
+			id: FIRST_MEMBER.id,
 			organizationId: KD_GYM_ORGANIZATION_ID,
-			name: MEMBERS[0].name,
-			normalizedName: MEMBERS[0].normalizedName,
-			phoneNumber: MEMBERS[0].phoneNumber,
+			name: FIRST_MEMBER.name,
+			normalizedName: FIRST_MEMBER.normalizedName,
+			phoneNumber: FIRST_MEMBER.phoneNumber,
 			email: null,
-			gender: MEMBERS[0].gender,
+			gender: FIRST_MEMBER.gender,
 			isSynthetic: true,
 			syntheticBatchId: EXPECTED_GENERATION_SEED,
 			createdAt: INSERTED_AT,
@@ -69,7 +85,7 @@ describe('KD GYM staging member seed', () => {
 			reminderSmsSuppressedAt: INSERTED_AT,
 			reminderSmsSuppressionReason: 'MANUAL',
 		});
-		expect(member?.joinedOn).toEqual(new Date(`${MEMBERS[0].joinedOn}T00:00:00.000Z`));
+		expect(member.joinedOn).toEqual(new Date(`${FIRST_MEMBER.joinedOn}T00:00:00.000Z`));
 	});
 
 	it('preserves the existing member and inserts all fixtures in a tenant-scoped transaction', async () => {
@@ -85,7 +101,7 @@ describe('KD GYM staging member seed', () => {
 			where: { organizationId: KD_GYM_ORGANIZATION_ID },
 		});
 		expect(prisma.organizationMember.createMany).toHaveBeenCalledWith({
-			data: expect.arrayContaining([expect.objectContaining({ id: MEMBERS[0].id })]),
+			data: expect.arrayContaining([expect.objectContaining({ id: FIRST_MEMBER.id })]),
 			skipDuplicates: false,
 		});
 	});
@@ -109,7 +125,7 @@ describe('KD GYM staging member seed', () => {
 	});
 
 	it('refuses a partial batch without overwriting member records', async () => {
-		const prisma = makePrisma({ existingCount: 2, existingBatch: [{ id: MEMBERS[0].id }] });
+		const prisma = makePrisma({ existingCount: 2, existingBatch: [{ id: FIRST_MEMBER.id }] });
 		await expect(seedStagingMembers(prisma, MEMBERS, INSERTED_AT)).rejects.toThrow(/partial/u);
 		expect(prisma.organizationMember.createMany).not.toHaveBeenCalled();
 	});
@@ -118,10 +134,7 @@ describe('KD GYM staging member seed', () => {
 		const inserted = buildMemberInsertData(MEMBERS, INSERTED_AT);
 		expect(() => assertBatchMatchesFixtures(inserted, MEMBERS, INSERTED_AT)).not.toThrow();
 		expect(
-			makeStagingSummary(
-				{ status: 'INSERTED', insertedCount: 823, totalCount: 824 },
-				MEMBERS,
-			),
+			makeStagingSummary({ status: 'INSERTED', insertedCount: 823, totalCount: 824 }, MEMBERS),
 		).toMatchObject({
 			database: 'neondb',
 			organization: 'KD GYM',
@@ -137,15 +150,15 @@ describe('KD GYM staging member seed', () => {
 	});
 });
 
-function makeFixtures() {
+function makeFixtures(): Fixture[] {
 	return Array.from({ length: 823 }, (_, offset) => {
 		const index = offset + 1;
 		const joinedOn = index === 1 ? '2025-10-18' : index === 823 ? '2026-11-12' : '2026-06-15';
 		return {
 			id: `00000000-0000-5000-8000-${String(index).padStart(12, '0')}`,
 			organizationId: KD_GYM_ORGANIZATION_ID,
-			name: `Fixture Member ${index}`,
-			normalizedName: `fixture member ${index}`,
+			name: `Fixture Member ${String(index)}`,
+			normalizedName: `fixture member ${String(index)}`,
 			phoneNumber: `+25078${String(index).padStart(7, '0')}`,
 			gender: index <= 709 ? 'MALE' : 'FEMALE',
 			email: null,
@@ -156,7 +169,15 @@ function makeFixtures() {
 	});
 }
 
-function makePrisma({ existingCount = 1, existingBatch = [], failInsert = false } = {}) {
+function makePrisma({
+	existingCount = 1,
+	existingBatch = [],
+	failInsert = false,
+}: {
+	existingCount?: number;
+	existingBatch?: readonly Readonly<Record<string, unknown>>[];
+	failInsert?: boolean;
+} = {}) {
 	let rollbackObserved = false;
 	const inserted = buildMemberInsertData(MEMBERS, INSERTED_AT);
 	const organizationMember = {
@@ -167,14 +188,14 @@ function makePrisma({ existingCount = 1, existingBatch = [], failInsert = false 
 			.mockResolvedValueOnce(824),
 		findMany: jest
 			.fn<(args: unknown) => Promise<unknown[]>>()
-			.mockResolvedValueOnce(existingBatch)
+			.mockResolvedValueOnce([...existingBatch])
 			.mockResolvedValueOnce([])
-			.mockResolvedValueOnce(inserted),
+			.mockResolvedValueOnce([...inserted]),
 		createMany: jest
 			.fn<(args: unknown) => Promise<{ count: number }>>()
-			.mockImplementation(async () => {
-				if (failInsert) throw new Error('simulated insert failure');
-				return { count: 823 };
+			.mockImplementation(() => {
+				if (failInsert) return Promise.reject(new Error('simulated insert failure'));
+				return Promise.resolve({ count: 823 });
 			}),
 	};
 	const transaction = {
