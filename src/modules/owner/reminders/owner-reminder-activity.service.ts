@@ -34,6 +34,52 @@ const VISIBLE_STATUSES = [
 	ReminderStatus.UNCERTAIN,
 ] as const;
 
+const UPCOMING_REMINDER_SELECT = {
+	id: true,
+	memberId: true,
+	planName: true,
+	endDate: true,
+	member: {
+		select: {
+			name: true,
+			isSynthetic: true,
+			email: true,
+			reminderEmailOptedOutAt: true,
+			reminderEmailSuppressedAt: true,
+		},
+	},
+	reminderDeliveries: {
+		where: { kind: ReminderKind.MANUAL, channel: ReminderChannel.EMAIL },
+		select: { status: true },
+		take: 1,
+	},
+} satisfies Prisma.OrganizationMemberSubscriptionSelect;
+
+type UpcomingReminderRow = Prisma.OrganizationMemberSubscriptionGetPayload<{
+	select: typeof UPCOMING_REMINDER_SELECT;
+}>;
+
+const MANUAL_REMINDER_SELECT = {
+	id: true,
+	memberId: true,
+	startDate: true,
+	endDate: true,
+	cancelledAt: true,
+	member: {
+		select: {
+			isSynthetic: true,
+			email: true,
+			archivedAt: true,
+			reminderEmailOptedOutAt: true,
+			reminderEmailSuppressedAt: true,
+		},
+	},
+} satisfies Prisma.OrganizationMemberSubscriptionSelect;
+
+type ManualReminderRow = Prisma.OrganizationMemberSubscriptionGetPayload<{
+	select: typeof MANUAL_REMINDER_SELECT;
+}>;
+
 /** Read-only owner activity; provider identifiers and recipient addresses remain private. */
 @Injectable()
 export class OwnerReminderActivityService {
@@ -72,29 +118,10 @@ export class OwnerReminderActivityService {
 				});
 			if (cursor === null) throw new NotFoundException('Reminder page is no longer available.');
 		}
-		const rows = await this.prisma.organizationMemberSubscription
+		const rows: UpcomingReminderRow[] = await this.prisma.organizationMemberSubscription
 			.findMany({
 				where,
-				select: {
-					id: true,
-					memberId: true,
-					planName: true,
-					endDate: true,
-					member: {
-						select: {
-							name: true,
-							isSynthetic: true,
-							email: true,
-							reminderEmailOptedOutAt: true,
-							reminderEmailSuppressedAt: true,
-						},
-					},
-					reminderDeliveries: {
-						where: { kind: ReminderKind.MANUAL, channel: ReminderChannel.EMAIL },
-						select: { status: true },
-						take: 1,
-					},
-				},
+				select: UPCOMING_REMINDER_SELECT,
 				orderBy: [{ endDate: 'asc' }, { id: 'asc' }],
 				...(query.cursor === undefined ? {} : { cursor: { id: query.cursor }, skip: 1 }),
 				take: query.limit + 1,
@@ -125,29 +152,14 @@ export class OwnerReminderActivityService {
 		now = new Date(),
 	): Promise<QueuedReminderResponseDto> {
 		const today = memberToday(now);
-		const row = await this.prisma.organizationMemberSubscription
+		const row: ManualReminderRow | null = await this.prisma.organizationMemberSubscription
 			.findFirst({
 				where: {
 					id: subscriptionId,
 					organizationId,
 					member: { is: { isSynthetic: false } },
 				},
-				select: {
-					id: true,
-					memberId: true,
-					startDate: true,
-					endDate: true,
-					cancelledAt: true,
-					member: {
-						select: {
-							isSynthetic: true,
-							email: true,
-							archivedAt: true,
-							reminderEmailOptedOutAt: true,
-							reminderEmailSuppressedAt: true,
-						},
-					},
-				},
+				select: MANUAL_REMINDER_SELECT,
 			})
 			.catch((error: unknown) => {
 				throw reminderUnavailable(error);
