@@ -305,7 +305,7 @@ export function resolveDatabaseTarget(arguments_, environment = process.env) {
 	) {
 		throw new PreflightConfigurationError(
 			'PREFLIGHT_DATABASE_URL_REQUIRED',
-			'Set PREFLIGHT_DATABASE_URL; export KD_GYM_PREFLIGHT_DATABASE_URL first. The script does not read .env files.',
+			'Set a non-empty PREFLIGHT_DATABASE_URL; export KD_GYM_PREFLIGHT_DATABASE_URL first.',
 		);
 	}
 	let connection;
@@ -659,9 +659,7 @@ export async function inspectDatabaseTransaction(
 		),
 		isSyntheticColumn: columnSet.has('organization_members.is_synthetic'),
 		syntheticBatchIdColumn: columnSet.has('organization_members.synthetic_batch_id'),
-		reminderSmsSuppressedAtColumn: columnSet.has(
-			'organization_members.reminder_sms_suppressed_at',
-		),
+		reminderSmsSuppressedAtColumn: columnSet.has('organization_members.reminder_sms_suppressed_at'),
 		reminderSmsSuppressionReasonColumn: columnSet.has(
 			'organization_members.reminder_sms_suppression_reason',
 		),
@@ -875,7 +873,7 @@ function assertInspectionInputs(target, members, datasetReport, approval) {
 	) {
 		throw new PreflightConfigurationError(
 			'FIXTURE_VALIDATION_FAILED',
-			'Refusing inspection because fixtures violate organization or uniqueness rules.',
+			'Refusing inspection: fixtures do not match the approved organization or uniqueness rules.',
 		);
 	}
 	if (
@@ -1053,9 +1051,7 @@ function makeMonthlyTargets(monthlyBreakdown) {
 			generatedFemale: female,
 			reservedExistingUnknown,
 			expectedTotal: male + female + reservedExistingUnknown,
-			malePercentage: Number(
-				((male / (male + female + reservedExistingUnknown)) * 100).toFixed(2),
-			),
+			malePercentage: Number(((male / (male + female + reservedExistingUnknown)) * 100).toFixed(2)),
 			manifestMatches:
 				existing?.male === male &&
 				existing?.female === female &&
