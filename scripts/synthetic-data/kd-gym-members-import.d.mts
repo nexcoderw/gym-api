@@ -16,6 +16,7 @@ export function runSerializableImportTransaction(
 		) => Promise<unknown>;
 	},
 	operation: (transaction: unknown) => Promise<unknown>,
+	options?: Readonly<{ maxWait?: number }>,
 ): Promise<unknown>;
 export function writeImportManifestOnce(path: string, value: unknown, directory?: string): void;
 export function applyHistoricalMembers(
