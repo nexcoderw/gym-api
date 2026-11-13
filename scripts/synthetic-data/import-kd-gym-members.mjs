@@ -49,9 +49,7 @@ async function main(args) {
 		);
 	}
 	const { NestFactory } = await import('@nestjs/core');
-	const { DatabaseModule, PrismaService, loadDatabaseConfig } = await import(
-		'@nexcoderw/gym-db'
-	);
+	const { DatabaseModule, PrismaService, loadDatabaseConfig } = await import('@nexcoderw/gym-db');
 	const databaseConfig = loadDatabaseConfig({
 		DATABASE_URL: target.databaseUrl,
 		DATABASE_POOL_MAX: '1',
@@ -74,9 +72,7 @@ async function main(args) {
 				mode: 'DRY_RUN',
 				database: preflight,
 				blockers: preflight.blockers,
-				plannedInsertCount: preflight.safeToProceedToSeparatelyApprovedImport
-					? 823
-					: 0,
+				plannedInsertCount: preflight.safeToProceedToSeparatelyApprovedImport ? 823 : 0,
 				writesPerformed: false,
 			});
 			if (!preflight.safeToProceedToSeparatelyApprovedImport) process.exitCode = 2;
