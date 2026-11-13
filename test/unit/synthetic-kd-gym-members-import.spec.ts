@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import {
+	assertImportedMembersMatchFixtures,
 	assertProductionTarget,
 	buildMemberInsertData,
 	applyHistoricalMembers,
@@ -13,6 +14,7 @@ import {
 import {
 	EXPECTED_PRODUCTION_DATABASE_HOST,
 	EXPECTED_PRODUCTION_DATABASE_NAME,
+	EXPECTED_GENERATION_SEED,
 	KD_GYM_ORGANIZATION_ID,
 } from '../../scripts/synthetic-data/kd-gym-members-preflight.mjs';
 
@@ -29,7 +31,12 @@ const APPROVAL = {
 	authorizationConfirmed: true,
 	operator: 'operator',
 	syntheticRecordsAcknowledged: true,
-	notificationSuppressionVerification: { verified: true },
+	notificationSuppressionVerification: {
+		verified: true,
+		emailSuppression: true,
+		smsSuppression: true,
+		applicationProtectionVersion: 'kd-gym-member-notification-protection-v1',
+	},
 };
 const BACKUP = { verified: true, reference: 'BACKUP-1', verifiedBy: 'operator' };
 const DATASET = { valid: true, recordCount: 823, manifestSha256: APPROVAL.manifestSha256 };
@@ -53,18 +60,22 @@ describe('KD GYM production member import safeguards', () => {
 		}).toThrow();
 	});
 
-	it('maps only synthetic member fields, retaining joined dates and suppressing email', () => {
+	it('maps synthetic identity, historical dates and durable email and SMS suppression', () => {
 		const insertedAt = new Date('2026-11-13T10:00:00.000Z');
 		const [member] = buildMemberInsertData([fixture()], insertedAt);
 		expect(member).toMatchObject({
 			id: '00000000-0000-5000-8000-000000000001',
 			organizationId: KD_GYM_ORGANIZATION_ID,
 			gender: 'FEMALE',
+			isSynthetic: true,
+			syntheticBatchId: EXPECTED_GENERATION_SEED,
 			email: null,
 			createdAt: insertedAt,
 			updatedAt: insertedAt,
 			reminderEmailSuppressedAt: insertedAt,
 			reminderEmailSuppressionReason: 'MANUAL',
+			reminderSmsSuppressedAt: insertedAt,
+			reminderSmsSuppressionReason: 'MANUAL',
 		});
 		expect(member?.joinedOn).toEqual(new Date('2026-10-18T00:00:00.000Z'));
 		expect(member).not.toHaveProperty('generationBatch');
@@ -114,7 +125,29 @@ describe('KD GYM production member import safeguards', () => {
 		expect(transaction).not.toHaveBeenCalled();
 	});
 
-	it('blocks apply when database-backed SMS suppression is unavailable', async () => {
+	it.each(['', 'wrong-seed', 'x'.repeat(121)])('rejects invalid batch identifiers: %s', (batch) => {
+		expect(() => buildMemberInsertData([{ ...fixture(), generationBatch: batch }], new Date())).toThrow(
+			/synthetic batch ID/u,
+		);
+	});
+
+	it('verifies every inserted fixture and rejects altered suppression or joining data', () => {
+		const insertedAt = new Date('2026-11-13T10:00:00.000Z');
+		const fixtures = Array.from({ length: 823 }, (_, index) => ({
+			...fixture(),
+			id: `00000000-0000-5000-8000-${String(index + 1).padStart(12, '0')}`,
+			joinedOn: '2026-10-18',
+		}));
+		const inserted = buildMemberInsertData(fixtures, insertedAt);
+		expect(() => assertImportedMembersMatchFixtures(inserted, fixtures, insertedAt)).not.toThrow();
+		const changed = [...inserted];
+		changed[0] = { ...changed[0]!, reminderSmsSuppressedAt: null };
+		expect(() => assertImportedMembersMatchFixtures(changed, fixtures, insertedAt)).toThrow(
+			/verification failed/u,
+		);
+	});
+
+	it('rejects apply before transaction when the application safeguard version is not approved', async () => {
 		const transaction = jest.fn();
 		const members = Array.from({ length: 823 }, (_, index) => ({
 			...fixture(),
@@ -126,10 +159,16 @@ describe('KD GYM production member import safeguards', () => {
 				TARGET,
 				members,
 				DATASET,
-				APPROVAL,
+				{
+					...APPROVAL,
+					notificationSuppressionVerification: {
+						...APPROVAL.notificationSuppressionVerification,
+						applicationProtectionVersion: 'unreviewed',
+					},
+				},
 				BACKUP,
 			),
-		).rejects.toThrow(/durable database-backed SMS suppression/u);
+		).rejects.toThrow(/fixtures, production approval and backup/u);
 		expect(transaction).not.toHaveBeenCalled();
 	});
 
@@ -188,6 +227,6 @@ function fixture() {
 		email: null,
 		joinedOn: '2026-10-18',
 		synthetic: true,
-		generationBatch: 'test',
+		generationBatch: EXPECTED_GENERATION_SEED,
 	};
 }
