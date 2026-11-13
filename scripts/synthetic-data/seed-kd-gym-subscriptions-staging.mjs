@@ -33,6 +33,7 @@ const EXPECTED_COLUMNS = Object.freeze({
 		'id',
 		'organization_id',
 		'name',
+		'normalized_name',
 		'price_rwf',
 		'archived_at',
 	],
@@ -180,7 +181,8 @@ export function generateHistoricalSubscriptions(members, plans, createdByUserId,
 
 		for (let episode = 0; episode < 14 && startText <= cutoffText; episode += 1) {
 			const plan = choosePlan(plans, member.id, episode);
-			const period = choosePeriod(plan.name, member.id, episode);
+			const planCategory = canonicalPlanName(plan);
+			const period = choosePeriod(planCategory, member.id, episode);
 			const dates = calculateSubscriptionPeriod(startText, period.periodUnit, period.periodCount);
 			const startDate = dateToIso(dates.startDate);
 			const endDate = dateToIso(dates.endDate);
@@ -216,7 +218,7 @@ export function generateHistoricalSubscriptions(members, plans, createdByUserId,
 			histories.push({
 				memberId: member.id,
 				episode,
-				planName: plan.name,
+				planName: planCategory,
 				data: {
 					id,
 					organizationId: KD_GYM_ORGANIZATION_ID,
@@ -340,9 +342,8 @@ export async function seedStagingSubscriptions(
 				where: {
 					organizationId: KD_GYM_ORGANIZATION_ID,
 					archivedAt: null,
-					name: { in: EXPECTED_PLAN_NAMES },
 				},
-				select: { id: true, name: true, priceRwf: true },
+				select: { id: true, name: true, normalizedName: true, priceRwf: true },
 				orderBy: { name: 'asc' },
 			});
 			assertPlanSet(plans);
@@ -547,13 +548,13 @@ function choosePlan(plans, memberId, episode) {
 	let threshold = randomFraction(memberId, 'plan', episode);
 	for (const name of EXPECTED_PLAN_NAMES) {
 		threshold -= PLAN_WEIGHTS[name];
-		if (threshold < 0) return plans.find((plan) => plan.name === name);
+		if (threshold < 0) return plans.find((plan) => canonicalPlanName(plan) === name);
 	}
-	return plans.find((plan) => plan.name === 'Premium');
+	return plans.find((plan) => canonicalPlanName(plan) === 'Premium');
 }
 
-function choosePeriod(planName, memberId, episode) {
-	if (planName === 'Daily') return { periodUnit: 'DAYS', periodCount: 1 };
+function choosePeriod(planCategory, memberId, episode) {
+	if (planCategory === 'Daily') return { periodUnit: 'DAYS', periodCount: 1 };
 	const duration = randomFraction(memberId, 'duration', episode);
 	return {
 		periodUnit: 'MONTHS',
@@ -562,10 +563,11 @@ function choosePeriod(planName, memberId, episode) {
 }
 
 function assertPlanSet(plans) {
+	const planCategories = plans.map((plan) => canonicalPlanName(plan));
 	if (
 		plans.length !== EXPECTED_PLAN_NAMES.length ||
-		new Set(plans.map(({ name }) => name)).size !== EXPECTED_PLAN_NAMES.length ||
-		!EXPECTED_PLAN_NAMES.every((name) => plans.some((plan) => plan.name === name)) ||
+		new Set(planCategories).size !== EXPECTED_PLAN_NAMES.length ||
+		!EXPECTED_PLAN_NAMES.every((name) => planCategories.includes(name)) ||
 		plans.some(
 			({ id, priceRwf }) =>
 				typeof id !== 'string' || typeof priceRwf !== 'bigint' || priceRwf < 0n,
@@ -573,9 +575,25 @@ function assertPlanSet(plans) {
 	) {
 		throw new StagingSeedError(
 			'MEMBERSHIP_PLANS_INVALID',
-			'KD GYM must have exactly the five expected active membership plans.',
+			"KD GYM must have exactly one active plan for each expected name, with or without the 'Plan' suffix.",
 		);
 	}
+}
+
+function canonicalPlanName(plan) {
+	const fromName = normalizePlanLabel(plan.name);
+	const fromNormalizedName = normalizePlanLabel(plan.normalizedName);
+	if (fromName !== undefined && fromNormalizedName !== undefined && fromName !== fromNormalizedName) {
+		return undefined;
+	}
+	return fromNormalizedName ?? fromName;
+}
+
+function normalizePlanLabel(value) {
+	if (typeof value !== 'string') return undefined;
+	const normalized = value.trim().toLowerCase().replace(/\s+/gu, ' ');
+	const withoutPlanSuffix = normalized.endsWith(' plan') ? normalized.slice(0, -5) : normalized;
+	return EXPECTED_PLAN_NAMES.find((name) => name.toLowerCase() === withoutPlanSuffix);
 }
 
 function assertSyntheticMember(member) {
