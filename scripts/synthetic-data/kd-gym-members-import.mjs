@@ -27,6 +27,9 @@ import {
 	inspectDatabaseTransaction,
 } from './kd-gym-members-preflight.mjs';
 
+const PRODUCTION_DATABASE_MARKER_PATTERN =
+	/^nexcode-gym:bootstrap:[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
+
 /**
  * Production-only transactional importer. This function is called only by explicit --apply mode.
  */
@@ -234,9 +237,7 @@ export function assertProductionTarget(target) {
 		target?.target !== 'production' ||
 		target?.databaseName !== EXPECTED_PRODUCTION_DATABASE_NAME ||
 		target?.host !== EXPECTED_PRODUCTION_DATABASE_HOST ||
-		!/^nexcode-gym:bootstrap:[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u.test(
-			target?.databaseMarker ?? '',
-		)
+		!PRODUCTION_DATABASE_MARKER_PATTERN.test(target?.databaseMarker ?? '')
 	) {
 		throw new Error('Refusing member import outside the explicitly approved production database.');
 	}
