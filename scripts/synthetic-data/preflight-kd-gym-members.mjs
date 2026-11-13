@@ -15,7 +15,8 @@ const HELP = [
 	'  TARGET: production only for this historical import',
 	'',
 	'Database mode also requires PREFLIGHT_DATABASE_TARGET, PREFLIGHT_DATABASE_URL,',
-	'PREFLIGHT_EXPECTED_DATABASE_NAME and PREFLIGHT_EXPECTED_DATABASE_HOST.',
+	'PREFLIGHT_EXPECTED_DATABASE_NAME, PREFLIGHT_EXPECTED_DATABASE_HOST, and',
+	'PREFLIGHT_EXPECTED_DATABASE_MARKER from the independently provisioned production config.',
 	'Production additionally requires the private approval artifact, --allow-production-read-only and',
 	'PREFLIGHT_PRODUCTION_READ_ONLY_CONFIRMATION=KD-GYM-READ-ONLY-PREFLIGHT.',
 	'DATABASE_URL is never read. No mode writes to the database.',
@@ -45,7 +46,10 @@ async function main(arguments_) {
 	}
 	if (requestsDatabase && fixture.report.valid) {
 		const target = resolveDatabaseTarget(arguments_);
-		const approval = loadProductionApprovalArtifact(fixture.report.manifestSha256);
+		const approval = loadProductionApprovalArtifact(
+			fixture.report.manifestSha256,
+			target.databaseMarker,
+		);
 		const { NestFactory } = await import('@nestjs/core');
 		const { DatabaseModule, PrismaService, loadDatabaseConfig } = await import('@nexcoderw/gym-db');
 		const databaseConfig = loadDatabaseConfig({
