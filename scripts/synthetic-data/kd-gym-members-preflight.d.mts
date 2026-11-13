@@ -92,7 +92,9 @@ export function validateProductionApprovalArtifact(
 	value: unknown,
 	manifestSha256: string | null,
 ): Readonly<Record<string, string>>;
-export function loadProductionApprovalArtifact(manifestSha256: string | null): Readonly<Record<string, string>>;
+export function loadProductionApprovalArtifact(
+	manifestSha256: string | null,
+): Readonly<Record<string, string>>;
 export function loadProductionBackupAttestation(): Readonly<Record<string, string>>;
 export function inspectDatabase(
 	prisma: unknown,
