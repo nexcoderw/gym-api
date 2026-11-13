@@ -20,13 +20,18 @@ const TARGET = {
 	target: 'production',
 	databaseName: EXPECTED_PRODUCTION_DATABASE_NAME,
 	host: EXPECTED_PRODUCTION_DATABASE_HOST,
+	databaseMarker: 'nexcode-gym:bootstrap:724fbc40-515c-4a30-a4bb-8a6458a24396',
 };
 const APPROVAL = {
 	manifestSha256: 'a'.repeat(64),
 	approvalReference: 'APPROVAL-1',
+	authorizedBy: 'authorized approver',
+	authorizationConfirmed: true,
 	operator: 'operator',
+	syntheticRecordsAcknowledged: true,
+	notificationSuppressionVerification: { verified: true },
 };
-const BACKUP = { backupReference: 'BACKUP-1', verifiedBy: 'operator' };
+const BACKUP = { verified: true, reference: 'BACKUP-1', verifiedBy: 'operator' };
 const DATASET = { valid: true, recordCount: 823, manifestSha256: APPROVAL.manifestSha256 };
 
 describe('KD GYM production member import safeguards', () => {
@@ -42,6 +47,9 @@ describe('KD GYM production member import safeguards', () => {
 		}).toThrow();
 		expect(() => {
 			assertProductionTarget({ ...TARGET, host: 'localhost' });
+		}).toThrow();
+		expect(() => {
+			assertProductionTarget({ ...TARGET, databaseMarker: undefined });
 		}).toThrow();
 	});
 
