@@ -98,8 +98,9 @@ describe('owner registration payment', () => {
 
 	const createMember =
 		jest.fn<
-			(input: { data: { organizationId: string; joinedOn: Date; isSynthetic: boolean } }) =>
-				Promise<{ id: string }>
+			(input: {
+				data: { organizationId: string; joinedOn: Date; isSynthetic: boolean };
+			}) => Promise<{ id: string }>
 		>();
 
 	const createSubscription = jest.fn<
