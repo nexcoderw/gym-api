@@ -32,7 +32,12 @@ export function calculateSubscriptionPeriod(
 ): Readonly<{ startDate: Date; endDate: Date }>;
 export function generateHistoricalSubscriptions(
 	members: readonly Readonly<Record<string, unknown>>[],
-	plans: readonly Readonly<{ id: string; name: string; priceRwf: bigint }>[],
+	plans: readonly Readonly<{
+		id: string;
+		name: string;
+		normalizedName?: string;
+		priceRwf: bigint;
+	}>[],
 	createdByUserId: string,
 	createdAt: Date,
 ): readonly HistoricalSubscription[];
