@@ -100,6 +100,7 @@ describe('KD GYM staging member seed', () => {
 		expect(prisma.$transaction).toHaveBeenCalledWith(expect.any(Function), {
 			isolationLevel: 'Serializable',
 			timeout: 120_000,
+			maxWait: 30_000,
 		});
 		expect(prisma.organizationMember.count).toHaveBeenNthCalledWith(1, {
 			where: { organizationId: KD_GYM_ORGANIZATION_ID },
@@ -219,7 +220,7 @@ function makePrisma({
 		.fn<
 			(
 				operation: (value: typeof transaction) => Promise<unknown>,
-				options: { isolationLevel: string; timeout: number },
+				options: { isolationLevel: string; timeout: number; maxWait: number },
 			) => Promise<unknown>
 		>()
 		.mockImplementation(async (operation: (value: typeof transaction) => Promise<unknown>) => {
