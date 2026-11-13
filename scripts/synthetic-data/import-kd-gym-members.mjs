@@ -1,7 +1,6 @@
 import {
 	inspectDatabase,
 	loadProductionApprovalArtifact,
-	loadProductionBackupAttestation,
 	PreflightConfigurationError,
 	resolveDatabaseTarget,
 	validateFixtureFiles,
@@ -40,8 +39,11 @@ async function main(args) {
 		return;
 	}
 	const target = resolveDatabaseTarget([...targetArgs, '--allow-production-read-only']);
-	const approval = loadProductionApprovalArtifact(fixture.report.manifestSha256);
-	const backup = apply ? loadProductionBackupAttestation() : null;
+	const approval = loadProductionApprovalArtifact(
+		fixture.report.manifestSha256,
+		target.databaseMarker,
+	);
+	const backup = apply ? approval.productionBackupVerification : null;
 	if (apply && confirmation !== APPLY_CONFIRMATION) {
 		throw new PreflightConfigurationError(
 			'PRODUCTION_APPLY_CONFIRMATION_REQUIRED',
