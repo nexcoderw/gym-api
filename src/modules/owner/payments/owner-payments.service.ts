@@ -213,6 +213,7 @@ export class OwnerPaymentsService {
 								organizationId: context.organizationId,
 								...profile,
 								joinedOn: memberJoinedOn(),
+								isSynthetic: false,
 							},
 							select: { id: true },
 						});
