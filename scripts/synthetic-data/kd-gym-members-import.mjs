@@ -73,49 +73,48 @@ export async function applyHistoricalMembers(
 	writeImportManifestOnce(manifestPath, prepared);
 	const insertedAt = new Date();
 	try {
-		const result = await runSerializableImportTransaction(
-			prisma,
-			async (transaction) => {
-				await transaction.$executeRaw`SET TRANSACTION READ WRITE`;
-				const fresh = await inspectDatabaseTransaction(
-					transaction,
-					target,
-					members,
-					datasetReport,
-					approval,
-					{ expectedReadOnly: false, lockOrganization: true },
+		const result = await runSerializableImportTransaction(prisma, async (transaction) => {
+			await transaction.$executeRaw`SET TRANSACTION READ WRITE`;
+			const fresh = await inspectDatabaseTransaction(
+				transaction,
+				target,
+				members,
+				datasetReport,
+				approval,
+				{ expectedReadOnly: false, lockOrganization: true },
+			);
+			if (!fresh.safeToProceedToSeparatelyApprovedImport) {
+				throw new Error('Fresh in-transaction production baseline validation failed.');
+			}
+			const data = buildMemberInsertData(members, insertedAt);
+			const insertion = await transaction.organizationMember.createMany({
+				data,
+				skipDuplicates: false,
+			});
+			if (insertion.count !== 823) {
+				throw new Error('Unexpected inserted member count; aborting transaction.');
+			}
+			const finalCount = await transaction.organizationMember.count({
+				where: { organizationId: KD_GYM_ORGANIZATION_ID },
+			});
+			if (finalCount !== EXPECTED_FINAL_MEMBER_COUNT) {
+				throw new Error(
+					'Post-insert organization member total did not match the approved baseline.',
 				);
-				if (!fresh.safeToProceedToSeparatelyApprovedImport) {
-					throw new Error('Fresh in-transaction production baseline validation failed.');
-				}
-				const data = buildMemberInsertData(members, insertedAt);
-				const insertion = await transaction.organizationMember.createMany({
-					data,
-					skipDuplicates: false,
-				});
-				if (insertion.count !== 823) {
-					throw new Error('Unexpected inserted member count; aborting transaction.');
-				}
-				const finalCount = await transaction.organizationMember.count({
-					where: { organizationId: KD_GYM_ORGANIZATION_ID },
-				});
-				if (finalCount !== EXPECTED_FINAL_MEMBER_COUNT) {
-					throw new Error('Post-insert organization member total did not match the approved baseline.');
-				}
-				const verified = await transaction.organizationMember.count({
-					where: {
-						organizationId: KD_GYM_ORGANIZATION_ID,
-						id: { in: members.map(({ id }) => id) },
-						reminderEmailSuppressionReason: 'MANUAL',
-						reminderEmailSuppressedAt: insertedAt,
-					},
-				});
-				if (verified !== 823) {
-					throw new Error('Inserted synthetic member verification failed.');
-				}
-				return { insertedCount: insertion.count, finalMemberCount: finalCount };
-			},
-		);
+			}
+			const verified = await transaction.organizationMember.count({
+				where: {
+					organizationId: KD_GYM_ORGANIZATION_ID,
+					id: { in: members.map(({ id }) => id) },
+					reminderEmailSuppressionReason: 'MANUAL',
+					reminderEmailSuppressedAt: insertedAt,
+				},
+			});
+			if (verified !== 823) {
+				throw new Error('Inserted synthetic member verification failed.');
+			}
+			return { insertedCount: insertion.count, finalMemberCount: finalCount };
+		});
 		const committed = {
 			...prepared,
 			status: 'COMMITTED',
@@ -167,20 +166,15 @@ export function assertProductionTarget(target) {
 		target?.databaseName !== EXPECTED_PRODUCTION_DATABASE_NAME ||
 		target?.host !== EXPECTED_PRODUCTION_DATABASE_HOST
 	) {
-		throw new Error(
-			'Refusing member import outside the explicitly approved production database.',
-		);
+		throw new Error('Refusing member import outside the explicitly approved production database.');
 	}
 }
 
 function validatePrivateDirectory(directory = PRODUCTION_APPROVAL_DIRECTORY) {
 	try {
 		const metadata = lstatSync(directory);
-		if (
-			!metadata.isDirectory() ||
-			metadata.isSymbolicLink() ||
-			(metadata.mode & 0o777) !== 0o700
-		) throw new Error('unprotected');
+		if (!metadata.isDirectory() || metadata.isSymbolicLink() || (metadata.mode & 0o777) !== 0o700)
+			throw new Error('unprotected');
 	} catch {
 		throw new Error('The private import directory must exist with owner-only mode 0700.');
 	}
