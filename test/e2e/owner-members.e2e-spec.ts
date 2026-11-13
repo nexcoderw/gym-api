@@ -163,6 +163,10 @@ describe('owner members HTTP security', () => {
 			{ ...INPUT, subscription: { ...INPUT.subscription, periodCount: 1.5 } },
 			{ ...INPUT, email: 'invalid' },
 			{ ...INPUT, gender: 'UNKNOWN' },
+			{ ...INPUT, isSynthetic: true },
+			{ ...INPUT, syntheticBatchId: 'client-batch' },
+			{ ...INPUT, reminderSmsSuppressedAt: AT.toISOString() },
+			{ ...INPUT, reminderSmsSuppressionReason: 'MANUAL' },
 		]) {
 			await ownerRequest('post', ROOT).set('Idempotency-Key', KEY).send(body).expect(400);
 		}
@@ -195,6 +199,17 @@ describe('owner members HTTP security', () => {
 			.set('If-Match', `"${AT}"`)
 			.send({ joinedOn: '2026-10-01' })
 			.expect(400);
+		for (const payload of [
+			{ isSynthetic: true },
+			{ syntheticBatchId: 'untrusted-batch' },
+			{ reminderSmsSuppressedAt: AT.toISOString() },
+			{ reminderSmsSuppressionReason: 'MANUAL' },
+		]) {
+			await ownerRequest('patch', `${ROOT}/${MEMBER_ID}`)
+				.set('If-Match', `"${AT}"`)
+				.send(payload)
+				.expect(400);
+		}
 		await ownerRequest('patch', `${ROOT}/${MEMBER_ID}`)
 			.set('If-Match', `"${AT}"`)
 			.send({ name: null })
