@@ -1006,7 +1006,8 @@ pages include the filtered total and page count so a manager can jump directly t
 cursors must belong to the same organization and filter.
 Membership-plan lists support active/archived status and price/name/newest ordering. Member lists
 support active/archived status, registration-date range and newest/oldest/name ordering. Payment lists
-support status, method, member, transaction-date range and newest/oldest/amount ordering. Date ranges
+support status, method, member, one or more membership plan IDs, transaction-date range and
+newest/oldest/amount ordering. A payment matches when any allocation uses a selected plan. Date ranges
 use inclusive Africa/Kigali calendar days. Sorting and filtering are applied before pagination in the
 tenant-scoped database query. The manager's name/contact/receipt search only filters rows already
 loaded in the browser; load more pages to extend those results.
