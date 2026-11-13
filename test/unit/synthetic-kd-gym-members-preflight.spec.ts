@@ -240,7 +240,7 @@ describe('offline KD GYM historical member preflight', () => {
 			).toThrow(/CLI flag/u);
 		});
 
-		it('requires a checksum-bound production approval and explicit historical date attestation', () => {
+		it('requires checksum-bound approval and historical date attestation', () => {
 			const artifact = {
 				version: 1,
 				organizationId: KD_GYM_ORGANIZATION_ID,
@@ -329,7 +329,7 @@ describe('offline KD GYM historical member preflight', () => {
 			expect(report.safeToProceedToSeparatelyApprovedImport).toBe(false);
 		});
 
-		it('rejects a different database marker even when host and database name match production', async () => {
+		it('rejects another database marker on the same production host and database name', async () => {
 			const { prisma } = mockPrisma({
 				databaseMarker: 'nexcode-gym:bootstrap:11111111-1111-4111-8111-111111111111',
 			});
@@ -385,30 +385,23 @@ describe('offline KD GYM historical member preflight', () => {
 				DATASET_REPORT,
 				APPROVAL,
 			);
-			expect(
-				report.schemaChecks[options.check as keyof typeof report.schemaChecks],
-			).toBe(false);
+			expect(report.schemaChecks[options.check as keyof typeof report.schemaChecks]).toBe(false);
 			expect(report.safeToProceedToSeparatelyApprovedImport).toBe(false);
 			expect(transaction.organizationMember.count).not.toHaveBeenCalled();
 		});
 
 		it('requires an approved application safeguard version', async () => {
 			const { prisma } = mockPrisma();
-			await expect(
-				inspectDatabase(
-					prisma,
-					DATABASE_TARGET,
-					fixtureIds(),
-					DATASET_REPORT,
-					{
-						...APPROVAL,
-						notificationSuppressionVerification: {
-							...APPROVAL.notificationSuppressionVerification,
-							applicationProtectionVersion: '',
-						},
-					},
-				),
-			).rejects.toThrow(/approval artifact/u);
+			const report = await inspectDatabase(prisma, DATABASE_TARGET, fixtureIds(), DATASET_REPORT, {
+				...APPROVAL,
+				notificationSuppressionVerification: {
+					...APPROVAL.notificationSuppressionVerification,
+					applicationProtectionVersion: '',
+				},
+			});
+			expect(report.applicationNotificationSafeguardsVerified).toBe(false);
+			expect(report.blockers).toContain('APPLICATION_NOTIFICATION_SAFEGUARDS_UNVERIFIED');
+			expect(report.safeToProceedToSeparatelyApprovedImport).toBe(false);
 		});
 
 		it('blocks readiness when the existing member count differs from baseline', async () => {
@@ -497,7 +490,7 @@ describe('offline KD GYM historical member preflight', () => {
 			expect(prisma.$transaction).not.toHaveBeenCalled();
 		});
 
-		it('reports the operator-attested business start date without deriving it from organization dates', async () => {
+		it('reports the attested start date without using organization dates', async () => {
 			const { prisma } = mockPrisma();
 			const report = await inspectDatabase(
 				prisma,
