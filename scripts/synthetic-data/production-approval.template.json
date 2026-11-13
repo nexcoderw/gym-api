@@ -1,0 +1,47 @@
+{
+	"version": 1,
+	"organizationId": "f6e417be-b93e-40ef-b028-d9d03666e69f",
+	"productionDatabase": {
+		"environment": "production",
+		"host": "ep-rapid-violet-b4txcgks-pooler.c-6.us-east-2.aws.neon.tech",
+		"name": "neondb",
+		"marker": ""
+	},
+	"historicalBusinessStartDateAttestation": {
+		"date": "2025-10-18",
+		"operatorAttested": false,
+		"attestedBy": ""
+	},
+	"dateRange": {
+		"from": "2025-10-18",
+		"to": "2026-11-12",
+		"timezone": "Africa/Kigali"
+	},
+	"expectedExistingMemberCount": 1,
+	"expectedGeneratedMemberCount": 823,
+	"expectedFinalMemberCount": 824,
+	"generatedGenderCounts": {
+		"male": 709,
+		"female": 114
+	},
+	"datasetManifestSha256": "",
+	"approvalReference": "",
+	"authorizedBy": "",
+	"authorizationConfirmed": false,
+	"operator": "",
+	"approvedAt": "",
+	"productionBackupVerification": {
+		"verified": false,
+		"reference": "",
+		"verifiedBy": "",
+		"verifiedAt": ""
+	},
+	"syntheticRecordsAcknowledged": false,
+	"notificationSuppressionVerification": {
+		"verified": false,
+		"verifiedBy": "",
+		"verifiedAt": "",
+		"emailSuppression": false,
+		"smsSuppression": false
+	}
+}
