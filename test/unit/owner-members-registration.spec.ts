@@ -54,8 +54,9 @@ describe('member registration workflow', () => {
 	let storedFingerprint: string;
 	const createMember =
 		jest.fn<
-			(input: { data: { organizationId: string; joinedOn: Date; isSynthetic: boolean } }) =>
-				Promise<typeof MEMBER>
+			(input: {
+				data: { organizationId: string; joinedOn: Date; isSynthetic: boolean };
+			}) => Promise<typeof MEMBER>
 		>();
 	const createSubscription = jest.fn<
 		(input: {
