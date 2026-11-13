@@ -10,6 +10,7 @@ import {
 
 let writesMayHaveStarted = false;
 let currentStage = 'arguments';
+let databaseCloseFailed = false;
 
 async function main(arguments_) {
 	if (arguments_.length === 1 && arguments_[0] === '--help') {
@@ -42,6 +43,7 @@ async function main(arguments_) {
 		DatabaseModule.forRoot(databaseConfig),
 		{ logger: false },
 	);
+	let seedFailed = false;
 	try {
 		currentStage = 'database_preflight';
 		const result = await seedStagingMembers(
@@ -55,9 +57,20 @@ async function main(arguments_) {
 		);
 		currentStage = 'summary';
 		process.stdout.write(`${JSON.stringify(makeStagingSummary(result, fixture.members), null, 2)}\n`);
+	} catch (error) {
+		seedFailed = true;
+		throw error;
 	} finally {
-		currentStage = 'database_shutdown';
-		await application.close();
+		if (seedFailed) {
+			try {
+				await application.close();
+			} catch {
+				databaseCloseFailed = true;
+			}
+		} else {
+			currentStage = 'database_shutdown';
+			await application.close();
+		}
 	}
 }
 
@@ -106,6 +119,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
 				stage: currentStage,
 				code: failureCode,
 				writesMayHaveCommitted: writesMayHaveStarted,
+				databaseCloseFailed,
 				message: failureMessage,
 			})}\n`,
 		);
