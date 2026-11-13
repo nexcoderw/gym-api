@@ -19,6 +19,7 @@ const eligible = {
 	cancelledAt: null,
 	member: {
 		name: 'Example Member',
+		isSynthetic: false,
 		email: 'member@example.com',
 		archivedAt: null,
 		reminderEmailOptedOutAt: null,
@@ -44,6 +45,7 @@ describe('owner upcoming reminders', () => {
 		expect(findMany.mock.calls[0]?.[0]).toMatchObject({
 			where: {
 				organizationId: ORGANIZATION_ID,
+				member: { is: { archivedAt: null, isSynthetic: false } },
 				cancelledAt: null,
 				endDate: {
 					gte: new Date('2026-10-20T00:00:00.000Z'),
@@ -110,6 +112,7 @@ describe('owner upcoming reminders', () => {
 
 	it('refuses opt-outs, missing email, cancelled and late memberships', async () => {
 		for (const row of [
+			{ ...eligible, member: { ...eligible.member, isSynthetic: true } },
 			{ ...eligible, member: { ...eligible.member, reminderEmailOptedOutAt: NOW } },
 			{ ...eligible, member: { ...eligible.member, email: null } },
 			{ ...eligible, cancelledAt: NOW },
@@ -120,6 +123,17 @@ describe('owner upcoming reminders', () => {
 				service.queueManual(ORGANIZATION_ID, SUBSCRIPTION_ID, MESSAGE, NOW),
 			).rejects.toBeInstanceOf(ConflictException);
 		}
+		expect(createMany).not.toHaveBeenCalled();
+	});
+
+	it('excludes synthetic subscriptions before the manual reminder action', async () => {
+		findFirst.mockResolvedValueOnce(null);
+		await expect(
+			service.queueManual(ORGANIZATION_ID, SUBSCRIPTION_ID, MESSAGE, NOW),
+		).rejects.toBeInstanceOf(NotFoundException);
+		expect(findFirst.mock.calls[0]?.[0]).toMatchObject({
+			where: { organizationId: ORGANIZATION_ID, member: { is: { isSynthetic: false } } },
+		});
 		expect(createMany).not.toHaveBeenCalled();
 	});
 });
