@@ -194,11 +194,10 @@ function makePrisma({
 			.mockResolvedValueOnce([...existingBatch])
 			.mockResolvedValueOnce([])
 			.mockResolvedValueOnce([...inserted]),
-		createMany: jest.fn<(args: unknown) => Promise<{ count: number }>>()
-			.mockImplementation(() => {
-				if (failInsert) return Promise.reject(new Error('simulated insert failure'));
-				return Promise.resolve({ count: 823 });
-			}),
+		createMany: jest.fn<(args: unknown) => Promise<{ count: number }>>().mockImplementation(() => {
+			if (failInsert) return Promise.reject(new Error('simulated insert failure'));
+			return Promise.resolve({ count: 823 });
+		}),
 	};
 	const transaction = {
 		$queryRaw: jest
