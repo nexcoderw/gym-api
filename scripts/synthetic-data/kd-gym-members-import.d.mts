@@ -1,4 +1,9 @@
 export function assertProductionTarget(target: unknown): void;
+export function assertImportedMembersMatchFixtures(
+	insertedMembers: readonly Readonly<Record<string, unknown>>[],
+	members: readonly Readonly<Record<string, unknown>>[],
+	insertedAt: Date,
+): void;
 export function buildMemberInsertData(
 	members: readonly Readonly<Record<string, unknown>>[],
 	insertedAt: Date,
