@@ -27,7 +27,7 @@ each artifact with mode 0600. Never commit, upload to source control, or include
 either artifact.
 
 `production-approval.json` must follow the schema in
-[`production-approval.template.json`](../../scripts/synthetic-data/production-approval.template.json).
+[`approval template`](../../scripts/synthetic-data/production-approval.template.json).
 The template is intentionally unapproved: empty strings and `false` flags must be replaced only
 with details supplied by the authorized approver/operator. Its database marker must come from the
 approved production configuration, never the staging database configuration.
@@ -94,12 +94,12 @@ was not inspected and must not be assumed to identify the approved production ta
 
    Keep using this terminal and do not print the variable or replace it with `$DATABASE_URL`.
    If the terminal closes, load the secret again. Do not copy a value from `api/db/.env.local`
-without independently confirming that it is the approved production URL.
+   without independently confirming that it is the approved production URL.
 
 5. Run the read-only preflight below. It verifies the actual database comment marker, so an
    incorrectly targeted database is rejected even if its host and database name match.
 
-6. Run the dry run below. It will report `plannedInsertCount: 0` while that blocker remains.
+6. Run the dry run below. It reports `plannedInsertCount: 0` while any blocker remains.
 
 7. Run the API tests and checks from `api/api`, as listed at the end of this runbook. The `api/db`
    project is not used for these commands.
@@ -189,10 +189,11 @@ added.
 Do not run APPLY as part of implementation or review. A future human operator may use it only after
 the authorized approver has supplied all real approval details, a recoverable backup has been
 verified, notification safeguards have been reviewed and attested, and the fresh dry run and
-read-only preflight both pass. APPLY requires a separate typed confirmation and a fresh in-transaction
-preflight. It uses a serializable transaction, locks the fixed organization row, rechecks baseline and
-collisions, inserts only the 823 member rows with actual insertion timestamps, verifies all inserted
-fields, and rolls back on any conflict or verification failure. It never skips conflicts. A durable
+read-only preflight both pass. APPLY requires a separate typed confirmation and a fresh
+in-transaction preflight. It uses a serializable transaction, locks the fixed organization row,
+rechecks baseline and collisions, inserts 823 member rows with actual insertion timestamps, verifies
+every inserted field, and rolls back on any conflict or verification failure. It never skips
+conflicts. A durable
 private import manifest is created before the transaction and finalized after commit; a leftover
 `PREPARED` manifest requires manual reconciliation and blocks rerun by checksum.
 
