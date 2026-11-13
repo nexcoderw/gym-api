@@ -31,7 +31,9 @@ const DATASET = { valid: true, recordCount: 823, manifestSha256: APPROVAL.manife
 
 describe('KD GYM production member import safeguards', () => {
 	it('accepts only the approved production endpoint and database', () => {
-		expect(() => assertProductionTarget(TARGET)).not.toThrow();
+		expect(() => {
+			assertProductionTarget(TARGET);
+		}).not.toThrow();
 		expect(() => {
 			assertProductionTarget({ ...TARGET, target: 'development' });
 		}).toThrow();
@@ -142,23 +144,21 @@ describe('KD GYM production member import safeguards', () => {
 		const rollback = jest.fn();
 		const transactionOptions: unknown[] = [];
 		const prisma = {
-			$transaction: jest.fn(async (
-				operation: (transaction: unknown) => Promise<unknown>,
-				options: unknown,
-			) => {
-				transactionOptions.push(options);
-				try {
-					return await operation({});
-				} catch (error) {
-					rollback();
-					throw error;
-				}
-			}),
+			$transaction: jest.fn(
+				async (operation: (transaction: unknown) => Promise<unknown>, options: unknown) => {
+					transactionOptions.push(options);
+					try {
+						return await operation({});
+					} catch (error) {
+						rollback();
+						throw error;
+					}
+				},
+			),
 		};
 		await expect(
-			runSerializableImportTransaction(
-				prisma,
-				() => Promise.reject(new Error('insert verification failed')),
+			runSerializableImportTransaction(prisma, () =>
+				Promise.reject(new Error('insert verification failed')),
 			),
 		).rejects.toThrow('insert verification failed');
 		expect(rollback).toHaveBeenCalledTimes(1);
