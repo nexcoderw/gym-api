@@ -19,11 +19,17 @@ export interface StagingSeedSummary {
 	readonly transactionStatus: StagingSeedResult['status'];
 }
 
+export class StagingSeedError extends Error {
+	constructor(code: string, message: string);
+	readonly code: string;
+}
+
 export function loadStagingFixtures(directory?: string): FixturePreflightResult;
 export function seedStagingMembers(
 	prisma: unknown,
 	members: readonly Readonly<Record<string, unknown>>[],
 	insertedAt?: Date,
+	onWriteStart?: () => void,
 ): Promise<StagingSeedResult>;
 export function assertBatchMatchesFixtures(
 	rows: readonly Readonly<Record<string, unknown>>[],
