@@ -224,10 +224,11 @@ export function assertImportedMembersMatchFixtures(insertedMembers, members, ins
 	}
 }
 
-export function runSerializableImportTransaction(prisma, operation) {
+export function runSerializableImportTransaction(prisma, operation, { maxWait } = {}) {
 	return prisma.$transaction(operation, {
 		isolationLevel: 'Serializable',
 		timeout: 120_000,
+		...(maxWait === undefined ? {} : { maxWait }),
 	});
 }
 
