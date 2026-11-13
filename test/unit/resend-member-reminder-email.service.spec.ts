@@ -7,6 +7,12 @@ import { ResendMemberReminderEmailService } from '../../src/infrastructure/email
 const MESSAGE_ID = '55555555-5555-4555-8555-555555555555';
 const message = {
 	recipient: 'member@example.com',
+	member: {
+		isSynthetic: false,
+		email: 'member@example.com',
+		reminderEmailOptedOutAt: null,
+		reminderEmailSuppressedAt: null,
+	},
 	organizationName: 'Soho Gym',
 	subject: 'Your membership ends soon',
 	body: 'Hello, please renew your membership.',
@@ -88,6 +94,18 @@ describe('Resend member reminder email adapter', () => {
 		expect(await service.send({ ...message, subject: 'Invalid\nSubject' })).toMatchObject({
 			kind: 'rejected',
 		});
+		expect(fetchFake).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		{ label: 'synthetic member', change: { isSynthetic: true } },
+		{ label: 'email-suppressed member', change: { reminderEmailSuppressedAt: new Date() } },
+		{ label: 'opted-out member', change: { reminderEmailOptedOutAt: new Date() } },
+		{ label: 'unverified recipient', change: { email: 'other@example.com' } },
+	])('blocks $label at the provider adapter boundary', async ({ change }) => {
+		expect(
+			await service.send({ ...message, member: { ...message.member, ...change } }),
+		).toMatchObject({ kind: 'rejected', code: 'MEMBER_NOTIFICATION_SUPPRESSED', retryable: false });
 		expect(fetchFake).not.toHaveBeenCalled();
 	});
 });
