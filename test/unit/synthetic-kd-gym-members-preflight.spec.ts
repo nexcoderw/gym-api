@@ -7,6 +7,7 @@ import { jest } from '@jest/globals';
 
 import {
 	EXPECTED_DATABASE_MIGRATIONS,
+	APPLICATION_NOTIFICATION_PROTECTION_VERSION,
 	KD_GYM_ORGANIZATION_ID,
 	inspectDatabase,
 	resolveDatabaseTarget,
@@ -68,6 +69,7 @@ const APPROVAL = {
 		verifiedAt: '2020-01-01T10:00:00.000Z',
 		emailSuppression: true,
 		smsSuppression: true,
+		applicationProtectionVersion: APPLICATION_NOTIFICATION_PROTECTION_VERSION,
 	},
 };
 
@@ -274,6 +276,7 @@ describe('offline KD GYM historical member preflight', () => {
 					verifiedAt: '2020-01-01T10:00:00.000Z',
 					emailSuppression: true,
 					smsSuppression: true,
+					applicationProtectionVersion: APPLICATION_NOTIFICATION_PROTECTION_VERSION,
 				},
 				approvalReference: 'TEST-APPROVAL',
 				operator: 'test operator',
@@ -326,7 +329,7 @@ describe('offline KD GYM historical member preflight', () => {
 			expect(report.safeToProceedToSeparatelyApprovedImport).toBe(false);
 		});
 
-		it('rejects a staging database marker even when host and database name match production', async () => {
+		it('rejects a different database marker even when host and database name match production', async () => {
 			const { prisma } = mockPrisma({
 				databaseMarker: 'nexcode-gym:bootstrap:11111111-1111-4111-8111-111111111111',
 			});
@@ -368,6 +371,44 @@ describe('offline KD GYM historical member preflight', () => {
 			expect(report.schemaChecks.joinedOnMigrationApplied).toBe(false);
 			expect(report.safeToProceedToSeparatelyApprovedImport).toBe(false);
 			expect(transaction.organizationMember.count).not.toHaveBeenCalled();
+		});
+
+		it.each([
+			{ missingSmsConstraint: true, check: 'smsSuppressionPairConstraintVerified' },
+			{ missingSyntheticConstraint: true, check: 'syntheticProtectionConstraintVerified' },
+		])('blocks readiness if required database constraint is missing', async (options) => {
+			const { prisma, transaction } = mockPrisma(options);
+			const report = await inspectDatabase(
+				prisma,
+				DATABASE_TARGET,
+				fixtureIds(),
+				DATASET_REPORT,
+				APPROVAL,
+			);
+			expect(
+				report.schemaChecks[options.check as keyof typeof report.schemaChecks],
+			).toBe(false);
+			expect(report.safeToProceedToSeparatelyApprovedImport).toBe(false);
+			expect(transaction.organizationMember.count).not.toHaveBeenCalled();
+		});
+
+		it('requires an approved application safeguard version', async () => {
+			const { prisma } = mockPrisma();
+			await expect(
+				inspectDatabase(
+					prisma,
+					DATABASE_TARGET,
+					fixtureIds(),
+					DATASET_REPORT,
+					{
+						...APPROVAL,
+						notificationSuppressionVerification: {
+							...APPROVAL.notificationSuppressionVerification,
+							applicationProtectionVersion: '',
+						},
+					},
+				),
+			).rejects.toThrow(/approval artifact/u);
 		});
 
 		it('blocks readiness when the existing member count differs from baseline', async () => {
@@ -427,9 +468,12 @@ describe('offline KD GYM historical member preflight', () => {
 			expect(transaction.$executeRaw.mock.calls[0]?.[0].join('').trim()).toBe(
 				'SET TRANSACTION READ ONLY',
 			);
-			expect(report.safeToProceedToSeparatelyApprovedImport).toBe(false);
+			expect(report.safeToProceedToSeparatelyApprovedImport).toBe(true);
+			expect(report.blockers).toEqual([]);
 			expect(report.expectedTotalMemberCount).toBe(824);
-			expect(report.blockers).toContain('SMS_NOTIFICATION_SUPPRESSION_UNAVAILABLE');
+			expect(report.schemaChecks.smsSuppressionPairConstraintVerified).toBe(true);
+			expect(report.schemaChecks.syntheticProtectionConstraintVerified).toBe(true);
+			expect(report.applicationNotificationSafeguardsVerified).toBe(true);
 			expect(report.businessStartDateAttestationVerified).toBe(true);
 			expect(transaction.organizationMember).not.toHaveProperty('create');
 			expect(transaction.organizationMember).not.toHaveProperty('update');
@@ -567,6 +611,8 @@ function mockPrisma(
 		matchingFixture?: number;
 		missingJoinedOnColumn?: boolean;
 		missingMigration?: boolean;
+		missingSmsConstraint?: boolean;
+		missingSyntheticConstraint?: boolean;
 		databaseMarker?: string;
 	} = {},
 ) {
@@ -609,10 +655,42 @@ function mockPrisma(
 				{ tableName: 'organization_members', columnName: 'gender' },
 				{ tableName: 'organization_members', columnName: 'reminder_email_suppressed_at' },
 				{ tableName: 'organization_members', columnName: 'reminder_email_suppression_reason' },
+				{ tableName: 'organization_members', columnName: 'is_synthetic' },
+				{ tableName: 'organization_members', columnName: 'synthetic_batch_id' },
+				{ tableName: 'organization_members', columnName: 'reminder_sms_suppressed_at' },
+				{ tableName: 'organization_members', columnName: 'reminder_sms_suppression_reason' },
 			]);
 		}
 		if (sql.includes('pg_enum')) return Promise.resolve([{ exists: true }]);
-		if (sql.includes('pg_constraint')) return Promise.resolve([{ exists: true }]);
+		if (sql.includes('pg_constraint') && sql.includes('SELECT EXISTS')) {
+			return Promise.resolve([{ exists: true }]);
+		}
+		if (sql.includes('pg_constraint')) {
+			return Promise.resolve([
+				...(options.missingSmsConstraint
+					? []
+					: [
+						{
+							name: 'organization_members_sms_suppression_pair_check',
+							type: 'c',
+							validated: true,
+							definition:
+								'CHECK (((reminder_sms_suppressed_at IS NULL) = (reminder_sms_suppression_reason IS NULL)))',
+						},
+					]),
+				...(options.missingSyntheticConstraint
+					? []
+					: [
+						{
+							name: 'organization_members_synthetic_protection_check',
+							type: 'c',
+							validated: true,
+							definition:
+								'CHECK ((is_synthetic = false AND synthetic_batch_id IS NULL) OR (is_synthetic = true AND synthetic_batch_id IS NOT NULL AND length(btrim(synthetic_batch_id)) BETWEEN 1 AND 120 AND email IS NULL AND reminder_email_suppressed_at IS NOT NULL AND reminder_email_suppression_reason IS NOT NULL AND reminder_sms_suppressed_at IS NOT NULL AND reminder_sms_suppression_reason IS NOT NULL))',
+						},
+					]),
+			]);
+		}
 		if (sql.includes('information_schema.tables')) return Promise.resolve([{ exists: true }]);
 		if (sql.includes('migration_name')) {
 			const migrations = options.missingMigration ? [] : [...EXPECTED_DATABASE_MIGRATIONS];
