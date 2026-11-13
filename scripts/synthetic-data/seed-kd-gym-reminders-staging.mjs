@@ -190,14 +190,22 @@ export function makeReminderSummary(result, subscriptions, storedReminders) {
 	};
 }
 
-export async function seedStagingReminders(prisma, insertedAt = new Date(), onWriteStart = () => {}) {
+export async function seedStagingReminders(
+	prisma,
+	insertedAt = new Date(),
+	onWriteStart = () => {},
+) {
 	return runSerializableImportTransaction(
 		prisma,
 		async (transaction) => {
 			await assertRequiredSchema(transaction);
-			const [{ databaseName }] = await transaction.$queryRaw`SELECT current_database() AS "databaseName"`;
+			const [{ databaseName }] =
+				await transaction.$queryRaw`SELECT current_database() AS "databaseName"`;
 			if (databaseName !== STAGING_DATABASE_NAME) {
-				throw new StagingSeedError('REMINDER_DATABASE_IDENTITY_INVALID', 'The connected database is not the configured neondb staging database.');
+				throw new StagingSeedError(
+					'REMINDER_DATABASE_IDENTITY_INVALID',
+					'The connected database is not the configured neondb staging database.',
+				);
 			}
 			const organization = await transaction.organization.findUnique({
 				where: { id: KD_GYM_ORGANIZATION_ID },
@@ -207,63 +215,154 @@ export async function seedStagingReminders(prisma, insertedAt = new Date(), onWr
 				throw new StagingSeedError('ORGANIZATION_NOT_FOUND', 'KD GYM was not found in neondb.');
 			}
 			const members = await transaction.organizationMember.findMany({
-				where: { organizationId: KD_GYM_ORGANIZATION_ID, isSynthetic: true, syntheticBatchId: EXPECTED_GENERATION_SEED },
+				where: {
+					organizationId: KD_GYM_ORGANIZATION_ID,
+					isSynthetic: true,
+					syntheticBatchId: EXPECTED_GENERATION_SEED,
+				},
 				select: { id: true },
 			});
 			if (members.length !== 823) {
-				throw new StagingSeedError('SYNTHETIC_MEMBER_BATCH_INVALID', 'The exact 823-member KD GYM synthetic batch is required.');
+				throw new StagingSeedError(
+					'SYNTHETIC_MEMBER_BATCH_INVALID',
+					'The exact 823-member KD GYM synthetic batch is required.',
+				);
 			}
 			const memberIds = members.map(({ id }) => id);
 			const subscriptions = await transaction.organizationMemberSubscription.findMany({
 				where: {
 					organizationId: KD_GYM_ORGANIZATION_ID,
 					memberId: { in: memberIds },
-					member: { is: { organizationId: KD_GYM_ORGANIZATION_ID, isSynthetic: true, syntheticBatchId: EXPECTED_GENERATION_SEED } },
+					member: {
+						is: {
+							organizationId: KD_GYM_ORGANIZATION_ID,
+							isSynthetic: true,
+							syntheticBatchId: EXPECTED_GENERATION_SEED,
+						},
+					},
 				},
 				select: {
-					id: true, organizationId: true, memberId: true, startDate: true, endDate: true, cancelledAt: true,
-					member: { select: { id: true, organizationId: true, isSynthetic: true, syntheticBatchId: true, joinedOn: true, email: true, reminderEmailSuppressedAt: true, reminderEmailSuppressionReason: true, reminderSmsSuppressedAt: true, reminderSmsSuppressionReason: true } },
+					id: true,
+					organizationId: true,
+					memberId: true,
+					startDate: true,
+					endDate: true,
+					cancelledAt: true,
+					member: {
+						select: {
+							id: true,
+							organizationId: true,
+							isSynthetic: true,
+							syntheticBatchId: true,
+							joinedOn: true,
+							email: true,
+							reminderEmailSuppressedAt: true,
+							reminderEmailSuppressionReason: true,
+							reminderSmsSuppressedAt: true,
+							reminderSmsSuppressionReason: true,
+						},
+					},
 				},
 				orderBy: [{ memberId: 'asc' }, { startDate: 'asc' }, { id: 'asc' }],
 			});
 			if (subscriptions.length === 0) {
-				throw new StagingSeedError('SYNTHETIC_SUBSCRIPTIONS_MISSING', 'No subscriptions exist for the KD GYM synthetic member batch.');
+				throw new StagingSeedError(
+					'SYNTHETIC_SUBSCRIPTIONS_MISSING',
+					'No subscriptions exist for the KD GYM synthetic member batch.',
+				);
 			}
 			for (const subscription of subscriptions) assertSyntheticSubscription(subscription);
 			const activeSubscriptions = subscriptions.filter(({ cancelledAt }) => cancelledAt === null);
 			const planned = generateHistoricalReminders(activeSubscriptions, insertedAt);
 			const subscriptionIds = subscriptions.map(({ id }) => id);
-			const totalBefore = await transaction.organizationMemberReminderDelivery.count({ where: { organizationId: KD_GYM_ORGANIZATION_ID } });
+			const totalBefore = await transaction.organizationMemberReminderDelivery.count({
+				where: { organizationId: KD_GYM_ORGANIZATION_ID },
+			});
 			const existing = await transaction.organizationMemberReminderDelivery.findMany({
-				where: { organizationId: KD_GYM_ORGANIZATION_ID, memberSubscriptionId: { in: subscriptionIds }, kind: { in: REMINDER_KINDS }, channel: REMINDER_CHANNEL },
+				where: {
+					organizationId: KD_GYM_ORGANIZATION_ID,
+					memberSubscriptionId: { in: subscriptionIds },
+					kind: { in: REMINDER_KINDS },
+					channel: REMINDER_CHANNEL,
+				},
 				select: REMINDER_SELECT,
 				orderBy: [{ dueDate: 'asc' }, { id: 'asc' }],
 			});
 			const originalReminderCount = await transaction.organizationMemberReminderDelivery.count({
 				where: { organizationId: KD_GYM_ORGANIZATION_ID, member: { is: { isSynthetic: false } } },
 			});
-			const eligibleSubscriptionIds = [...new Set(planned.map(({ memberSubscriptionId }) => memberSubscriptionId))];
+			const eligibleSubscriptionIds = [
+				...new Set(planned.map(({ memberSubscriptionId }) => memberSubscriptionId)),
+			];
 			if (existing.length > 0 || planned.length === 0) {
 				assertReminderBatchMatches(existing, planned);
-				return { status: 'ALREADY_SEEDED', insertedCount: 0, originalReminderCount, totalOrganizationReminders: totalBefore, eligibleSubscriptionIds, subscriptions, storedReminders: existing };
+				return {
+					status: 'ALREADY_SEEDED',
+					insertedCount: 0,
+					originalReminderCount,
+					totalOrganizationReminders: totalBefore,
+					eligibleSubscriptionIds,
+					subscriptions,
+					storedReminders: existing,
+				};
 			}
 			const collisions = await transaction.organizationMemberReminderDelivery.findMany({
-				where: { organizationId: KD_GYM_ORGANIZATION_ID, OR: [{ id: { in: planned.map(({ id }) => id) } }, { providerIdempotencyKey: { in: planned.map(({ providerIdempotencyKey }) => providerIdempotencyKey) } }] },
+				where: {
+					organizationId: KD_GYM_ORGANIZATION_ID,
+					OR: [
+						{ id: { in: planned.map(({ id }) => id) } },
+						{
+							providerIdempotencyKey: {
+								in: planned.map(({ providerIdempotencyKey }) => providerIdempotencyKey),
+							},
+						},
+					],
+				},
 				select: { id: true },
 			});
-			if (collisions.length > 0) throw new StagingSeedError('REMINDER_IDENTITY_COLLISION', 'A deterministic reminder identity already exists in KD GYM.');
+			if (collisions.length > 0)
+				throw new StagingSeedError(
+					'REMINDER_IDENTITY_COLLISION',
+					'A deterministic reminder identity already exists in KD GYM.',
+				);
 			if (planned.length > 0) onWriteStart();
-			const insertedCount = await createInChunks(transaction.organizationMemberReminderDelivery, planned);
-			if (insertedCount !== planned.length) throw new StagingSeedError('REMINDER_INSERT_COUNT_MISMATCH', 'The full deterministic reminder batch was not inserted; transaction rolled back.');
+			const insertedCount = await createInChunks(
+				transaction.organizationMemberReminderDelivery,
+				planned,
+			);
+			if (insertedCount !== planned.length)
+				throw new StagingSeedError(
+					'REMINDER_INSERT_COUNT_MISMATCH',
+					'The full deterministic reminder batch was not inserted; transaction rolled back.',
+				);
 			const storedReminders = await transaction.organizationMemberReminderDelivery.findMany({
-				where: { organizationId: KD_GYM_ORGANIZATION_ID, memberSubscriptionId: { in: subscriptionIds }, kind: { in: REMINDER_KINDS }, channel: REMINDER_CHANNEL },
+				where: {
+					organizationId: KD_GYM_ORGANIZATION_ID,
+					memberSubscriptionId: { in: subscriptionIds },
+					kind: { in: REMINDER_KINDS },
+					channel: REMINDER_CHANNEL,
+				},
 				select: REMINDER_SELECT,
 				orderBy: [{ dueDate: 'asc' }, { id: 'asc' }],
 			});
 			assertReminderBatchMatches(storedReminders, planned);
-			const totalOrganizationReminders = await transaction.organizationMemberReminderDelivery.count({ where: { organizationId: KD_GYM_ORGANIZATION_ID } });
-			if (totalOrganizationReminders !== totalBefore + insertedCount) throw new StagingSeedError('REMINDER_TOTAL_MISMATCH', 'The organization reminder total changed unexpectedly; transaction rolled back.');
-			return { status: 'INSERTED', insertedCount, originalReminderCount, totalOrganizationReminders, eligibleSubscriptionIds, subscriptions, storedReminders };
+			const totalOrganizationReminders = await transaction.organizationMemberReminderDelivery.count(
+				{ where: { organizationId: KD_GYM_ORGANIZATION_ID } },
+			);
+			if (totalOrganizationReminders !== totalBefore + insertedCount)
+				throw new StagingSeedError(
+					'REMINDER_TOTAL_MISMATCH',
+					'The organization reminder total changed unexpectedly; transaction rolled back.',
+				);
+			return {
+				status: 'INSERTED',
+				insertedCount,
+				originalReminderCount,
+				totalOrganizationReminders,
+				eligibleSubscriptionIds,
+				subscriptions,
+				storedReminders,
+			};
 		},
 		{ maxWait: 30_000 },
 	);
@@ -272,21 +371,42 @@ export async function seedStagingReminders(prisma, insertedAt = new Date(), onWr
 function assertSyntheticSubscription(subscription) {
 	const { member } = subscription;
 	if (
-		subscription.organizationId !== KD_GYM_ORGANIZATION_ID || member?.organizationId !== KD_GYM_ORGANIZATION_ID ||
-		member?.id !== subscription.memberId || member?.isSynthetic !== true || member?.syntheticBatchId !== EXPECTED_GENERATION_SEED ||
-		member?.email !== null || member?.reminderEmailSuppressedAt == null || member?.reminderEmailSuppressionReason !== 'MANUAL' ||
-		member?.reminderSmsSuppressedAt == null || member?.reminderSmsSuppressionReason !== 'MANUAL'
-	) throw new StagingSeedError('SYNTHETIC_SUBSCRIPTION_INVALID', 'Only email-less, suppressed subscriptions for the exact KD GYM synthetic batch can receive historical skipped reminders.');
+		subscription.organizationId !== KD_GYM_ORGANIZATION_ID ||
+		member?.organizationId !== KD_GYM_ORGANIZATION_ID ||
+		member?.id !== subscription.memberId ||
+		member?.isSynthetic !== true ||
+		member?.syntheticBatchId !== EXPECTED_GENERATION_SEED ||
+		member?.email !== null ||
+		member?.reminderEmailSuppressedAt == null ||
+		member?.reminderEmailSuppressionReason !== 'MANUAL' ||
+		member?.reminderSmsSuppressedAt == null ||
+		member?.reminderSmsSuppressionReason !== 'MANUAL'
+	)
+		throw new StagingSeedError(
+			'SYNTHETIC_SUBSCRIPTION_INVALID',
+			'Only email-less, suppressed subscriptions for the exact KD GYM synthetic batch can receive historical skipped reminders.',
+		);
 	const joinedOn = normalizeDate(member.joinedOn);
 	const startDate = normalizeDate(subscription.startDate);
 	const endDate = normalizeDate(subscription.endDate);
-	if (joinedOn < HISTORICAL_START || joinedOn > HISTORICAL_CUTOFF || startDate < joinedOn || startDate > HISTORICAL_CUTOFF || endDate < startDate) {
-		throw new StagingSeedError('SUBSCRIPTION_DATE_INVALID', 'A synthetic subscription date is outside its member history.');
+	if (
+		joinedOn < HISTORICAL_START ||
+		joinedOn > HISTORICAL_CUTOFF ||
+		startDate < joinedOn ||
+		startDate > HISTORICAL_CUTOFF ||
+		endDate < startDate
+	) {
+		throw new StagingSeedError(
+			'SUBSCRIPTION_DATE_INVALID',
+			'A synthetic subscription date is outside its member history.',
+		);
 	}
 }
 
 function occasionSelected(subscriptionId, kind) {
-	const digest = createHash('sha256').update(`${REMINDER_GENERATION_SEED}\u001f${subscriptionId}\u001f${kind}`).digest();
+	const digest = createHash('sha256')
+		.update(`${REMINDER_GENERATION_SEED}\u001f${subscriptionId}\u001f${kind}`)
+		.digest();
 	return digest.readUInt32BE(0) / 0x1_0000_0000 < (kind === 'EXPIRY_DAY' ? 0.72 : 0.48);
 }
 
@@ -309,7 +429,8 @@ function normalizeDate(value) {
 
 function dateFromIso(value) {
 	const date = new Date(`${value}T00:00:00.000Z`);
-	if (typeof value !== 'string' || date.toISOString().slice(0, 10) !== value) throw new StagingSeedError('REMINDER_DATE_INVALID', 'A historical reminder date is invalid.');
+	if (typeof value !== 'string' || date.toISOString().slice(0, 10) !== value)
+		throw new StagingSeedError('REMINDER_DATE_INVALID', 'A historical reminder date is invalid.');
 	return date;
 }
 
@@ -331,14 +452,19 @@ function fieldsMatch(actual, expected, fields) {
 	return fields.every((field) => {
 		const left = actual[field];
 		const right = expected[field];
-		return left instanceof Date && right instanceof Date ? left.getTime() === right.getTime() : left === right;
+		return left instanceof Date && right instanceof Date
+			? left.getTime() === right.getTime()
+			: left === right;
 	});
 }
 
 async function createInChunks(model, rows) {
 	let count = 0;
 	for (let offset = 0; offset < rows.length; offset += INSERT_CHUNK_SIZE) {
-		const result = await model.createMany({ data: rows.slice(offset, offset + INSERT_CHUNK_SIZE), skipDuplicates: false });
+		const result = await model.createMany({
+			data: rows.slice(offset, offset + INSERT_CHUNK_SIZE),
+			skipDuplicates: false,
+		});
 		count += result.count;
 	}
 	return count;
@@ -357,7 +483,10 @@ async function assertRequiredSchema(transaction) {
 	}
 	for (const [tableName, required] of Object.entries(EXPECTED_COLUMNS)) {
 		if (!required.every((column) => available.get(tableName)?.has(column))) {
-			throw new StagingSeedError('REMINDER_SCHEMA_MISSING', 'Required KD GYM reminder tables or columns are missing.');
+			throw new StagingSeedError(
+				'REMINDER_SCHEMA_MISSING',
+				'Required KD GYM reminder tables or columns are missing.',
+			);
 		}
 	}
 }
@@ -368,32 +497,65 @@ let databaseCloseFailed = false;
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
 	main(process.argv.slice(2)).catch((error) => {
 		const known = error instanceof StagingSeedError;
-		process.stderr.write(`${JSON.stringify({ seeder: 'kd-gym-staging-reminder-seed', failed: true, stage, code: known ? error.code : `STAGING_${stage.toUpperCase()}_FAILED`, writesMayHaveCommitted: writesMayHaveStarted, databaseCloseFailed, message: known ? error.message : 'KD GYM staging reminder seed failed; inspect staging state before retrying.' })}\n`);
+		const databaseErrorCode =
+			typeof error === 'object' &&
+			error !== null &&
+			'code' in error &&
+			typeof error.code === 'string' &&
+			/^[A-Z]\d{4}$/u.test(error.code)
+				? error.code
+				: undefined;
+		process.stderr.write(
+			`${JSON.stringify({ seeder: 'kd-gym-staging-reminder-seed', failed: true, stage, code: known ? error.code : `STAGING_${stage.toUpperCase()}_FAILED`, ...(databaseErrorCode === undefined ? {} : { databaseErrorCode }), writesMayHaveCommitted: writesMayHaveStarted, databaseCloseFailed, message: known ? error.message : 'KD GYM staging reminder seed failed; inspect staging state before retrying.' })}\n`,
+		);
 		process.exitCode = 2;
 	});
 }
 
 async function main(arguments_) {
-	if (arguments_.length !== 1 || arguments_[0] !== '--apply') throw new StagingSeedError('REMINDER_APPLY_FLAG_REQUIRED', 'Supply the explicit --apply option for the staging reminder seed.');
+	if (arguments_.length !== 1 || arguments_[0] !== '--apply')
+		throw new StagingSeedError(
+			'REMINDER_APPLY_FLAG_REQUIRED',
+			'Supply the explicit --apply option for the staging reminder seed.',
+		);
 	stage = 'database_configuration';
 	assertStagingDatabaseConfiguration(process.env.DATABASE_URL);
 	stage = 'database_client_load';
 	const { NestFactory } = await import('@nestjs/core');
 	const { DatabaseModule, PrismaService, loadDatabaseConfig } = await import('@nexcoderw/gym-db');
-	const config = loadDatabaseConfig({ DATABASE_URL: process.env.DATABASE_URL, DATABASE_POOL_MAX: '1' });
+	const config = loadDatabaseConfig({
+		DATABASE_URL: process.env.DATABASE_URL,
+		DATABASE_POOL_MAX: '1',
+	});
 	stage = 'database_startup';
-	const application = await NestFactory.createApplicationContext(DatabaseModule.forRoot(config), { logger: false });
+	const application = await NestFactory.createApplicationContext(DatabaseModule.forRoot(config), {
+		logger: false,
+	});
 	try {
 		stage = 'reminder_transaction';
-		const result = await seedStagingReminders(application.get(PrismaService), new Date(), () => { writesMayHaveStarted = true; });
+		const result = await seedStagingReminders(application.get(PrismaService), new Date(), () => {
+			writesMayHaveStarted = true;
+		});
 		stage = 'summary';
-		process.stdout.write(`${JSON.stringify(makeReminderSummary(result, result.subscriptions ?? [], result.storedReminders), null, 2)}\n`);
+		process.stdout.write(
+			`${JSON.stringify(makeReminderSummary(result, result.subscriptions ?? [], result.storedReminders), null, 2)}\n`,
+		);
 	} catch (error) {
-		try { await application.close(); } catch { databaseCloseFailed = true; }
+		try {
+			await application.close();
+		} catch {
+			databaseCloseFailed = true;
+		}
 		throw error;
 	}
-	try { stage = 'database_shutdown'; await application.close(); } catch {
+	try {
+		stage = 'database_shutdown';
+		await application.close();
+	} catch {
 		databaseCloseFailed = true;
-		throw new StagingSeedError('DATABASE_SHUTDOWN_FAILED', 'The staging reminder operation may have completed; inspect totals before retrying.');
+		throw new StagingSeedError(
+			'DATABASE_SHUTDOWN_FAILED',
+			'The staging reminder operation may have completed; inspect totals before retrying.',
+		);
 	}
 }
