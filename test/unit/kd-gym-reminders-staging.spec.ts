@@ -13,8 +13,9 @@ import {
 
 const INSERTED_AT = new Date('2026-11-13T10:00:00.000Z');
 const SUBSCRIPTIONS = makeSubscriptions(50);
-const FIRST_SUBSCRIPTION = SUBSCRIPTIONS[0];
-if (FIRST_SUBSCRIPTION === undefined) throw new Error('Reminder fixtures must include a subscription.');
+const FIRST_SUBSCRIPTION =
+	SUBSCRIPTIONS[0] ??
+	makeSubscription('subscription-fallback', '2026-08-01', '2026-10-01', '2026-11-01');
 
 describe('KD GYM staging reminder seed', () => {
 	it('generates deterministic historical expiry and three-day occasions inside subscription dates', () => {
@@ -25,12 +26,15 @@ describe('KD GYM staging reminder seed', () => {
 		for (const reminder of first) {
 			const subscription = SUBSCRIPTIONS.find(({ id }) => id === reminder.memberSubscriptionId);
 			if (subscription === undefined) throw new Error('Generated reminder has no subscription.');
-			const expected = reminder.kind === 'EXPIRY_DAY'
-				? subscription.endDate
-				: new Date(subscription.endDate.getTime() - 3 * 86_400_000);
+			const expected =
+				reminder.kind === 'EXPIRY_DAY'
+					? subscription.endDate
+					: new Date(subscription.endDate.getTime() - 3 * 86_400_000);
 			expect(reminder.dueDate).toEqual(expected);
 			expect(reminder.dueDate.getTime()).toBeGreaterThanOrEqual(subscription.startDate.getTime());
-			expect(reminder.dueDate.toISOString().slice(0, 10)).toBeLessThanOrEqual('2026-11-12');
+			expect(
+				reminder.dueDate.toISOString().slice(0, 10).localeCompare('2026-11-12'),
+			).toBeLessThanOrEqual(0);
 		}
 	});
 
@@ -71,22 +75,34 @@ describe('KD GYM staging reminder seed', () => {
 		];
 		for (const row of generateHistoricalReminders(invalid, INSERTED_AT)) {
 			const subscription = invalid.find(({ id }) => id === row.memberSubscriptionId);
-			if (subscription === undefined) throw new Error('Generated reminder has no source subscription.');
+			if (subscription === undefined)
+				throw new Error('Generated reminder has no source subscription.');
 			expect(row.dueDate.getTime()).toBeGreaterThanOrEqual(subscription.startDate.getTime());
 			expect(row.dueDate.getTime()).toBeGreaterThanOrEqual(subscription.member.joinedOn.getTime());
-			expect(row.dueDate.toISOString().slice(0, 10)).toBeLessThanOrEqual('2026-11-12');
+			expect(
+				row.dueDate.toISOString().slice(0, 10).localeCompare('2026-11-12'),
+			).toBeLessThanOrEqual(0);
 		}
 	});
 
 	it('rejects a member from a different tenant or synthetic batch', () => {
-		for (const change of [
-			{ organizationId: '00000000-0000-4000-8000-000000000001' },
-			{ member: { ...SUBSCRIPTIONS[0]?.member, syntheticBatchId: 'other-batch' } },
-		]) {
-			const base = FIRST_SUBSCRIPTION;
-			if (base === undefined) throw new Error('Fixtures are required.');
-			expect(() => generateHistoricalReminders([{ ...base, ...change }], INSERTED_AT)).toThrow();
-		}
+		expect(() =>
+			generateHistoricalReminders(
+				[{ ...FIRST_SUBSCRIPTION, organizationId: '00000000-0000-4000-8000-000000000001' }],
+				INSERTED_AT,
+			),
+		).toThrow();
+		expect(() =>
+			generateHistoricalReminders(
+				[
+					{
+						...FIRST_SUBSCRIPTION,
+						member: { ...FIRST_SUBSCRIPTION.member, syntheticBatchId: 'other-batch' },
+					},
+				],
+				INSERTED_AT,
+			),
+		).toThrow();
 	});
 
 	it('requires email absence and durable email and SMS suppression', () => {
@@ -104,7 +120,10 @@ describe('KD GYM staging reminder seed', () => {
 
 	it('requires confirmed payment only if the application eligibility contract adds that rule', () => {
 		// Current reminder policy is subscription/date and consent based; it does not require payment.
-		const pendingPaymentSubscription = { ...FIRST_SUBSCRIPTION, paymentAllocations: [{ payment: { status: 'PENDING' } }] };
+		const pendingPaymentSubscription = {
+			...FIRST_SUBSCRIPTION,
+			paymentAllocations: [{ payment: { status: 'PENDING' } }],
+		};
 		expect(generateHistoricalReminders([pendingPaymentSubscription], INSERTED_AT)).toEqual(
 			generateHistoricalReminders([FIRST_SUBSCRIPTION], INSERTED_AT),
 		);
@@ -112,10 +131,18 @@ describe('KD GYM staging reminder seed', () => {
 
 	it('accepts only an exact batch during reruns', () => {
 		const expected = generateHistoricalReminders(SUBSCRIPTIONS, INSERTED_AT);
-		expect(() => assertReminderBatchMatches(expected, expected)).not.toThrow();
-		expect(() => assertReminderBatchMatches(expected.slice(1), expected)).toThrow(/complete deterministic/u);
-		const mismatched = expected.map((row, index) => index === 0 ? { ...row, lastErrorCode: 'CHANGED' } : row);
-		expect(() => assertReminderBatchMatches(mismatched, expected)).toThrow(/complete deterministic/u);
+		expect(() => {
+			assertReminderBatchMatches(expected, expected);
+		}).not.toThrow();
+		expect(() => {
+			assertReminderBatchMatches(expected.slice(1), expected);
+		}).toThrow(/complete deterministic/u);
+		const mismatched = expected.map((row, index) =>
+			index === 0 ? { ...row, lastErrorCode: 'CHANGED' } : row,
+		);
+		expect(() => {
+			assertReminderBatchMatches(mismatched, expected);
+		}).toThrow(/complete deterministic/u);
 	});
 
 	it('inserts only exact synthetic batch subscriptions in one tenant-scoped transaction', async () => {
@@ -128,7 +155,11 @@ describe('KD GYM staging reminder seed', () => {
 			maxWait: 30_000,
 		});
 		expect(prisma.organizationMember.findMany).toHaveBeenCalledWith({
-			where: { organizationId: KD_GYM_ORGANIZATION_ID, isSynthetic: true, syntheticBatchId: EXPECTED_GENERATION_SEED },
+			where: {
+				organizationId: KD_GYM_ORGANIZATION_ID,
+				isSynthetic: true,
+				syntheticBatchId: EXPECTED_GENERATION_SEED,
+			},
 			select: { id: true },
 		});
 		expect(prisma.organizationMemberReminderDelivery.createMany).toHaveBeenCalledTimes(1);
@@ -145,8 +176,12 @@ describe('KD GYM staging reminder seed', () => {
 
 	it('rejects partial and colliding data instead of silently skipping', async () => {
 		const expected = generateHistoricalReminders(SUBSCRIPTIONS, INSERTED_AT);
-		await expect(seedStagingReminders(makePrisma({ existing: expected.slice(1) }), INSERTED_AT)).rejects.toThrow(/complete deterministic/u);
-		await expect(seedStagingReminders(makePrisma({ collision: true }), INSERTED_AT)).rejects.toThrow(/deterministic reminder identity/u);
+		await expect(
+			seedStagingReminders(makePrisma({ existing: expected.slice(1) }), INSERTED_AT),
+		).rejects.toThrow(/complete deterministic/u);
+		await expect(
+			seedStagingReminders(makePrisma({ collision: true }), INSERTED_AT),
+		).rejects.toThrow(/deterministic reminder identity/u);
 	});
 
 	it('rolls back the complete batch when an insert fails', async () => {
@@ -156,21 +191,35 @@ describe('KD GYM staging reminder seed', () => {
 	});
 
 	it('refuses a wrong database, organization, synthetic count, or unsafe synthetic member', async () => {
-		await expect(seedStagingReminders(makePrisma({ databaseName: 'other' }), INSERTED_AT)).rejects.toThrow(/neondb/u);
-		await expect(seedStagingReminders(makePrisma({ organizationName: 'Other gym' }), INSERTED_AT)).rejects.toThrow(/KD GYM/u);
-		await expect(seedStagingReminders(makePrisma({ memberCount: 822 }), INSERTED_AT)).rejects.toThrow(/exact 823-member/u);
-		await expect(seedStagingReminders(makePrisma({ unsafeMember: true }), INSERTED_AT)).rejects.toThrow(/email-less, suppressed/u);
+		await expect(
+			seedStagingReminders(makePrisma({ databaseName: 'other' }), INSERTED_AT),
+		).rejects.toThrow(/neondb/u);
+		await expect(
+			seedStagingReminders(makePrisma({ organizationName: 'Other gym' }), INSERTED_AT),
+		).rejects.toThrow(/KD GYM/u);
+		await expect(
+			seedStagingReminders(makePrisma({ memberCount: 822 }), INSERTED_AT),
+		).rejects.toThrow(/exact 823-member/u);
+		await expect(
+			seedStagingReminders(makePrisma({ unsafeMember: true }), INSERTED_AT),
+		).rejects.toThrow(/email-less, suppressed/u);
 	});
 
 	it('reports actual stored rows, zero sends, preserved original reminders, and month distribution', () => {
 		const reminders = generateHistoricalReminders(SUBSCRIPTIONS, INSERTED_AT);
-		const summary = makeReminderSummary({
-			status: 'INSERTED',
-			insertedCount: reminders.length,
-			originalReminderCount: 7,
-			totalOrganizationReminders: reminders.length + 7,
-			eligibleSubscriptionIds: [...new Set(reminders.map(({ memberSubscriptionId }) => memberSubscriptionId))],
-		}, SUBSCRIPTIONS, reminders);
+		const summary = makeReminderSummary(
+			{
+				status: 'INSERTED',
+				insertedCount: reminders.length,
+				originalReminderCount: 7,
+				totalOrganizationReminders: reminders.length + 7,
+				eligibleSubscriptionIds: [
+					...new Set(reminders.map(({ memberSubscriptionId }) => memberSubscriptionId)),
+				],
+			},
+			SUBSCRIPTIONS,
+			reminders,
+		);
 		expect(summary).toMatchObject({
 			database: 'neondb',
 			organization: 'KD GYM',
@@ -181,7 +230,12 @@ describe('KD GYM staging reminder seed', () => {
 			originalReminderRecordsPreserved: 7,
 			transactionStatus: 'INSERTED',
 		});
-		expect(Object.values(summary.monthlyReminderDistribution as Record<string, number>).reduce((sum, count) => sum + count, 0)).toBe(reminders.length);
+		expect(
+			Object.values(summary.monthlyReminderDistribution as Record<string, number>).reduce(
+				(sum, count) => sum + count,
+				0,
+			),
+		).toBe(reminders.length);
 	});
 });
 
@@ -211,7 +265,12 @@ function makeSubscription(id: string, joinedOn: string, start: string, end: stri
 function makeSubscriptions(count: number) {
 	return Array.from({ length: count }, (_, index) => {
 		const monthDay = String((index % 26) + 1).padStart(2, '0');
-		return makeSubscription(`subscription-${index}`, '2026-08-01', `2026-10-${monthDay}`, `2026-11-${monthDay}`);
+		return makeSubscription(
+			`subscription-${String(index)}`,
+			'2026-08-01',
+			`2026-10-${monthDay}`,
+			`2026-11-${monthDay}`,
+		);
 	});
 }
 
@@ -234,47 +293,136 @@ function makePrisma({
 } = {}) {
 	let rollback = false;
 	let inserted: Record<string, unknown>[] = [];
-	const queryRaw = jest.fn<(strings: TemplateStringsArray, ...values: unknown[]) => Promise<unknown[]>>().mockImplementation(async (strings) => {
-		const query = strings.join(' ');
-		if (query.includes('current_database')) return [{ databaseName }];
-		return Object.entries({
-			organizations: ['id', 'name'],
-			organization_members: ['id', 'organization_id', 'is_synthetic', 'synthetic_batch_id', 'joined_on', 'email', 'reminder_email_suppressed_at', 'reminder_email_suppression_reason', 'reminder_sms_suppressed_at', 'reminder_sms_suppression_reason'],
-			organization_member_subscriptions: ['id', 'organization_id', 'member_id', 'start_date', 'end_date', 'cancelled_at'],
-			organization_member_reminder_deliveries: ['id', 'organization_id', 'member_id', 'member_subscription_id', 'kind', 'channel', 'status', 'due_date', 'recipient_email', 'message_subject', 'message_body', 'attempt_count', 'next_attempt_at', 'lease_expires_at', 'provider_idempotency_key', 'provider_message_id', 'last_error_code', 'accepted_at', 'delivered_at', 'created_at', 'updated_at'],
-			organization_payment_allocations: ['organization_id', 'member_id', 'member_subscription_id'],
-			organization_payments: ['organization_id', 'id', 'status'],
-		}).flatMap(([table_name, columns]) => (columns as string[]).map((column_name) => ({ table_name, column_name })));
-	});
+	const queryRaw = jest
+		.fn<(strings: TemplateStringsArray, ...values: unknown[]) => Promise<unknown[]>>()
+		.mockImplementation((strings) => {
+			const query = strings.join(' ');
+			if (query.includes('current_database')) return Promise.resolve([{ databaseName }]);
+			return Promise.resolve(
+				Object.entries({
+					organizations: ['id', 'name'],
+					organization_members: [
+						'id',
+						'organization_id',
+						'is_synthetic',
+						'synthetic_batch_id',
+						'joined_on',
+						'email',
+						'reminder_email_suppressed_at',
+						'reminder_email_suppression_reason',
+						'reminder_sms_suppressed_at',
+						'reminder_sms_suppression_reason',
+					],
+					organization_member_subscriptions: [
+						'id',
+						'organization_id',
+						'member_id',
+						'start_date',
+						'end_date',
+						'cancelled_at',
+					],
+					organization_member_reminder_deliveries: [
+						'id',
+						'organization_id',
+						'member_id',
+						'member_subscription_id',
+						'kind',
+						'channel',
+						'status',
+						'due_date',
+						'recipient_email',
+						'message_subject',
+						'message_body',
+						'attempt_count',
+						'next_attempt_at',
+						'lease_expires_at',
+						'provider_idempotency_key',
+						'provider_message_id',
+						'last_error_code',
+						'accepted_at',
+						'delivered_at',
+						'created_at',
+						'updated_at',
+					],
+					organization_payment_allocations: [
+						'organization_id',
+						'member_id',
+						'member_subscription_id',
+					],
+					organization_payments: ['organization_id', 'id', 'status'],
+				}).flatMap(([table_name, columns]) =>
+					columns.map((column_name) => ({ table_name, column_name })),
+				),
+			);
+		});
 	let countCalls = 0;
 	const organizationMemberReminderDelivery = {
-		count: jest.fn<(args: unknown) => Promise<number>>().mockImplementation(async () => {
+		count: jest.fn<(args: unknown) => Promise<number>>().mockImplementation(() => {
 			countCalls += 1;
-			if (countCalls === 1) return existing.length + 7;
-			if (countCalls === 2) return 7;
-			return inserted.length + 7;
+			if (countCalls === 1) return Promise.resolve(existing.length + 7);
+			if (countCalls === 2) return Promise.resolve(7);
+			return Promise.resolve(inserted.length + 7);
 		}),
-		findMany: jest.fn<(args: unknown) => Promise<unknown[]>>()
+		findMany: jest
+			.fn<(args: unknown) => Promise<unknown[]>>()
 			.mockResolvedValueOnce([...existing])
 			.mockResolvedValueOnce(collision ? [{ id: 'collision' }] : [])
-			.mockImplementation(async () => inserted),
-		createMany: jest.fn<(args: { data: Record<string, unknown>[]; skipDuplicates: boolean }) => Promise<{ count: number }>>()
-			.mockImplementation(async ({ data }) => {
-				if (failInsert) throw new Error('simulated insert failure');
+			.mockImplementation(() => Promise.resolve(inserted)),
+		createMany: jest
+			.fn<
+				(args: {
+					data: Record<string, unknown>[];
+					skipDuplicates: boolean;
+				}) => Promise<{ count: number }>
+			>()
+			.mockImplementation(({ data }) => {
+				if (failInsert) return Promise.reject(new Error('simulated insert failure'));
 				inserted = [...data];
-				return { count: data.length };
+				return Promise.resolve({ count: data.length });
 			}),
 	};
 	const transaction = {
 		$queryRaw: queryRaw,
-		organization: { findUnique: jest.fn<(args: unknown) => Promise<{ id: string; name: string }>>().mockResolvedValue({ id: KD_GYM_ORGANIZATION_ID, name: organizationName }) },
-		organizationMember: { findMany: jest.fn<(args: unknown) => Promise<{ id: string }[]>>().mockResolvedValue(Array.from({ length: memberCount }, (_, index) => ({ id: `member-${index}` }))) },
-		organizationMemberSubscription: { findMany: jest.fn<(args: unknown) => Promise<Record<string, unknown>[]>>().mockResolvedValue(unsafeMember ? [{ ...FIRST_SUBSCRIPTION, member: { ...FIRST_SUBSCRIPTION.member, email: 'real@example.invalid' } }] : SUBSCRIPTIONS) },
+		organization: {
+			findUnique: jest
+				.fn<(args: unknown) => Promise<{ id: string; name: string }>>()
+				.mockResolvedValue({ id: KD_GYM_ORGANIZATION_ID, name: organizationName }),
+		},
+		organizationMember: {
+			findMany: jest
+				.fn<(args: unknown) => Promise<{ id: string }[]>>()
+				.mockResolvedValue(
+					Array.from({ length: memberCount }, (_, index) => ({ id: `member-${String(index)}` })),
+				),
+		},
+		organizationMemberSubscription: {
+			findMany: jest.fn<(args: unknown) => Promise<Record<string, unknown>[]>>().mockResolvedValue(
+				unsafeMember
+					? [
+							{
+								...FIRST_SUBSCRIPTION,
+								member: { ...FIRST_SUBSCRIPTION.member, email: 'real@example.invalid' },
+							},
+						]
+					: SUBSCRIPTIONS,
+			),
+		},
 		organizationMemberReminderDelivery,
 	};
-	const $transaction = jest.fn<(operation: (value: typeof transaction) => Promise<unknown>, options: Record<string, unknown>) => Promise<unknown>>()
+	const $transaction = jest
+		.fn<
+			(
+				operation: (value: typeof transaction) => Promise<unknown>,
+				options: Record<string, unknown>,
+			) => Promise<unknown>
+		>()
 		.mockImplementation(async (operation) => {
-			try { return await operation(transaction); } catch (error) { rollback = true; throw error; }
+			try {
+				return await operation(transaction);
+			} catch (error) {
+				rollback = true;
+				throw error;
+			}
 		});
 	return {
 		$transaction,
