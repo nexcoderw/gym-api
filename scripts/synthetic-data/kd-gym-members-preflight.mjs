@@ -296,7 +296,7 @@ export function resolveDatabaseTarget(arguments_, environment = process.env) {
 	) {
 		throw new PreflightConfigurationError(
 			'PRODUCTION_DATABASE_MARKER_REQUIRED',
-			'Set the independently provisioned production database marker; a hostname alone cannot distinguish staging from production.',
+			'Use the independently provisioned production database marker; hostnames alone cannot distinguish targets.',
 		);
 	}
 	if (
@@ -305,7 +305,7 @@ export function resolveDatabaseTarget(arguments_, environment = process.env) {
 	) {
 		throw new PreflightConfigurationError(
 			'PREFLIGHT_DATABASE_URL_REQUIRED',
-			'Set a non-empty PREFLIGHT_DATABASE_URL. If referencing KD_GYM_PREFLIGHT_DATABASE_URL, export that variable first; .env files and DATABASE_URL are not read.',
+			'Set PREFLIGHT_DATABASE_URL; export KD_GYM_PREFLIGHT_DATABASE_URL first. The script does not read .env files.',
 		);
 	}
 	let connection;
@@ -875,7 +875,7 @@ function assertInspectionInputs(target, members, datasetReport, approval) {
 	) {
 		throw new PreflightConfigurationError(
 			'FIXTURE_VALIDATION_FAILED',
-			'Refusing database inspection because fixtures do not match the approved organization or uniqueness rules.',
+			'Refusing inspection because fixtures violate organization or uniqueness rules.',
 		);
 	}
 	if (
@@ -1053,7 +1053,9 @@ function makeMonthlyTargets(monthlyBreakdown) {
 			generatedFemale: female,
 			reservedExistingUnknown,
 			expectedTotal: male + female + reservedExistingUnknown,
-			malePercentage: Number(((male / (male + female + reservedExistingUnknown)) * 100).toFixed(2)),
+			malePercentage: Number(
+				((male / (male + female + reservedExistingUnknown)) * 100).toFixed(2),
+			),
 			manifestMatches:
 				existing?.male === male &&
 				existing?.female === female &&
