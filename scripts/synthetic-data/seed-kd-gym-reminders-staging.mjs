@@ -93,6 +93,10 @@ const REMINDER_SELECT = Object.freeze({
 	updatedAt: true,
 });
 
+const REMINDER_IDENTITY_FIELDS = Object.freeze(
+	Object.keys(REMINDER_SELECT).filter((field) => field !== 'createdAt' && field !== 'updatedAt'),
+);
+
 /** Selects historical occasions by subscription expiry; deterministic across reruns. */
 export function generateHistoricalReminders(subscriptions, insertedAt) {
 	const planned = [];
@@ -151,7 +155,13 @@ export function assertReminderBatchMatches(actual, expected) {
 	const actualById = new Map(actual.map((row) => [row.id, row]));
 	for (const fixture of expected) {
 		const stored = actualById.get(fixture.id);
-		if (stored === undefined || !fieldsMatch(stored, fixture, Object.keys(REMINDER_SELECT))) {
+		if (
+			stored === undefined ||
+			!fieldsMatch(stored, fixture, REMINDER_IDENTITY_FIELDS) ||
+			!(stored.createdAt instanceof Date) ||
+			!(stored.updatedAt instanceof Date) ||
+			stored.updatedAt < stored.createdAt
+		) {
 			throw new StagingSeedError(
 				'REMINDER_BATCH_MISMATCH',
 				'Existing KD GYM reminder rows do not match the complete deterministic synthetic batch.',
