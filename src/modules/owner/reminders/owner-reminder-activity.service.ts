@@ -24,6 +24,7 @@ import {
 	UpcomingReminderQueryDto,
 	type UpcomingReminderResponseDto,
 } from './dto/reminder-activity.dto.js';
+import { memberMayReceiveEmailReminder } from './member-reminder-policy.js';
 
 const VISIBLE_STATUSES = [
 	ReminderStatus.ACCEPTED,
@@ -53,7 +54,7 @@ export class OwnerReminderActivityService {
 				gte: new Date(`${today}T00:00:00.000Z`),
 				lte: new Date(`${end}T00:00:00.000Z`),
 			},
-			member: { is: { archivedAt: null } },
+			member: { is: { archivedAt: null, isSynthetic: false } },
 			...(query.search === undefined
 				? {}
 				: {
@@ -82,6 +83,7 @@ export class OwnerReminderActivityService {
 					member: {
 						select: {
 							name: true,
+							isSynthetic: true,
 							email: true,
 							reminderEmailOptedOutAt: true,
 							reminderEmailSuppressedAt: true,
@@ -110,10 +112,7 @@ export class OwnerReminderActivityService {
 				endDate: row.endDate.toISOString().slice(0, 10),
 				daysRemaining: daysBetween(today, row.endDate.toISOString().slice(0, 10)),
 				canSend:
-					row.member.email !== null &&
-					row.member.email.trim() !== '' &&
-					row.member.reminderEmailOptedOutAt === null &&
-					row.member.reminderEmailSuppressedAt === null &&
+					memberMayReceiveEmailReminder(row.member) &&
 					row.reminderDeliveries.length === 0,
 				manualStatus: row.reminderDeliveries[0]?.status ?? null,
 			})),
@@ -130,7 +129,11 @@ export class OwnerReminderActivityService {
 		const today = memberToday(now);
 		const row = await this.prisma.organizationMemberSubscription
 			.findFirst({
-				where: { id: subscriptionId, organizationId },
+				where: {
+					id: subscriptionId,
+					organizationId,
+					member: { is: { isSynthetic: false } },
+				},
 				select: {
 					id: true,
 					memberId: true,
@@ -139,6 +142,7 @@ export class OwnerReminderActivityService {
 					cancelledAt: true,
 					member: {
 						select: {
+							isSynthetic: true,
 							email: true,
 							archivedAt: true,
 							reminderEmailOptedOutAt: true,
@@ -155,8 +159,7 @@ export class OwnerReminderActivityService {
 		if (
 			row.cancelledAt !== null ||
 			row.member.archivedAt !== null ||
-			row.member.reminderEmailOptedOutAt !== null ||
-			row.member.reminderEmailSuppressedAt !== null ||
+			!memberMayReceiveEmailReminder(row.member) ||
 			email === undefined ||
 			email === '' ||
 			row.startDate.toISOString().slice(0, 10) > today ||
