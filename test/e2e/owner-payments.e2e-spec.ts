@@ -231,6 +231,24 @@ describe('owner payments HTTP security', () => {
 			{ limit: 24, order: PaymentOrder.NEWEST, search: 'soho' },
 		);
 		await ownerRequest('get', `${ROOT}?search=so`).expect(400);
+		const firstPlan = '77777777-7777-4777-8777-777777777777';
+		const secondPlan = '88888888-8888-4888-8888-888888888888';
+		await ownerRequest(
+			'get',
+			`${ROOT}?membershipPlanIds=${firstPlan},${secondPlan}&cursor=${PAYMENT_ID}`,
+		).expect(200);
+		expect(list).toHaveBeenLastCalledWith(
+			expect.objectContaining({ organizationId: ORGANIZATION_ID }),
+			{
+				limit: 24,
+				order: PaymentOrder.NEWEST,
+				membershipPlanIds: [firstPlan, secondPlan],
+				cursor: PAYMENT_ID,
+			},
+		);
+		await ownerRequest('get', `${ROOT}?membershipPlanIds=${firstPlan},invalid`).expect(400);
+		await ownerRequest('get', `${ROOT}?membershipPlanIds=${firstPlan},${firstPlan}`).expect(400);
+		await ownerRequest('get', `${ROOT}?membershipPlanIds=`).expect(400);
 		await ownerRequest('post', ROOT).send(INPUT).expect(400);
 		await ownerRequest('post', `${ROOT}/${PAYMENT_ID}/voids`)
 			.send({ reason: 'Incorrect entry' })
