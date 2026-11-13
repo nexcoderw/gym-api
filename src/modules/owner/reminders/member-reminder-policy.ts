@@ -1,5 +1,5 @@
 export interface MemberEmailReminderState {
-	readonly isSynthetic: boolean;
+	readonly isSynthetic: boolean | null;
 	readonly email: string | null;
 	readonly reminderEmailOptedOutAt: Date | null;
 	readonly reminderEmailSuppressedAt: Date | null;
@@ -18,6 +18,8 @@ export function memberMayReceiveEmailReminder(
 		email !== undefined &&
 		email.length > 0 &&
 		(recipient === undefined ||
-			(recipient.trim().length > 0 && email.toLowerCase() === recipient.trim().toLowerCase()))
+			(recipient !== null &&
+				recipient.trim().length > 0 &&
+				email.toLowerCase() === recipient.trim().toLowerCase()))
 	);
 }
