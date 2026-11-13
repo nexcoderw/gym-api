@@ -126,9 +126,9 @@ describe('KD GYM production member import safeguards', () => {
 	});
 
 	it.each(['', 'wrong-seed', 'x'.repeat(121)])('rejects invalid batch identifiers: %s', (batch) => {
-		expect(() => buildMemberInsertData([{ ...fixture(), generationBatch: batch }], new Date())).toThrow(
-			/synthetic batch ID/u,
-		);
+		expect(() => {
+			buildMemberInsertData([{ ...fixture(), generationBatch: batch }], new Date());
+		}).toThrow(/synthetic batch ID/u);
 	});
 
 	it('verifies every inserted fixture and rejects altered suppression or joining data', () => {
@@ -139,15 +139,19 @@ describe('KD GYM production member import safeguards', () => {
 			joinedOn: '2026-10-18',
 		}));
 		const inserted = buildMemberInsertData(fixtures, insertedAt);
-		expect(() => assertImportedMembersMatchFixtures(inserted, fixtures, insertedAt)).not.toThrow();
+		expect(() => {
+			assertImportedMembersMatchFixtures(inserted, fixtures, insertedAt);
+		}).not.toThrow();
 		const changed = [...inserted];
-		changed[0] = { ...changed[0]!, reminderSmsSuppressedAt: null };
-		expect(() => assertImportedMembersMatchFixtures(changed, fixtures, insertedAt)).toThrow(
-			/verification failed/u,
-		);
+		const first = changed[0];
+		if (first === undefined) throw new Error('Missing inserted fixture.');
+		changed[0] = { ...first, reminderSmsSuppressedAt: null };
+		expect(() => {
+			assertImportedMembersMatchFixtures(changed, fixtures, insertedAt);
+		}).toThrow(/verification failed/u);
 	});
 
-	it('rejects apply before transaction when the application safeguard version is not approved', async () => {
+	it('rejects apply before transaction without an approved safeguard version', async () => {
 		const transaction = jest.fn();
 		const members = Array.from({ length: 823 }, (_, index) => ({
 			...fixture(),
