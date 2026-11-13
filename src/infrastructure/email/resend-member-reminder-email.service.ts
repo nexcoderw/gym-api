@@ -8,7 +8,10 @@ export type MemberReminderProviderOutcome =
 	| {
 			readonly kind: 'rejected';
 			readonly code:
-				'PROVIDER_RATE_LIMITED' | 'PROVIDER_REJECTED' | 'DELIVERY_CONFIGURATION_CHANGED';
+				| 'PROVIDER_RATE_LIMITED'
+				| 'PROVIDER_REJECTED'
+				| 'DELIVERY_CONFIGURATION_CHANGED'
+				| 'MEMBER_NOTIFICATION_SUPPRESSED';
 			readonly retryable: boolean;
 	  }
 	| {
@@ -18,6 +21,12 @@ export type MemberReminderProviderOutcome =
 
 export interface MemberReminderEmail {
 	readonly recipient: string;
+	readonly member: {
+		readonly isSynthetic: boolean;
+		readonly email: string | null;
+		readonly reminderEmailOptedOutAt: Date | null;
+		readonly reminderEmailSuppressedAt: Date | null;
+	};
 	readonly organizationName: string;
 	readonly subject: string;
 	readonly body: string;
@@ -30,6 +39,17 @@ export class ResendMemberReminderEmailService {
 
 	/** One submission only; transport exceptions are ambiguous and must not be retried here. */
 	async send(input: MemberReminderEmail): Promise<MemberReminderProviderOutcome> {
+		const email = input.member.email?.trim();
+		if (
+			input.member.isSynthetic !== false ||
+			input.member.reminderEmailOptedOutAt !== null ||
+			input.member.reminderEmailSuppressedAt !== null ||
+			email === undefined ||
+			email.length === 0 ||
+			email.toLowerCase() !== input.recipient.trim().toLowerCase()
+		) {
+			return { kind: 'rejected', code: 'MEMBER_NOTIFICATION_SUPPRESSED', retryable: false };
+		}
 		const key = this.config.get('RESEND_API_KEY', { infer: true });
 		const sender = this.config.get('MEMBER_REMINDER_FROM_EMAIL', { infer: true });
 		const organizationName = safeDisplayName(input.organizationName);
