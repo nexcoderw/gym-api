@@ -19,11 +19,11 @@ import {
 const CREATED_AT = new Date('2026-11-13T10:00:00.000Z');
 const USER_ID = '4b7bdfbf-1e84-4d12-9fe1-9bf2049fa2e1';
 const PLANS = [
-	{ id: 'plan-daily', name: 'Daily', priceRwf: 500n },
-	{ id: 'plan-basic', name: 'Basic', priceRwf: 12000n },
-	{ id: 'plan-student', name: 'Student', priceRwf: 9000n },
-	{ id: 'plan-plus', name: 'Plus', priceRwf: 20000n },
-	{ id: 'plan-premium', name: 'Premium', priceRwf: 30000n },
+	{ id: 'plan-daily', name: 'Daily Plan', normalizedName: 'daily plan', priceRwf: 500n },
+	{ id: 'plan-basic', name: 'Basic Plan', normalizedName: 'basic plan', priceRwf: 12000n },
+	{ id: 'plan-student', name: 'Student Plan', normalizedName: 'student plan', priceRwf: 9000n },
+	{ id: 'plan-plus', name: 'Plus Plan', normalizedName: 'plus plan', priceRwf: 20000n },
+	{ id: 'plan-premium', name: 'Premium Plan', normalizedName: 'premium plan', priceRwf: 30000n },
 ];
 
 function makeMembers() {
@@ -83,8 +83,13 @@ describe('KD GYM staging subscription seed', () => {
 			assertNoSubscriptionOverlap(first);
 		}).not.toThrow();
 		expect(new Set(first.map(({ planName }) => planName))).toEqual(
-			new Set(PLANS.map(({ name }) => name)),
+			new Set(['Daily', 'Basic', 'Student', 'Plus', 'Premium']),
 		);
+		expect(
+			first.every(({ data }) =>
+				PLANS.some((plan) => plan.name === data.planName && plan.id === data.membershipPlanId),
+			),
+		).toBe(true);
 		expect(new Set(first.map(({ episode }) => episode)).size).toBeGreaterThan(1);
 		const hasRenewalGap = members.some((member) => {
 			const episodes = first
@@ -209,7 +214,7 @@ function makePrisma(
 		...['id', 'organization_id', 'is_synthetic', 'synthetic_batch_id', 'joined_on'].map(
 			(column): [string, string] => ['organization_members', column],
 		),
-		...['id', 'organization_id', 'name', 'price_rwf', 'archived_at'].map(
+		...['id', 'organization_id', 'name', 'normalized_name', 'price_rwf', 'archived_at'].map(
 			(column): [string, string] => ['organization_membership_plans', column],
 		),
 		...[
