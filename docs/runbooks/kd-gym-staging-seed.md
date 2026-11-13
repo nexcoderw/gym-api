@@ -25,16 +25,16 @@ The expected successful summary is:
 
 ```json
 {
-  "database": "neondb",
-  "organization": "KD GYM",
-  "existingMembersPreserved": 1,
-  "syntheticMembersInserted": 823,
-  "totalMembers": 824,
-  "maleSyntheticMembers": 709,
-  "femaleSyntheticMembers": 114,
-  "earliestJoiningDate": "2025-10-18",
-  "latestJoiningDate": "2026-11-12",
-  "transactionStatus": "INSERTED"
+	"database": "neondb",
+	"organization": "KD GYM",
+	"existingMembersPreserved": 1,
+	"syntheticMembersInserted": 823,
+	"totalMembers": 824,
+	"maleSyntheticMembers": 709,
+	"femaleSyntheticMembers": 114,
+	"earliestJoiningDate": "2025-10-18",
+	"latestJoiningDate": "2026-11-12",
+	"transactionStatus": "INSERTED"
 }
 ```
 

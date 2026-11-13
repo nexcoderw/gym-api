@@ -149,9 +149,7 @@ export function calculateSubscriptionPeriod(start, periodUnit, periodCount) {
 	} else {
 		const day = boundary.getUTCDate();
 		boundary.setUTCDate(1);
-		boundary.setUTCMonth(
-			boundary.getUTCMonth() + periodCount * (periodUnit === 'YEARS' ? 12 : 1),
-		);
+		boundary.setUTCMonth(boundary.getUTCMonth() + periodCount * (periodUnit === 'YEARS' ? 12 : 1));
 		const lastDay = new Date(Date.UTC(boundary.getUTCFullYear(), boundary.getUTCMonth() + 1, 0));
 		boundary.setUTCDate(Math.min(day, lastDay.getUTCDate()));
 	}
@@ -244,9 +242,10 @@ export function generateHistoricalSubscriptions(members, plans, createdByUserId,
 			});
 
 			if (endDate >= cutoffText || randomFraction(member.id, 'renewal', episode) >= 0.78) break;
-			const gapDays = randomFraction(member.id, 'gap', episode) < 0.24
-				? 2 + Math.floor(randomFraction(member.id, 'gap-length', episode) * 29)
-				: 0;
+			const gapDays =
+				randomFraction(member.id, 'gap', episode) < 0.24
+					? 2 + Math.floor(randomFraction(member.id, 'gap-length', episode) * 29)
+					: 0;
 			startText = addDays(endDate, 1 + gapDays);
 		}
 	}
@@ -572,8 +571,7 @@ function assertPlanSet(plans) {
 		new Set(planCategories).size !== EXPECTED_PLAN_NAMES.length ||
 		!EXPECTED_PLAN_NAMES.every((name) => planCategories.includes(name)) ||
 		plans.some(
-			({ id, priceRwf }) =>
-				typeof id !== 'string' || typeof priceRwf !== 'bigint' || priceRwf < 0n,
+			({ id, priceRwf }) => typeof id !== 'string' || typeof priceRwf !== 'bigint' || priceRwf < 0n,
 		)
 	) {
 		throw new StagingSeedError(

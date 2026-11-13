@@ -488,11 +488,7 @@ export async function seedStagingPayments(prisma, onWriteStart = () => {}) {
 					'The database did not provide a valid insertion timestamp.',
 				);
 			}
-			const planned = generateHistoricalPayments(
-				subscriptions,
-				recordedByUserId,
-				actualInsertedAt,
-			);
+			const planned = generateHistoricalPayments(subscriptions, recordedByUserId, actualInsertedAt);
 			const memberIds = [...new Set(subscriptions.map(({ memberId }) => memberId))];
 			const paymentCountBefore = await transaction.organizationPayment.count({
 				where: { organizationId: KD_GYM_ORGANIZATION_ID },
@@ -538,10 +534,7 @@ export async function seedStagingPayments(prisma, onWriteStart = () => {}) {
 			const allocationRows = planned.map(({ allocation }) => allocation);
 			const auditRows = planned.map(({ auditEvent }) => auditEvent);
 			if (planned.length > 0) onWriteStart();
-			const paymentCount = await createInChunks(
-				transaction.organizationPayment,
-				paymentRows,
-			);
+			const paymentCount = await createInChunks(transaction.organizationPayment, paymentRows);
 			const allocationCount = await createInChunks(
 				transaction.organizationPaymentAllocation,
 				allocationRows,
@@ -887,10 +880,9 @@ async function main(arguments_) {
 		DATABASE_POOL_MAX: '1',
 	});
 	stage = 'database_startup';
-	const application = await NestFactory.createApplicationContext(
-		DatabaseModule.forRoot(config),
-		{ logger: false },
-	);
+	const application = await NestFactory.createApplicationContext(DatabaseModule.forRoot(config), {
+		logger: false,
+	});
 	try {
 		stage = 'payment_transaction';
 		const result = await seedStagingPayments(application.get(PrismaService), () => {

@@ -113,9 +113,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
 				? error.code
 				: `STAGING_${currentStage.toUpperCase()}_FAILED`;
 		const failureMessage =
-			error instanceof StagingSeedError
-				? error.message
-				: stageFailureMessage(currentStage);
+			error instanceof StagingSeedError ? error.message : stageFailureMessage(currentStage);
 		const databaseErrorCode = getSafeDatabaseErrorCode(error);
 		process.stderr.write(
 			`${JSON.stringify({
