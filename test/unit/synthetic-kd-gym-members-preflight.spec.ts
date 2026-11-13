@@ -180,9 +180,9 @@ describe('offline KD GYM historical member preflight', () => {
 	describe('explicit read-only database preflight controls', () => {
 		it('requires an explicitly selected and identity-matched database target', () => {
 			expect(() => resolveDatabaseTarget([], DATABASE_ENV)).toThrow(/explicit/u);
-			expect(() => resolveDatabaseTarget(['--database-target', 'development'], DATABASE_ENV)).toThrow(
-				/production target/u,
-			);
+			expect(() =>
+				resolveDatabaseTarget(['--database-target', 'development'], DATABASE_ENV),
+			).toThrow(/production target/u);
 			expect(() =>
 				resolveDatabaseTarget(['--database-target', 'production'], {
 					PREFLIGHT_DATABASE_TARGET: 'production',
@@ -194,9 +194,12 @@ describe('offline KD GYM historical member preflight', () => {
 					PREFLIGHT_DATABASE_URL: '   ',
 				}),
 			).toThrow(/non-empty PREFLIGHT_DATABASE_URL/u);
-			expect(() => resolveDatabaseTarget([
-				'--database-target', 'production', '--allow-production-read-only',
-			], DATABASE_ENV)).not.toThrow();
+			expect(() =>
+				resolveDatabaseTarget(
+					['--database-target', 'production', '--allow-production-read-only'],
+					DATABASE_ENV,
+				),
+			).not.toThrow();
 		});
 
 		it('rejects accidental production selection without two independent confirmations', () => {
@@ -231,17 +234,33 @@ describe('offline KD GYM historical member preflight', () => {
 				operator: 'test operator',
 				approvedAt: '2020-01-01T10:00:00.000Z',
 			};
-			expect(() => validateProductionApprovalArtifact(artifact, DATASET_REPORT.manifestSha256)).not.toThrow();
+			expect(() =>
+				validateProductionApprovalArtifact(artifact, DATASET_REPORT.manifestSha256),
+			).not.toThrow();
 			expect(() => validateProductionApprovalArtifact(artifact, 'b'.repeat(64))).toThrow();
-			expect(() => validateProductionApprovalArtifact({
-				...artifact,
-				historicalBusinessStartDateAttestation: { date: '2025-10-18', operatorAttested: false },
-			}, DATASET_REPORT.manifestSha256)).toThrow();
+			expect(() =>
+				validateProductionApprovalArtifact(
+					{
+						...artifact,
+						historicalBusinessStartDateAttestation: {
+							date: '2025-10-18',
+							operatorAttested: false,
+						},
+					},
+					DATASET_REPORT.manifestSha256,
+				),
+			).toThrow();
 		});
 
 		it('blocks readiness when the organization is missing', async () => {
 			const { prisma } = mockPrisma({ organizationExists: false });
-			const report = await inspectDatabase(prisma, DATABASE_TARGET, fixtureIds(), DATASET_REPORT, APPROVAL);
+			const report = await inspectDatabase(
+				prisma,
+				DATABASE_TARGET,
+				fixtureIds(),
+				DATASET_REPORT,
+				APPROVAL,
+			);
 			expect(report.organizationExists).toBe(false);
 			expect(report.blockers).toContain('ORGANIZATION_NOT_FOUND');
 			expect(report.safeToProceedToSeparatelyApprovedImport).toBe(false);
@@ -249,7 +268,13 @@ describe('offline KD GYM historical member preflight', () => {
 
 		it('blocks incompatible schema without querying members missing required columns', async () => {
 			const { prisma, transaction } = mockPrisma({ missingJoinedOnColumn: true });
-			const report = await inspectDatabase(prisma, DATABASE_TARGET, fixtureIds(), DATASET_REPORT, APPROVAL);
+			const report = await inspectDatabase(
+				prisma,
+				DATABASE_TARGET,
+				fixtureIds(),
+				DATASET_REPORT,
+				APPROVAL,
+			);
 			expect(report.schemaChecks.joinedOnColumn).toBe(false);
 			expect(report.safeToProceedToSeparatelyApprovedImport).toBe(false);
 			expect(transaction.organizationMember.count).not.toHaveBeenCalled();
@@ -257,7 +282,13 @@ describe('offline KD GYM historical member preflight', () => {
 
 		it('blocks readiness when required database migrations are not recorded as applied', async () => {
 			const { prisma, transaction } = mockPrisma({ missingMigration: true });
-			const report = await inspectDatabase(prisma, DATABASE_TARGET, fixtureIds(), DATASET_REPORT, APPROVAL);
+			const report = await inspectDatabase(
+				prisma,
+				DATABASE_TARGET,
+				fixtureIds(),
+				DATASET_REPORT,
+				APPROVAL,
+			);
 			expect(report.schemaChecks.joinedOnMigrationApplied).toBe(false);
 			expect(report.safeToProceedToSeparatelyApprovedImport).toBe(false);
 			expect(transaction.organizationMember.count).not.toHaveBeenCalled();
@@ -265,7 +296,13 @@ describe('offline KD GYM historical member preflight', () => {
 
 		it('blocks readiness when the existing member count differs from baseline', async () => {
 			const { prisma } = mockPrisma({ existingMemberCount: 2 });
-			const report = await inspectDatabase(prisma, DATABASE_TARGET, fixtureIds(), DATASET_REPORT, APPROVAL);
+			const report = await inspectDatabase(
+				prisma,
+				DATABASE_TARGET,
+				fixtureIds(),
+				DATASET_REPORT,
+				APPROVAL,
+			);
 			expect(report.existingMemberCount).toBe(2);
 			expect(report.blockers).toContain('UNEXPECTED_EXISTING_MEMBER_COUNT');
 			expect(report.safeToProceedToSeparatelyApprovedImport).toBe(false);
@@ -278,7 +315,13 @@ describe('offline KD GYM historical member preflight', () => {
 				phoneCollision: 1,
 				matchingFixture: 1,
 			});
-			const report = await inspectDatabase(prisma, DATABASE_TARGET, fixtureIds(), DATASET_REPORT, APPROVAL);
+			const report = await inspectDatabase(
+				prisma,
+				DATABASE_TARGET,
+				fixtureIds(),
+				DATASET_REPORT,
+				APPROVAL,
+			);
 			expect(report.collisions).toMatchObject({
 				memberId: 1,
 				normalizedName: 1,
@@ -296,7 +339,13 @@ describe('offline KD GYM historical member preflight', () => {
 
 		it('enforces PostgreSQL read-only mode and never calls write APIs', async () => {
 			const { prisma, events, transaction } = mockPrisma();
-			const report = await inspectDatabase(prisma, DATABASE_TARGET, fixtureIds(), DATASET_REPORT, APPROVAL);
+			const report = await inspectDatabase(
+				prisma,
+				DATABASE_TARGET,
+				fixtureIds(),
+				DATASET_REPORT,
+				APPROVAL,
+			);
 			expect(events[0]).toBe('set:SET TRANSACTION READ ONLY');
 			expect(transaction.$executeRaw).toHaveBeenCalledTimes(1);
 			expect(transaction.$executeRaw.mock.calls[0]?.[0].join('').trim()).toBe(
@@ -314,17 +363,29 @@ describe('offline KD GYM historical member preflight', () => {
 		it('refuses all database access when local dataset validation failed', async () => {
 			const { prisma } = mockPrisma();
 			await expect(
-				inspectDatabase(prisma, DATABASE_TARGET, fixtureIds(), {
-					...DATASET_REPORT,
-					valid: false,
-				}, APPROVAL),
+				inspectDatabase(
+					prisma,
+					DATABASE_TARGET,
+					fixtureIds(),
+					{
+						...DATASET_REPORT,
+						valid: false,
+					},
+					APPROVAL,
+				),
 			).rejects.toThrow(/fixtures do not match/u);
 			expect(prisma.$transaction).not.toHaveBeenCalled();
 		});
 
 		it('reports the operator-attested business start date without deriving it from organization dates', async () => {
 			const { prisma } = mockPrisma();
-			const report = await inspectDatabase(prisma, DATABASE_TARGET, fixtureIds(), DATASET_REPORT, APPROVAL);
+			const report = await inspectDatabase(
+				prisma,
+				DATABASE_TARGET,
+				fixtureIds(),
+				DATASET_REPORT,
+				APPROVAL,
+			);
 			expect(report.businessStartDateAttestationVerified).toBe(true);
 			expect(report.organizationBusinessStartDate).toBe('2025-10-18');
 		});
@@ -445,7 +506,9 @@ function mockPrisma(
 			]);
 		}
 		if (sql.includes('FROM public.organizations')) {
-			return Promise.resolve(options.organizationExists === false ? [] : [{ id: KD_GYM_ORGANIZATION_ID }]);
+			return Promise.resolve(
+				options.organizationExists === false ? [] : [{ id: KD_GYM_ORGANIZATION_ID }],
+			);
 		}
 		if (sql.includes('information_schema.columns')) {
 			return Promise.resolve([
