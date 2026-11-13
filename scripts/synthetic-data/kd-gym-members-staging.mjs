@@ -6,7 +6,10 @@ import {
 	KD_GYM_ORGANIZATION_ID,
 	validateFixtureFiles,
 } from './kd-gym-members-preflight.mjs';
-import { buildMemberInsertData, runSerializableImportTransaction } from './kd-gym-members-import.mjs';
+import {
+	buildMemberInsertData,
+	runSerializableImportTransaction,
+} from './kd-gym-members-import.mjs';
 
 const REQUIRED_COLUMNS = Object.freeze({
 	organizations: ['id', 'name'],
@@ -68,7 +71,9 @@ export function loadStagingFixtures(directory) {
 	return fixture;
 }
 
-/** Inserts the complete fixture batch in one serializable transaction, or reports an exact rerun. */
+/**
+ * Inserts the complete fixture batch in one serializable transaction, or reports an exact rerun.
+ */
 export async function seedStagingMembers(
 	prisma,
 	members,
