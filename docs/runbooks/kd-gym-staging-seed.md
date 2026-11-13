@@ -16,6 +16,8 @@ node --env-file=.env.local scripts/synthetic-data/seed-kd-gym-staging.mjs --appl
 The explicit `--apply` flag is required. The script uses the standard `@nexcoderw/gym-db`
 configuration, validates the fixture set, then performs schema, organization, baseline, batch, and
 collision checks inside one serializable transaction. All 823 inserts roll back together on failure.
+The staging transaction may wait up to 30 seconds for Prisma to acquire a transaction before it
+fails, to tolerate startup latency from the managed staging database.
 An exact already-imported batch is reported without inserting duplicates; partial batches and ID,
 normalized-name, or phone collisions stop the transaction.
 
