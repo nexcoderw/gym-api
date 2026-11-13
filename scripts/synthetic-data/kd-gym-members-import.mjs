@@ -1,5 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import {
+	OrganizationMemberEmailSuppressionReason,
+	OrganizationMemberSmsSuppressionReason,
+} from '@nexcoderw/gym-db';
+import {
 	closeSync,
 	constants as fsConstants,
 	fchmodSync,
@@ -14,11 +18,12 @@ import { join } from 'node:path';
 import {
 	EXPECTED_DATE_RANGE,
 	EXPECTED_FINAL_MEMBER_COUNT,
+	EXPECTED_GENERATION_SEED,
+	APPLICATION_NOTIFICATION_PROTECTION_VERSION,
 	EXPECTED_PRODUCTION_DATABASE_HOST,
 	EXPECTED_PRODUCTION_DATABASE_NAME,
 	KD_GYM_ORGANIZATION_ID,
 	PRODUCTION_APPROVAL_DIRECTORY,
-	SMS_NOTIFICATION_SUPPRESSION_SUPPORTED,
 	inspectDatabaseTransaction,
 } from './kd-gym-members-preflight.mjs';
 
@@ -43,16 +48,18 @@ export async function applyHistoricalMembers(
 		!backup?.reference ||
 		!backup?.verifiedBy ||
 		!approval.authorizationConfirmed ||
+		!approval.approvalReference ||
+		!approval.authorizedBy ||
+		!approval.operator ||
 		!approval.syntheticRecordsAcknowledged ||
-		!approval.notificationSuppressionVerification?.verified
+		!approval.notificationSuppressionVerification?.verified ||
+		!approval.notificationSuppressionVerification.emailSuppression ||
+		!approval.notificationSuppressionVerification.smsSuppression ||
+		approval.notificationSuppressionVerification.applicationProtectionVersion !==
+			APPLICATION_NOTIFICATION_PROTECTION_VERSION
 	) {
 		throw new Error(
 			'Fresh validated fixtures, production approval and backup attestation are required.',
-		);
-	}
-	if (!SMS_NOTIFICATION_SUPPRESSION_SUPPORTED) {
-		throw new Error(
-			'APPLY is blocked until durable database-backed SMS suppression is available for synthetic members.',
 		);
 	}
 	const manifestPath = join(
@@ -67,6 +74,7 @@ export async function applyHistoricalMembers(
 			host: EXPECTED_PRODUCTION_DATABASE_HOST,
 			name: EXPECTED_PRODUCTION_DATABASE_NAME,
 		},
+		syntheticBatchId: EXPECTED_GENERATION_SEED,
 		dateRange: EXPECTED_DATE_RANGE,
 		datasetManifestSha256: datasetReport.manifestSha256,
 		approvalReference: approval.approvalReference,
@@ -106,17 +114,31 @@ export async function applyHistoricalMembers(
 					'Post-insert organization member total did not match the approved baseline.',
 				);
 			}
-			const verified = await transaction.organizationMember.count({
+			const insertedMembers = await transaction.organizationMember.findMany({
 				where: {
 					organizationId: KD_GYM_ORGANIZATION_ID,
 					id: { in: members.map(({ id }) => id) },
-					reminderEmailSuppressionReason: 'MANUAL',
-					reminderEmailSuppressedAt: insertedAt,
+				},
+				select: {
+					id: true,
+					organizationId: true,
+					isSynthetic: true,
+					syntheticBatchId: true,
+					name: true,
+					normalizedName: true,
+					phoneNumber: true,
+					gender: true,
+					joinedOn: true,
+					email: true,
+					createdAt: true,
+					updatedAt: true,
+					reminderEmailSuppressedAt: true,
+					reminderEmailSuppressionReason: true,
+					reminderSmsSuppressedAt: true,
+					reminderSmsSuppressionReason: true,
 				},
 			});
-			if (verified !== 823) {
-				throw new Error('Inserted synthetic member verification failed.');
-			}
+			assertImportedMembersMatchFixtures(insertedMembers, members, insertedAt);
 			return { insertedCount: insertion.count, finalMemberCount: finalCount };
 		});
 		const committed = {
@@ -140,6 +162,14 @@ export function buildMemberInsertData(members, insertedAt) {
 		if (member.organizationId !== KD_GYM_ORGANIZATION_ID || member.synthetic !== true) {
 			throw new Error('Fixture organization or synthetic marker did not match the approved scope.');
 		}
+		if (
+			typeof member.generationBatch !== 'string' ||
+			member.generationBatch !== EXPECTED_GENERATION_SEED ||
+			member.generationBatch.trim().length === 0 ||
+			member.generationBatch.length > 120
+		) {
+			throw new Error('Fixture synthetic batch ID does not match the approved nonempty batch.');
+		}
 		return {
 			id: member.id,
 			organizationId: KD_GYM_ORGANIZATION_ID,
@@ -149,12 +179,47 @@ export function buildMemberInsertData(members, insertedAt) {
 			email: null,
 			gender: member.gender,
 			joinedOn: new Date(`${member.joinedOn}T00:00:00.000Z`),
+			isSynthetic: true,
+			syntheticBatchId: member.generationBatch,
 			createdAt: insertedAt,
 			updatedAt: insertedAt,
 			reminderEmailSuppressedAt: insertedAt,
-			reminderEmailSuppressionReason: 'MANUAL',
+			reminderEmailSuppressionReason: OrganizationMemberEmailSuppressionReason.MANUAL,
+			reminderSmsSuppressedAt: insertedAt,
+			reminderSmsSuppressionReason: OrganizationMemberSmsSuppressionReason.MANUAL,
 		};
 	});
+}
+
+export function assertImportedMembersMatchFixtures(insertedMembers, members, insertedAt) {
+	if (insertedMembers.length !== members.length || members.length !== 823) {
+		throw new Error('Inserted synthetic member verification failed.');
+	}
+	const expectedById = new Map(members.map((member) => [member.id, member]));
+	for (const inserted of insertedMembers) {
+		const fixture = expectedById.get(inserted.id);
+		if (
+			fixture === undefined ||
+			inserted.organizationId !== KD_GYM_ORGANIZATION_ID ||
+			inserted.isSynthetic !== true ||
+			inserted.syntheticBatchId !== EXPECTED_GENERATION_SEED ||
+			inserted.name !== fixture.name ||
+			inserted.normalizedName !== fixture.normalizedName ||
+			inserted.phoneNumber !== fixture.phoneNumber ||
+			inserted.gender !== fixture.gender ||
+			inserted.joinedOn?.toISOString().slice(0, 10) !== fixture.joinedOn ||
+			inserted.email !== null ||
+			inserted.createdAt.getTime() !== insertedAt.getTime() ||
+			inserted.updatedAt.getTime() !== insertedAt.getTime() ||
+			inserted.reminderEmailSuppressedAt?.getTime() !== insertedAt.getTime() ||
+			inserted.reminderEmailSuppressionReason !==
+				OrganizationMemberEmailSuppressionReason.MANUAL ||
+			inserted.reminderSmsSuppressedAt?.getTime() !== insertedAt.getTime() ||
+			inserted.reminderSmsSuppressionReason !== OrganizationMemberSmsSuppressionReason.MANUAL
+		) {
+			throw new Error('Inserted synthetic member verification failed.');
+		}
+	}
 }
 
 export function runSerializableImportTransaction(prisma, operation) {
