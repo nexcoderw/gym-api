@@ -82,7 +82,7 @@ export async function seedStagingMembers(
 			'The KD GYM staging seed requires exactly 823 validated fixture members.',
 		);
 	}
-	return runSerializableImportTransaction(prisma, async (transaction) => {
+	const operation = async (transaction) => {
 		onStage('schema_check');
 		await assertRequiredSchema(transaction);
 		onStage('organization_check');
@@ -194,7 +194,8 @@ export async function seedStagingMembers(
 			);
 		}
 		return { status: 'INSERTED', insertedCount: insertion.count, totalCount };
-	});
+	};
+	return runSerializableImportTransaction(prisma, operation, { maxWait: 30_000 });
 }
 
 export function assertBatchMatchesFixtures(rows, members, insertedAt) {
