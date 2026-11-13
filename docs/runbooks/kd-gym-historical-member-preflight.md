@@ -1,7 +1,11 @@
 # KD GYM production historical member import
 
 This runbook is specific to KD GYM organization `f6e417be-b93e-40ef-b028-d9d03666e69f` in
-production database `neondb` on the approved Neon endpoint. The historical dataset covers
+production database `neondb` on the approved Neon endpoint. The user has identified a `neondb`
+database on that endpoint as staging. That staging target must not be used for this production-only
+workflow. Hostname and database name alone cannot distinguish those environments; the preflight
+also verifies the database's provisioned comment marker against an independently sourced production
+marker. The historical dataset covers
 2025-10-18 through 2026-11-12. It expects one existing member, 823 generated members, and 824 total
 after import. The existing member is never updated and its gender or joining date is never inferred.
 
@@ -24,41 +28,19 @@ First generate and validate the deterministic fixture set, then capture the SHA-
 each artifact with mode 0600. Never commit, upload to source control, or include credentials in
 either artifact.
 
-`production-approval.json` must have this shape and exact values (replace the checksum, reference,
-operator and timestamp with approved values):
+`production-approval.json` must follow the schema in
+[`production-approval.template.json`](../../scripts/synthetic-data/production-approval.template.json).
+The template is intentionally unapproved: empty strings and `false` flags must be replaced only
+with details supplied by the authorized approver/operator. Its database marker must come from the
+approved production configuration, never the staging database configuration.
 
-```json
-{
-	"version": 1,
-	"organizationId": "f6e417be-b93e-40ef-b028-d9d03666e69f",
-	"productionDatabase": {
-		"host": "ep-rapid-violet-b4txcgks-pooler.c-6.us-east-2.aws.neon.tech",
-		"name": "neondb"
-	},
-	"historicalBusinessStartDateAttestation": {
-		"date": "2025-10-18",
-		"operatorAttested": true
-	},
-	"dateRange": {
-		"from": "2025-10-18",
-		"to": "2026-11-12",
-		"timezone": "Africa/Kigali"
-	},
-	"datasetManifestSha256": "<64-character-sha256>",
-	"expectedExistingMemberCount": 1,
-	"expectedGeneratedMemberCount": 823,
-	"expectedFinalMemberCount": 824,
-	"syntheticRecordsAcknowledged": true,
-	"approvalReference": "<approved-reference>",
-	"operator": "<operator-name>",
-	"approvedAt": "<ISO-8601-timestamp>"
-}
-```
+Copy the template file to `scripts/synthetic-data/private/production-approval.json`. Leave its
+false flags and empty approval fields untouched until the authorized approver and operator provide
+the real values. The loader rejects the untouched template.
 
-For a future apply, `production-backup-attestation.json` must independently record `version: 1`,
-the exact same `productionDatabase`, `backupVerified: true`, a durable `backupReference`,
-`verifiedBy`, and ISO-8601 `verifiedAt`. The tool verifies the format and database identity; the
-human operator is responsible for verifying the backup itself and approval authority.
+The checksum, approval, backup verification and suppression verification are required. The
+notification fields are attestations only; the program also independently checks technical
+suppression support and still blocks APPLY when SMS suppression is unavailable.
 
 ## Step-by-step: where to run the commands
 
@@ -95,12 +77,15 @@ was not inspected and must not be assumed to identify the approved production ta
    offline report. Do not put a database URL or password in the artifact.
 
 4. In the same zsh terminal, read the approved production URL without echoing it or saving it in
-   shell history. Get it from the protected production secrets source and confirm its host:
+   shell history. Get it from the protected production secrets source. Obtain the database marker
+   from the separately approved production configuration, not the staging configuration:
 
    ```zsh
    read -s 'KD_GYM_PREFLIGHT_DATABASE_URL?Paste the approved production PostgreSQL URL: '
    print
    export KD_GYM_PREFLIGHT_DATABASE_URL
+   read 'KD_GYM_PRODUCTION_DATABASE_MARKER?Enter the approved production database marker: '
+   export KD_GYM_PRODUCTION_DATABASE_MARKER
    if [[ -n "$KD_GYM_PREFLIGHT_DATABASE_URL" ]]; then
      print 'Production URL loaded into this shell.'
    else
@@ -112,8 +97,9 @@ was not inspected and must not be assumed to identify the approved production ta
    If the terminal closes, load the secret again. Do not copy a value from `api/db/.env.local`
    without independently confirming that it is the approved production URL.
 
-5. Run the read-only preflight below. It should get past the missing-URL error; the SMS suppression
-   blocker will still prevent readiness.
+5. Run the read-only preflight below. It verifies the actual database comment marker, so a staging
+   database is rejected even if its host and database name match. SMS suppression still blocks
+   readiness.
 
 6. Run the dry run below. It will report `plannedInsertCount: 0` while that blocker remains.
 
@@ -133,17 +119,18 @@ phones, monthly distributions and all dataset/manifest hashes. It reports aggreg
 
 ## Read-only production preflight
 
-Load the dedicated `PREFLIGHT_DATABASE_URL` from the protected secrets source into the shell. Do
-not put production credentials in `.env.local`, commit them, or rely on `DATABASE_URL`. Set both
-identity expectations explicitly. The command refuses any non-production target, different host,
-or database. It verifies the approval artifact, organization, exact member baseline, migration and
-column history, fixture collisions, and final count within a read-only transaction.
+Load the dedicated `PREFLIGHT_DATABASE_URL` from the protected production secrets source. Do not
+put production credentials in `.env.local`, commit them, or rely on `DATABASE_URL`. Supply the
+approved production database marker separately. The read-only transaction compares the actual
+PostgreSQL database comment to that marker and the marker in the approval artifact, then checks the
+organization, baseline, migrations, columns, collisions, and expected final count.
 
 ```bash
 PREFLIGHT_DATABASE_TARGET=production \
 PREFLIGHT_DATABASE_URL="$KD_GYM_PREFLIGHT_DATABASE_URL" \
 PREFLIGHT_EXPECTED_DATABASE_HOST=ep-rapid-violet-b4txcgks-pooler.c-6.us-east-2.aws.neon.tech \
 PREFLIGHT_EXPECTED_DATABASE_NAME=neondb \
+PREFLIGHT_EXPECTED_DATABASE_MARKER="$KD_GYM_PRODUCTION_DATABASE_MARKER" \
 PREFLIGHT_PRODUCTION_READ_ONLY_CONFIRMATION=KD-GYM-READ-ONLY-PREFLIGHT \
 node scripts/synthetic-data/preflight-kd-gym-members.mjs \
   --database-target production --allow-production-read-only
@@ -155,15 +142,16 @@ failed preflight is a hard stop; do not change fixture data or baseline to get a
 
 ## Production dry run
 
-The import CLI defaults to DRY RUN, always performs the production preflight, and reports aggregate
-validation, blockers and the planned insert count. It performs no write and does not require the
-backup attestation:
+The import CLI defaults to DRY RUN, validates the approval artifact and its backup/notification
+attestations, and runs the production preflight. It reports aggregate validation, blockers and the
+planned insert count without writing to the database:
 
 ```bash
 PREFLIGHT_DATABASE_TARGET=production \
 PREFLIGHT_DATABASE_URL="$KD_GYM_PREFLIGHT_DATABASE_URL" \
 PREFLIGHT_EXPECTED_DATABASE_HOST=ep-rapid-violet-b4txcgks-pooler.c-6.us-east-2.aws.neon.tech \
 PREFLIGHT_EXPECTED_DATABASE_NAME=neondb \
+PREFLIGHT_EXPECTED_DATABASE_MARKER="$KD_GYM_PRODUCTION_DATABASE_MARKER" \
 PREFLIGHT_PRODUCTION_READ_ONLY_CONFIRMATION=KD-GYM-READ-ONLY-PREFLIGHT \
 node scripts/synthetic-data/import-kd-gym-members.mjs --database-target production
 ```
@@ -202,6 +190,7 @@ PREFLIGHT_DATABASE_TARGET=production \
 PREFLIGHT_DATABASE_URL="$KD_GYM_PREFLIGHT_DATABASE_URL" \
 PREFLIGHT_EXPECTED_DATABASE_HOST=ep-rapid-violet-b4txcgks-pooler.c-6.us-east-2.aws.neon.tech \
 PREFLIGHT_EXPECTED_DATABASE_NAME=neondb \
+PREFLIGHT_EXPECTED_DATABASE_MARKER="$KD_GYM_PRODUCTION_DATABASE_MARKER" \
 PREFLIGHT_PRODUCTION_READ_ONLY_CONFIRMATION=KD-GYM-READ-ONLY-PREFLIGHT \
 node scripts/synthetic-data/import-kd-gym-members.mjs \
   --database-target production --apply \
