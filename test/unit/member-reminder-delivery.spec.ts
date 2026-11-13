@@ -137,23 +137,20 @@ describe('member reminder delivery', () => {
 		expect(send).not.toHaveBeenCalled();
 	});
 
-	it(
-		'marks already queued synthetic email reminders skipped without contacting the provider',
-		async () => {
-			findMany.mockResolvedValueOnce([]);
-			updateMany.mockResolvedValueOnce({ count: 0 }).mockResolvedValueOnce({ count: 1 });
-			expect(await service.runOnce(NOW)).toMatchObject({ skipped: 1, accepted: 0 });
-			expect(updateMany.mock.calls[1]?.[0]).toMatchObject({
-				where: {
-					kind: ReminderKind.MANUAL,
-					status: { in: [ReminderStatus.QUEUED, ReminderStatus.FAILED] },
-					member: { is: { isSynthetic: true } },
-				},
-				data: { status: ReminderStatus.SKIPPED, lastErrorCode: 'SYNTHETIC_MEMBER_BLOCKED' },
-			});
-			expect(send).not.toHaveBeenCalled();
-		},
-	);
+	it('marks already queued synthetic email reminders skipped without contacting the provider', async () => {
+		findMany.mockResolvedValueOnce([]);
+		updateMany.mockResolvedValueOnce({ count: 0 }).mockResolvedValueOnce({ count: 1 });
+		expect(await service.runOnce(NOW)).toMatchObject({ skipped: 1, accepted: 0 });
+		expect(updateMany.mock.calls[1]?.[0]).toMatchObject({
+			where: {
+				kind: ReminderKind.MANUAL,
+				status: { in: [ReminderStatus.QUEUED, ReminderStatus.FAILED] },
+				member: { is: { isSynthetic: true } },
+			},
+			data: { status: ReminderStatus.SKIPPED, lastErrorCode: 'SYNTHETIC_MEMBER_BLOCKED' },
+		});
+		expect(send).not.toHaveBeenCalled();
+	});
 
 	it('delivers a queued manual reminder while still in the 14-day window', async () => {
 		findFirst.mockResolvedValueOnce({
