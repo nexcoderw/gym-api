@@ -163,7 +163,12 @@ export class OwnerMembersService {
 		]);
 		return this.registration(context, key, fingerprint, async (transaction) => {
 			const member = await transaction.organizationMember.create({
-				data: { organizationId: context.organizationId, ...profile, joinedOn: memberJoinedOn() },
+				data: {
+					organizationId: context.organizationId,
+					...profile,
+					joinedOn: memberJoinedOn(),
+					isSynthetic: false,
+				},
 				select: MEMBER_SELECT,
 			});
 			const subscription = await registerMemberPlan(
