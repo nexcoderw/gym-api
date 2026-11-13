@@ -55,7 +55,10 @@ describe('member reminder delivery', () => {
 
 	beforeEach(async () => {
 		jest.resetAllMocks();
-		updateMany.mockResolvedValue({ count: 1 });
+		updateMany.mockImplementation((input) => {
+			const where = (input as { where?: { member?: unknown } }).where;
+			return Promise.resolve({ count: where?.member === undefined ? 1 : 0 });
+		});
 		findMany.mockResolvedValue([
 			{ id: ID, organizationId: ORGANIZATION_ID, status: ReminderStatus.QUEUED, attemptCount: 0 },
 		]);
@@ -134,20 +137,23 @@ describe('member reminder delivery', () => {
 		expect(send).not.toHaveBeenCalled();
 	});
 
-	it('marks already queued synthetic email reminders skipped without contacting the provider', async () => {
-		findMany.mockResolvedValueOnce([]);
-		updateMany.mockResolvedValueOnce({ count: 0 }).mockResolvedValueOnce({ count: 1 });
-		expect(await service.runOnce(NOW)).toMatchObject({ skipped: 1, accepted: 0 });
-		expect(updateMany.mock.calls[1]?.[0]).toMatchObject({
-			where: {
-				kind: ReminderKind.MANUAL,
-				status: { in: [ReminderStatus.QUEUED, ReminderStatus.FAILED] },
-				member: { is: { isSynthetic: true } },
-			},
-			data: { status: ReminderStatus.SKIPPED, lastErrorCode: 'SYNTHETIC_MEMBER_BLOCKED' },
-		});
-		expect(send).not.toHaveBeenCalled();
-	});
+	it(
+		'marks already queued synthetic email reminders skipped without contacting the provider',
+		async () => {
+			findMany.mockResolvedValueOnce([]);
+			updateMany.mockResolvedValueOnce({ count: 0 }).mockResolvedValueOnce({ count: 1 });
+			expect(await service.runOnce(NOW)).toMatchObject({ skipped: 1, accepted: 0 });
+			expect(updateMany.mock.calls[1]?.[0]).toMatchObject({
+				where: {
+					kind: ReminderKind.MANUAL,
+					status: { in: [ReminderStatus.QUEUED, ReminderStatus.FAILED] },
+					member: { is: { isSynthetic: true } },
+				},
+				data: { status: ReminderStatus.SKIPPED, lastErrorCode: 'SYNTHETIC_MEMBER_BLOCKED' },
+			});
+			expect(send).not.toHaveBeenCalled();
+		},
+	);
 
 	it('delivers a queued manual reminder while still in the 14-day window', async () => {
 		findFirst.mockResolvedValueOnce({
@@ -176,7 +182,10 @@ describe('member reminder delivery', () => {
 			change: { member: { ...row.member, isSynthetic: true } },
 		},
 		{ label: 'opted out', change: { member: { ...row.member, reminderEmailOptedOutAt: NOW } } },
-		{ label: 'email suppressed', change: { member: { ...row.member, reminderEmailSuppressedAt: NOW } } },
+		{
+			label: 'email suppressed',
+			change: { member: { ...row.member, reminderEmailSuppressedAt: NOW } },
+		},
 		{ label: 'cancelled', change: { subscription: { ...row.subscription, cancelledAt: NOW } } },
 		{
 			label: 'suspended gym',
